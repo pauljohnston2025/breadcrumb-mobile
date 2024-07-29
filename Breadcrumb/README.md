@@ -9,3 +9,7 @@ This is a Kotlin Multiplatform project targeting Android.
 
 
 Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html)…
+
+
+Inspired by: https://andan67.github.io/wormnav/
+git: https://github.com/andan67/wormnav

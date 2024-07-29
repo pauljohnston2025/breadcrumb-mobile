@@ -1,3 +1,5 @@
+package com.paul.infrastructure.protocol
+
 import kotlin.math.max
 import kotlin.math.min
 
@@ -10,10 +12,12 @@ data class BoundingBox(
     val bottomRightLon: Double
 )
 
-class RouteHandler(private val connectIqHandler: ConnectIqHandler) {
+class Route(private val route: List<Point>) : Protocol {
+    override fun type(): ProtocolType {
+        return ProtocolType.PROTOCOL_ROUTE_DATA
+    }
 
-    @OptIn(ExperimentalUnsignedTypes::class)
-    suspend fun sendRoute(route: List<Point>): Unit {
+    override fun payload(): List<Any> {
         val data = mutableListOf<Any>()
 
         val boundingBox = findBoundingBox(route)
@@ -28,7 +32,7 @@ class RouteHandler(private val connectIqHandler: ConnectIqHandler) {
             data.add(point.altitude)
         }
 
-        connectIqHandler.send(Protocol.PROTOCOL_ROUTE_DATA, data)
+        return data
     }
 
     /**
