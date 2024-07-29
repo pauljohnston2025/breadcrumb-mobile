@@ -5,21 +5,29 @@ import androidx.lifecycle.viewModelScope
 import com.paul.infrastructure.connectiq.Connection
 import com.paul.infrastructure.protocol.Point
 import com.paul.infrastructure.protocol.Route
+import com.paul.infrastructure.utils.GpxFileLoader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 class StartViewModel(
     private val connection: Connection,
-    private val deviceSelector: DeviceSelector
+    private val deviceSelector: DeviceSelector,
+    private val gpxFileLoader: GpxFileLoader,
 ) : ViewModel() {
 
-    fun sendRoute() {
+    fun pickRoute() {
         viewModelScope.launch(Dispatchers.IO) {
             val device = deviceSelector.currentDevice()
-            if (device == null)
-            {
+            if (device == null) {
                 // todo make this a toast or something better for the user
                 println("no devices selected")
+                return@launch
+            }
+
+            try {
+                val file = gpxFileLoader.searchForGpxFile()
+            } catch (e: Exception) {
+                println("failed to find file")
                 return@launch
             }
 
