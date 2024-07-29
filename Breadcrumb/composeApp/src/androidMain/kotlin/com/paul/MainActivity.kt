@@ -19,7 +19,7 @@ import com.paul.ui.App
 
 class MainActivity : ComponentActivity() {
     val connection = Connection(this)
-    val gpxFileLoader = GpxFileLoader()
+    val gpxFileLoader = GpxFileLoader(this)
 
     // based on ActivityResultContracts.OpenDocument()
     val getContent =

@@ -29,6 +29,7 @@ androidx-constraintlayout = { group = "androidx.constraintlayout", name = "const
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activityCompose" }
 garmin-connectiq = { module = "com.garmin.connectiq:ciq-companion-app-sdk", version.ref = "connectiq" }
 androidx-navigation = {module = "org.jetbrains.androidx.navigation:navigation-compose", version.ref = "navigation"}
+gpx-parser = {module = "com.github.ticofab:android-gpx-parser", version = "2.3.1"}
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }
