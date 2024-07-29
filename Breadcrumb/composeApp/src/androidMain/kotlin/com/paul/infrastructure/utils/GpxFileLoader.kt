@@ -1,20 +1,22 @@
 package com.paul.infrastructure.utils
 
-import android.app.Activity.RESULT_OK
-import android.content.Intent
+import android.content.Context
 import android.net.Uri
 import androidx.activity.result.ActivityResultLauncher
-import androidx.activity.result.contract.ActivityResultContracts
+import io.ticofab.androidgpxparser.parser.GPXParser
+import io.ticofab.androidgpxparser.parser.domain.Gpx
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resumeWithException
 
-data class GpxFile @OptIn(ExperimentalUnsignedTypes::class) constructor(
+data class GpxFile(
     val name: String,
-    val data: UByteArray
+    val gpx: Gpx
 )
 
-class GpxFileLoader {
+class GpxFileLoader(private val context: Context) {
+
+    private var parser = GPXParser()
 
     private var getContentLauncher: ActivityResultLauncher<Array<String>>? =
         null
@@ -25,7 +27,6 @@ class GpxFileLoader {
         getContentLauncher = _getContentLauncher
     }
 
-    @OptIn(ExperimentalUnsignedTypes::class)
     suspend fun searchForGpxFile(): GpxFile {
         val uri = searchForGpxFileUri()
         return GpxFile(uri.toString(), loadFileContents(uri))
@@ -51,9 +52,11 @@ class GpxFileLoader {
         getContentLauncher!!.launch(arrayOf("*"))
     }
 
-    @OptIn(ExperimentalUnsignedTypes::class)
-    private suspend fun loadFileContents(uri: Uri): UByteArray {
-        return ubyteArrayOf()
+    private suspend fun loadFileContents(uri: Uri): Gpx {
+        // see TracksBrowserActivity.displayImportTracksDialog in wormnav
+        val stream = context.contentResolver.openInputStream(uri)
+        // need to close stream?
+        return parser.parse(stream)
     }
 
     fun fileLoaded(uri: Uri?) {
