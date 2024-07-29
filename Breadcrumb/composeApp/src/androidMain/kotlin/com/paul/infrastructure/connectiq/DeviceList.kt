@@ -39,6 +39,7 @@ class DeviceList(private val connection: Connection) {
     }
 
     private suspend fun loadDevicesLoop() {
+        // battery performance of calling this in a tight loop?
         coroutineScope {
             if (job == null) {
                 job = launch {
@@ -52,7 +53,7 @@ class DeviceList(private val connection: Connection) {
     }
 
     private suspend fun loadDevices() {
-        println("loadDevices")
+//        println("loadDevices")
         val connectIQ = connection.getInstance()
         try {
             // cleanup from old run
@@ -69,7 +70,7 @@ class DeviceList(private val connection: Connection) {
             // need to call getStatus()
             for (device in deviceList) {
                 connectIQ.registerForDeviceEvents(device, mDeviceEventListener)
-                println("device: ${device.friendlyName} status: ${device.status.name}")
+//                println("device: ${device.friendlyName} status: ${device.status.name}")
             }
             deviceListFlow.emit(deviceList)
         } catch (e: InvalidStateException) {

@@ -47,6 +47,9 @@ class DeviceSelector(private val navController: NavHostController, connection: C
 
         // wait for selectDevice to unlock the lock
         // these locks are really bad, need a better way to do this
+        // get the lock thats already held by the 'selectDevice'
+        selectDeviceLock.lock()
+        selectDeviceLock.unlock() // release it immediately, its served its purpose
         getDeviceMutex.unlock()
         return currentDevice
     }
