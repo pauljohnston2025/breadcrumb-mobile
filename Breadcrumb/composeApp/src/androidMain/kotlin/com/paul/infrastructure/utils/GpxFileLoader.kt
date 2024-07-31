@@ -3,6 +3,9 @@ package com.paul.infrastructure.utils
 import android.content.Context
 import android.net.Uri
 import androidx.activity.result.ActivityResultLauncher
+import androidx.compose.material.SnackbarHostState
+import com.paul.infrastructure.protocol.Point
+import com.paul.infrastructure.protocol.Route
 import io.ticofab.androidgpxparser.parser.GPXParser
 import io.ticofab.androidgpxparser.parser.domain.Gpx
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -12,7 +15,52 @@ import kotlin.coroutines.resumeWithException
 data class GpxFile(
     val name: String,
     val gpx: Gpx
-)
+) {
+    suspend fun toRoute(snackbarHostState: SnackbarHostState): Route? {
+        // will need to figure out best way to parse different files
+        // for example it looks like its a track
+        if (gpx.tracks.size < 1) {
+            println("failed to get track")
+            return null
+        }
+
+        val track = gpx.tracks[0]
+        println("loading points for ${track.trackName}")
+        if (track.trackSegments.size < 1) {
+            snackbarHostState.showSnackbar("failed to get segments")
+            return null
+        }
+
+        val segment = track.trackSegments[0]
+
+        val routePoints = mutableListOf<Point>()
+        // too figure out the max size we can have
+        // for now use 1000
+        // from connectIq internals ConnectIQ.sendMessage if (data.length > 16384 ...
+        // MonkeyDouble is 9 bytes, MonkeyFloat is 5 bytes , though if its small enough error they send as float
+        // so 1000 is probably fine (since each point is double|double|float (15 to 23 bytes each))
+        // should probably condense this down (possibly send the rectangular coordinate)
+        var nthPoint = Math.ceil(segment.trackPoints.size / 500.0).toInt()
+        if (nthPoint == 0) {
+            // get all if less than 1000
+            // should never happen now we are doing ceil()
+            nthPoint = 1
+        }
+        for (i in 1 until segment.trackPoints.size step nthPoint) {
+            val trackPoint = segment.trackPoints[i]
+            routePoints.add(
+                Point(
+                    trackPoint.latitude.toFloat(),
+                    trackPoint.longitude.toFloat(),
+                    trackPoint.elevation.toFloat()
+                )
+            )
+        }
+
+        return Route(routePoints)
+    }
+}
+
 
 class GpxFileLoader(private val context: Context) {
 

@@ -1,5 +1,8 @@
 package com.paul.ui
 
+import androidx.compose.material.Scaffold
+import androidx.compose.material.SnackbarHost
+import androidx.compose.material.SnackbarHostState
 import androidx.compose.runtime.*
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
@@ -20,21 +23,36 @@ fun App(
     navController: NavHostController = rememberNavController()
 ) {
     val deviceSelector = viewModel { DeviceSelector(navController, connection) }
+    val snackbarHostState = remember { SnackbarHostState() }
 
-    NavHost(
-        navController = navController,
-        startDestination = Screens.Start.name,
-    ) {
-        composable(route = Screens.Start.name) {
-            Start(
-                startViewModel = viewModel { StartViewModel(connection, deviceSelector, gpxFileLoader) },
-                deviceSelector = deviceSelector,
-            )
-        }
-        composable(route = Screens.DeviceSelector.name) {
-            DeviceSelector(
-                deviceSelector = deviceSelector,
-            )
+    Scaffold(
+        snackbarHost = {
+            SnackbarHost(hostState = snackbarHostState)
+        },
+    ) { _ ->
+
+        NavHost(
+            navController = navController,
+            startDestination = Screens.Start.name,
+        ) {
+            composable(route = Screens.Start.name) {
+                Start(
+                    startViewModel = viewModel {
+                        StartViewModel(
+                            connection,
+                            deviceSelector,
+                            gpxFileLoader,
+                            snackbarHostState
+                        )
+                    },
+                    deviceSelector = deviceSelector,
+                )
+            }
+            composable(route = Screens.DeviceSelector.name) {
+                DeviceSelector(
+                    deviceSelector = deviceSelector,
+                )
+            }
         }
     }
 }
