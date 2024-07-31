@@ -1,5 +1,6 @@
 package com.paul.viewmodels
 
+import androidx.compose.material.SnackbarHostState
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.paul.infrastructure.connectiq.Connection
@@ -14,6 +15,7 @@ class StartViewModel(
     private val connection: Connection,
     private val deviceSelector: DeviceSelector,
     private val gpxFileLoader: GpxFileLoader,
+    private val snackbarHostState: SnackbarHostState
 ) : ViewModel() {
 
     fun pickRoute() {
@@ -21,50 +23,23 @@ class StartViewModel(
             val device = deviceSelector.currentDevice()
             if (device == null) {
                 // todo make this a toast or something better for the user
-                println("no devices selected")
+                snackbarHostState.showSnackbar("no devices selected")
                 return@launch
             }
 
-            var file: GpxFile?
+            val file: GpxFile
             try {
                 file = gpxFileLoader.searchForGpxFile()
             } catch (e: Exception) {
-                println("failed to find file")
+                snackbarHostState.showSnackbar("Failed to find file (invalid or no selection)")
                 return@launch
             }
 
-            // will need to figure out best way to parse different files
-            // for example it looks like its a track
-            if (file.gpx.tracks.size < 1) {
-                println("failed to get track")
+            val route = file.toRoute(snackbarHostState)
+            if (route == null) {
+                snackbarHostState.showSnackbar("Failed to convert to route")
                 return@launch
             }
-
-            val track = file.gpx.tracks[0]
-            println("loading points for ${track.trackName}")
-            if (track.trackSegments.size < 1) {
-                println("failed to get segments")
-                return@launch
-            }
-
-            val segment = track.trackSegments[0]
-
-            val routePoints = mutableListOf<Point>()
-            // too figure out the max size we can have
-            // for now use 1000
-            val nthPoint = segment.trackPoints.size / 1000
-            for (i in 1 until segment.trackPoints.size step nthPoint) {
-                val trackPoint = segment.trackPoints[i]
-                routePoints.add(
-                    Point(
-                        trackPoint.latitude,
-                        trackPoint.longitude,
-                        trackPoint.elevation.toFloat()
-                    )
-                )
-            }
-
-            val route = Route(routePoints)
 
 //            val route = Route(
 //                listOf(
