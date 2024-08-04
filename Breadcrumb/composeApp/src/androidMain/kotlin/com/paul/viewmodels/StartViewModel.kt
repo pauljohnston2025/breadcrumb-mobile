@@ -32,6 +32,7 @@ class StartViewModel(
 
     val sendingFile: MutableState<Boolean> = mutableStateOf(false)
     val loadingMessage: MutableState<String> = mutableStateOf(initialErrorMessage ?: "")
+    val htmlMessage: MutableState<String> = mutableStateOf(initialErrorMessage ?: "")
 
     init {
         if (initialSend != null) {
@@ -101,7 +102,18 @@ class StartViewModel(
 
             val (contentType, gpxInputStream) = loaded
             if (!contentType.contains("application/gpx+xml")) {
-                snackbarHostState.showSnackbar("Bad content type, trying anyway: ${contentType}")
+                snackbarHostState.showSnackbar("Bad content type: ${contentType}")
+                if(contentType.contains("text/html"))
+                {
+                    viewModelScope.launch(Dispatchers.Main) {
+                        htmlMessage.value = gpxInputStream.readAllBytes().decodeToString()
+                    }
+                    return@launch
+                }
+                viewModelScope.launch(Dispatchers.Main) {
+                    loadingMessage.value = gpxInputStream.readAllBytes().decodeToString()
+                }
+                return@launch
             }
 
             viewModelScope.launch(Dispatchers.Main) {

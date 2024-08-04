@@ -1,5 +1,6 @@
 package com.paul.ui
 
+import android.widget.TextView
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -27,6 +28,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.text.HtmlCompat
 import com.paul.viewmodels.DeviceSelector
 import com.paul.viewmodels.StartViewModel
 import kotlinx.coroutines.launch
@@ -45,6 +48,13 @@ fun Start(startViewModel: StartViewModel, deviceSelector: DeviceSelector) {
 
             AnimatedVisibility(startViewModel.loadingMessage.value != "") {
                 Text("Status: " + startViewModel.loadingMessage.value)
+            }
+
+            AnimatedVisibility(startViewModel.htmlMessage.value != "") {
+                AndroidView(
+                    factory = { context -> TextView(context) },
+                    update = { it.text = HtmlCompat.fromHtml(startViewModel.htmlMessage.value, HtmlCompat.FROM_HTML_MODE_COMPACT)}
+                )
             }
 
             Button(onClick = {
