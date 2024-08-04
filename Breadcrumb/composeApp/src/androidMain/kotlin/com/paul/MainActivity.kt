@@ -1,6 +1,5 @@
 package com.paul
 
-import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -8,16 +7,23 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContract
-import androidx.activity.result.contract.ActivityResultContract.SynchronousResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.CallSuper
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
 import com.paul.infrastructure.connectiq.Connection
 import com.paul.infrastructure.utils.GpxFileLoader
 import com.paul.ui.App
+import java.io.IOException
+import java.net.HttpURLConnection
+import java.net.Proxy
+import java.net.URL
+
 
 class MainActivity : ComponentActivity() {
+    companion object {
+        private const val GOOGLE_SHORT_URL_PREFIX = "To see this route visit"
+    }
+    
     val connection = Connection(this)
     val gpxFileLoader = GpxFileLoader(this)
 
@@ -50,8 +56,38 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        var shortGoogleUrl: String? = null
+        val toSend: Uri? = intent?.let {
+            when (it.action) {
+                Intent.ACTION_SEND -> {
+                    if (it.type == "text/plain") {
+                        // assume its a google maps route, deal with it
+                        // see https://stackoverflow.com/a/75021893
+                        shortGoogleUrl = it.extras?.getString("android.intent.extra.TEXT")
+                            ?.takeUnless { it.isBlank() }
+                            ?.split("\n")
+                            ?.lastOrNull()
+                            ?.takeIf { it.contains(GOOGLE_SHORT_URL_PREFIX) }
+                            ?.removePrefix(GOOGLE_SHORT_URL_PREFIX)
+
+                        return@let null
+                    }
+
+                    if (!it.data.toString().endsWith(".gpx")) {
+                        return@let null
+                    }
+
+                    it.data
+                }
+                Intent.ACTION_MAIN, Intent.ACTION_VIEW, Intent.ACTION_OPEN_DOCUMENT -> {
+                    it.data
+                }
+                else -> null
+            }
+        }
+
         setContent {
-            App(connection, gpxFileLoader)
+            App(connection, gpxFileLoader, toSend, shortGoogleUrl)
         }
     }
 }

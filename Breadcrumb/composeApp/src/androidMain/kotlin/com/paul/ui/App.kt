@@ -1,5 +1,6 @@
 package com.paul.ui
 
+import android.net.Uri
 import androidx.compose.material.Scaffold
 import androidx.compose.material.SnackbarHost
 import androidx.compose.material.SnackbarHostState
@@ -20,6 +21,8 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 fun App(
     connection: Connection,
     gpxFileLoader: GpxFileLoader,
+    toSend: Uri?,
+    shortGoogleUrl: String?,
     navController: NavHostController = rememberNavController()
 ) {
     val deviceSelector = viewModel { DeviceSelector(navController, connection) }
@@ -42,7 +45,9 @@ fun App(
                             connection,
                             deviceSelector,
                             gpxFileLoader,
-                            snackbarHostState
+                            snackbarHostState,
+                            toSend,
+                            shortGoogleUrl
                         )
                     },
                     deviceSelector = deviceSelector,
