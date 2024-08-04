@@ -10,6 +10,7 @@ import io.ticofab.androidgpxparser.parser.GPXParser
 import io.ticofab.androidgpxparser.parser.domain.Gpx
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.suspendCancellableCoroutine
+import java.io.InputStream
 import kotlin.coroutines.resumeWithException
 
 data class GpxFile(
@@ -52,7 +53,7 @@ data class GpxFile(
                 Point(
                     trackPoint.latitude.toFloat(),
                     trackPoint.longitude.toFloat(),
-                    trackPoint.elevation.toFloat()
+                    trackPoint.elevation?.toFloat().let { it ?: 0.0f }
                 )
             )
         }
@@ -78,6 +79,14 @@ class GpxFileLoader(private val context: Context) {
     suspend fun searchForGpxFile(): GpxFile {
         val uri = searchForGpxFileUri()
         return GpxFile(uri.toString(), loadFileContents(uri))
+    }
+
+    suspend fun loadGpxFile(uri: Uri): GpxFile {
+        return GpxFile(uri.toString(), loadFileContents(uri))
+    }
+
+    suspend fun loadGpxFromInputStream(stream: InputStream): GpxFile {
+        return GpxFile(stream.toString(), parser.parse(stream))
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
