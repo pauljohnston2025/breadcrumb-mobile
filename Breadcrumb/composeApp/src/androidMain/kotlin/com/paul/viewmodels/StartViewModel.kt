@@ -26,10 +26,12 @@ class StartViewModel(
     private val gpxFileLoader: GpxFileLoader,
     private val snackbarHostState: SnackbarHostState,
     initialSend: Uri?,
-    shortGoogleUrl: String?
+    shortGoogleUrl: String?,
+    initialErrorMessage: String?
 ) : ViewModel() {
 
     val sendingFile: MutableState<Boolean> = mutableStateOf(false)
+    val loadingMessage: MutableState<String> = mutableStateOf(initialErrorMessage ?: "")
 
     init {
         if (initialSend != null) {
@@ -56,25 +58,44 @@ class StartViewModel(
     }
 
     private fun loadInitialFile(initalFile: Uri) {
+        viewModelScope.launch(Dispatchers.Main) {
+            loadingMessage.value = "Parsing gpx input stream..."
+        }
         viewModelScope.launch(Dispatchers.IO) {
             val file: GpxFile
             try {
                 file = gpxFileLoader.loadGpxFile(initalFile)
             } catch (e: Exception) {
                 snackbarHostState.showSnackbar("Failed to load gpx file (possibly invalid format)")
+                clearLoadingMessage()
                 return@launch
             }
 
+            viewModelScope.launch(Dispatchers.Main) {
+                loadingMessage.value = "Sending..."
+            }
             sendFile(file)
+            clearLoadingMessage()
+        }
+    }
+
+    private fun clearLoadingMessage()
+    {
+        viewModelScope.launch(Dispatchers.Main) {
+            loadingMessage.value = ""
         }
     }
 
     private fun loadFromGoogle(shortGoogleUrl: String) {
         viewModelScope.launch(Dispatchers.IO) {
+            viewModelScope.launch(Dispatchers.Main) {
+                loadingMessage.value = "Loading google route from mapstogpx..."
+            }
             val loaded = loadFromMapsToGpx(shortGoogleUrl)
 
             if (loaded == null) {
                 snackbarHostState.showSnackbar("Failed to load from mapstogpx, consider using webpage directly")
+                clearLoadingMessage()
                 return@launch
             }
 
@@ -83,15 +104,23 @@ class StartViewModel(
                 snackbarHostState.showSnackbar("Bad content type, trying anyway: ${contentType}")
             }
 
+            viewModelScope.launch(Dispatchers.Main) {
+                loadingMessage.value = "Parsing gpx input stream..."
+            }
             val file: GpxFile
             try {
                 file = gpxFileLoader.loadGpxFromInputStream(gpxInputStream)
             } catch (e: Exception) {
                 snackbarHostState.showSnackbar("Failed to load gpx file (possibly invalid format)")
+                clearLoadingMessage()
                 return@launch
             }
 
+            viewModelScope.launch(Dispatchers.Main) {
+                loadingMessage.value = "Sending..."
+            }
             sendFile(file)
+            clearLoadingMessage()
         }
     }
 
@@ -128,7 +157,9 @@ class StartViewModel(
     }
 
     private suspend fun sendFile(file: GpxFile) {
-        sendingFile.value = true
+        viewModelScope.launch(Dispatchers.Main) {
+            sendingFile.value = true
+        }
         val device = deviceSelector.currentDevice()
         if (device == null) {
             // todo make this a toast or something better for the user
@@ -148,7 +179,9 @@ class StartViewModel(
             return
         }
         connection.send(device, route)
-        sendingFile.value = false
+        viewModelScope.launch(Dispatchers.Main) {
+            sendingFile.value = false
+        }
         snackbarHostState.showSnackbar("Route sent")
     }
 

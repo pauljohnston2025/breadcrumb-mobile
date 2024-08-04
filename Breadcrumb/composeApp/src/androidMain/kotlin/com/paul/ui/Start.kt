@@ -5,6 +5,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.Button
 import androidx.compose.material.Checkbox
 import androidx.compose.material.ExtendedFloatingActionButton
@@ -34,9 +36,15 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 @Preview
 fun Start(startViewModel: StartViewModel, deviceSelector: DeviceSelector) {
     MaterialTheme {
-        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally) {
             AnimatedVisibility(startViewModel.sendingFile.value) {
                 Text("Sending file...")
+            }
+
+            AnimatedVisibility(startViewModel.loadingMessage.value != "") {
+                Text("Status: " + startViewModel.loadingMessage.value)
             }
 
             Button(onClick = {

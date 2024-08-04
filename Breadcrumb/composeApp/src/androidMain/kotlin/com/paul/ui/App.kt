@@ -23,6 +23,7 @@ fun App(
     gpxFileLoader: GpxFileLoader,
     toSend: Uri?,
     shortGoogleUrl: String?,
+    initialErrorMessage: String?,
     navController: NavHostController = rememberNavController()
 ) {
     val deviceSelector = viewModel { DeviceSelector(navController, connection) }
@@ -47,7 +48,8 @@ fun App(
                             gpxFileLoader,
                             snackbarHostState,
                             toSend,
-                            shortGoogleUrl
+                            shortGoogleUrl,
+                            initialErrorMessage
                         )
                     },
                     deviceSelector = deviceSelector,
