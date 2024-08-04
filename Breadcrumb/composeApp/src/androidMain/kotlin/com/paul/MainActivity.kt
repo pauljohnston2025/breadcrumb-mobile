@@ -21,9 +21,9 @@ import java.net.URL
 
 class MainActivity : ComponentActivity() {
     companion object {
-        private const val GOOGLE_SHORT_URL_PREFIX = "To see this route visit"
+        private const val GOOGLE_SHORT_URL_PREFIX = "https://"
     }
-    
+
     val connection = Connection(this)
     val gpxFileLoader = GpxFileLoader(this)
 
@@ -57,18 +57,33 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         var shortGoogleUrl: String? = null
+        var initialErrorMessage: String? = null
         val toSend: Uri? = intent?.let {
             when (it.action) {
                 Intent.ACTION_SEND -> {
                     if (it.type == "text/plain") {
                         // assume its a google maps route, deal with it
                         // see https://stackoverflow.com/a/75021893
-                        shortGoogleUrl = it.extras?.getString("android.intent.extra.TEXT")
+                        val text = it.extras?.getString("android.intent.extra.TEXT")
                             ?.takeUnless { it.isBlank() }
+                        shortGoogleUrl = text
                             ?.split("\n")
                             ?.lastOrNull()
-                            ?.takeIf { it.contains(GOOGLE_SHORT_URL_PREFIX) }
-                            ?.removePrefix(GOOGLE_SHORT_URL_PREFIX)
+                            ?.let {
+                                if (it.contains("https://")) {
+                                    // google links can change eg.
+                                    // car: 'For the best route in current traffic visit https://maps.app.goo.gl/edemxTzkxJS6dLpi7'
+                                    // walk: 'To see this route visit https://maps.app.goo.gl/msXomPPczhNuC3Uv5'
+                                    // so just look for a link on the last line
+                                    "https://" + it.split("https://")[1]
+                                } else {
+                                    null
+                                }
+                            }
+
+                        if (shortGoogleUrl == null) {
+                            initialErrorMessage = "Could not find google link: ${text}"
+                        }
 
                         return@let null
                     }
@@ -79,15 +94,17 @@ class MainActivity : ComponentActivity() {
 
                     it.data
                 }
+
                 Intent.ACTION_MAIN, Intent.ACTION_VIEW, Intent.ACTION_OPEN_DOCUMENT -> {
                     it.data
                 }
+
                 else -> null
             }
         }
 
         setContent {
-            App(connection, gpxFileLoader, toSend, shortGoogleUrl)
+            App(connection, gpxFileLoader, toSend, shortGoogleUrl, initialErrorMessage)
         }
     }
 }
