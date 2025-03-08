@@ -21,6 +21,8 @@ import java.net.URL
 import java.net.URLEncoder
 import java.nio.charset.Charset
 
+data class HistoryItem(val name: String, val uri: String)
+
 class StartViewModel(
     private val connection: Connection,
     private val deviceSelector: DeviceSelector,
@@ -34,38 +36,45 @@ class StartViewModel(
     val sendingFile: MutableState<Boolean> = mutableStateOf(false)
     val loadingMessage: MutableState<String> = mutableStateOf(initialErrorMessage ?: "")
     val htmlMessage: MutableState<String> = mutableStateOf(initialErrorMessage ?: "")
-//    val history = mutableStateListOf(emptyList<String>())
+    val history = mutableStateListOf<HistoryItem>()
 
     init {
         if (fileLoad != null) {
-            loadInitialFile(fileLoad)
+            loadFile(fileLoad)
         }
 
         if (shortGoogleUrl != null) {
             loadFromGoogle(shortGoogleUrl)
         }
+
+        history.add(HistoryItem("dummy1", "dummy1"))
+        history.add(HistoryItem("dummy2", "dummy2"))
     }
 
     fun pickRoute() {
         viewModelScope.launch(Dispatchers.IO) {
-            val file: GpxFile
+            val uri: String
             try {
-                file = gpxFileLoader.searchForGpxFile()
+                uri = gpxFileLoader.searchForGpxFileUri()
             } catch (e: Exception) {
                 snackbarHostState.showSnackbar("Failed to find file (invalid or no selection)")
                 return@launch
             }
 
-            sendFile(file)
+            loadFile(uri)
         }
     }
 
-    private fun loadInitialFile(initalFile: Uri) {
+    fun loadFile(fileName: String) {
+        loadFile(Uri.parse(fileName))
+    }
+
+    private fun loadFile(fileName: Uri) {
         setLoadingMessage("Parsing gpx input stream...")
         viewModelScope.launch(Dispatchers.IO) {
             val file: GpxFile
             try {
-                file = gpxFileLoader.loadGpxFile(initalFile)
+                file = gpxFileLoader.loadGpxFile(fileName)
             } catch (e: Exception) {
                 snackbarHostState.showSnackbar("Failed to load gpx file (possibly invalid format)")
                 println(e)
@@ -150,6 +159,7 @@ class StartViewModel(
 
         var route: Route? = null
         try {
+            history.add(HistoryItem(file.name(), file.uri))
             route = file.toRoute(snackbarHostState)
         } catch (e: Exception) {
             println("Failed to parse route: ${e.message}")

@@ -3,17 +3,28 @@ package com.paul.ui
 import android.widget.TextView
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.Button
+import androidx.compose.material.ButtonColors
+import androidx.compose.material.ButtonDefaults
 import androidx.compose.material.Checkbox
 import androidx.compose.material.CircularProgressIndicator
 import androidx.compose.material.ExtendedFloatingActionButton
@@ -51,27 +62,66 @@ fun Start(startViewModel: StartViewModel, deviceSelector: DeviceSelector) {
     MaterialTheme {
         Column(
             Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState()),
+                .fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally) {
 
-            AnimatedVisibility(startViewModel.loadingMessage.value != "") {
+            AnimatedVisibility(
+                startViewModel.loadingMessage.value != "",
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    Button(
+                        onClick = {
+                            startViewModel.loadingMessage.value = ""
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = Color.Gray,
+                            contentColor = Color.Red,
+                        )
+                    ) {
+                        Text("X", color = Color.Red)
+                    }
+                }
                 Text("Status: " + startViewModel.loadingMessage.value)
             }
 
-            AnimatedVisibility(startViewModel.htmlMessage.value != "") {
+            AnimatedVisibility(
+                startViewModel.htmlMessage.value != "",
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    Button(
+                        onClick = {
+                            startViewModel.htmlMessage.value = ""
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = Color.Gray,
+                            contentColor = Color.Red,
+                        )
+                    ) {
+                        Text("X", color = Color.Red)
+                    }
+                }
                 AndroidView(
                     factory = { context -> TextView(context) },
                     update = { it.text = HtmlCompat.fromHtml(startViewModel.htmlMessage.value, HtmlCompat.FROM_HTML_MODE_COMPACT)}
                 )
             }
 
-            Row() {
+            Row(modifier = Modifier) {
                 Button(
                     onClick = {
                         deviceSelector.selectDeviceUi()
                     },
-                    modifier = Modifier.padding(20.dp)
+                    modifier = Modifier.padding(10.dp)
                 ) {
                     Text("Select Device")
                 }
@@ -80,13 +130,45 @@ fun Start(startViewModel: StartViewModel, deviceSelector: DeviceSelector) {
                     onClick = {
                         startViewModel.pickRoute()
                     },
-                    modifier = Modifier.padding(20.dp)
+                    modifier = Modifier.padding(10.dp)
                 ) {
                     Text("Import from file")
                 }
             }
 
-            Text("History")
+            Column(modifier = Modifier
+                .fillMaxSize()
+//                .weight(1F) // hack to get it to fill the remaining area, since we are in an infinite scrolling view
+                              // not sure how to get a min height when doing so though (this only matters in the error case where there is a huge error message)
+//                .heightIn(100.dp, 200.dp)
+//                .defaultMinSize(minHeight = 100.dp),
+            ) {
+                Text("History")
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .border(1.dp, Color.Black),
+                ) {
+                    itemsIndexed(startViewModel.history.reversed()) { _, item ->
+                        Column(
+                            Modifier
+                                .fillMaxSize(),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        )
+                        {
+                            Button(
+                                onClick = {
+                                    startViewModel.loadFile(item.uri)
+                                },
+                                modifier = Modifier
+                                    .padding(0.dp)
+                            ) {
+                                Text(item.name)
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         AnimatedVisibility(startViewModel.sendingFile.value) {
