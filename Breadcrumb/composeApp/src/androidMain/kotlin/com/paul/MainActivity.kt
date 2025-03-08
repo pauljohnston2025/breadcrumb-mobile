@@ -58,7 +58,7 @@ class MainActivity : ComponentActivity() {
 
         var shortGoogleUrl: String? = null
         var initialErrorMessage: String? = null
-        val toSend: Uri? = intent?.let {
+        val fileLoad: Uri? = intent?.let {
             when (it.action) {
                 Intent.ACTION_SEND -> {
                     if (it.type == "text/plain") {
@@ -88,7 +88,7 @@ class MainActivity : ComponentActivity() {
                         return@let null
                     }
 
-                    if (!it.data.toString().endsWith(".gpx")) {
+                    if (!it.data.toString().contains(".gpx")) {
                         return@let null
                     }
 
@@ -104,7 +104,7 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            App(connection, gpxFileLoader, toSend, shortGoogleUrl, initialErrorMessage)
+            App(connection, gpxFileLoader, fileLoad, shortGoogleUrl, initialErrorMessage)
         }
     }
 }

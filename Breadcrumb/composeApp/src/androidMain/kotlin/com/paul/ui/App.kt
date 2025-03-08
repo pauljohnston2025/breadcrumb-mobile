@@ -21,7 +21,7 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 fun App(
     connection: Connection,
     gpxFileLoader: GpxFileLoader,
-    toSend: Uri?,
+    fileLoad: Uri?,
     shortGoogleUrl: String?,
     initialErrorMessage: String?,
     navController: NavHostController = rememberNavController()
@@ -47,7 +47,7 @@ fun App(
                             deviceSelector,
                             gpxFileLoader,
                             snackbarHostState,
-                            toSend,
+                            fileLoad,
                             shortGoogleUrl,
                             initialErrorMessage
                         )
