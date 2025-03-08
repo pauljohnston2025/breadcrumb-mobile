@@ -22,6 +22,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.AlertDialog
 import androidx.compose.material.Button
 import androidx.compose.material.ButtonColors
 import androidx.compose.material.ButtonDefaults
@@ -59,7 +60,42 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
 @Preview
 fun Start(startViewModel: StartViewModel, deviceSelector: DeviceSelector) {
+    var showDialog by remember { mutableStateOf(false) }
+
     MaterialTheme {
+        if (showDialog) {
+            AlertDialog(
+                onDismissRequest = {
+                    showDialog = false
+                },
+                title = {
+                    Text(text = "Confirm Action")
+                },
+                text = {
+                    Text(text = "Are you sure you want to clear history? This cannot be undone!")
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            startViewModel.clearHistory()
+                            showDialog = false
+                        }
+                    ) {
+                        Text("Clear History")
+                    }
+                },
+                dismissButton = {
+                    Button(
+                        onClick = {
+                            showDialog = false
+                        }
+                    ) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+
         Column(
             Modifier
                 .fillMaxSize(),
@@ -143,7 +179,22 @@ fun Start(startViewModel: StartViewModel, deviceSelector: DeviceSelector) {
 //                .heightIn(100.dp, 200.dp)
 //                .defaultMinSize(minHeight = 100.dp),
             ) {
-                Text("History")
+                Row(
+                    Modifier
+                    .fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("History:", modifier = Modifier)
+                    Button(
+                        onClick = {
+                            showDialog = true
+                        },
+                        modifier = Modifier
+                    ) {
+                        Text("Clear")
+                    }
+                }
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
