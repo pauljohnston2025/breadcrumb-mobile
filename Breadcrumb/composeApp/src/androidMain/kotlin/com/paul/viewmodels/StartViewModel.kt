@@ -1,10 +1,9 @@
 package com.paul.viewmodels
 
 import android.net.Uri
-import android.os.Build
-import androidx.annotation.RequiresApi
 import androidx.compose.material.SnackbarHostState
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -13,12 +12,14 @@ import com.paul.infrastructure.protocol.Route
 import com.paul.infrastructure.utils.GpxFile
 import com.paul.infrastructure.utils.GpxFileLoader
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.Proxy
 import java.net.URL
 import java.net.URLEncoder
+import java.nio.charset.Charset
 
 class StartViewModel(
     private val connection: Connection,
@@ -33,6 +34,7 @@ class StartViewModel(
     val sendingFile: MutableState<Boolean> = mutableStateOf(false)
     val loadingMessage: MutableState<String> = mutableStateOf(initialErrorMessage ?: "")
     val htmlMessage: MutableState<String> = mutableStateOf(initialErrorMessage ?: "")
+//    val history = mutableStateListOf(emptyList<String>())
 
     init {
         if (fileLoad != null) {
@@ -59,23 +61,19 @@ class StartViewModel(
     }
 
     private fun loadInitialFile(initalFile: Uri) {
-        viewModelScope.launch(Dispatchers.Main) {
-            loadingMessage.value = "Parsing gpx input stream..."
-        }
+        setLoadingMessage("Parsing gpx input stream...")
         viewModelScope.launch(Dispatchers.IO) {
             val file: GpxFile
             try {
                 file = gpxFileLoader.loadGpxFile(initalFile)
             } catch (e: Exception) {
                 snackbarHostState.showSnackbar("Failed to load gpx file (possibly invalid format)")
-                println(e);
+                println(e)
                 clearLoadingMessage()
                 return@launch
             }
 
-            viewModelScope.launch(Dispatchers.Main) {
-                loadingMessage.value = "Sending..."
-            }
+            setLoadingMessage("Sending...")
             sendFile(file)
             clearLoadingMessage()
         }
@@ -88,11 +86,16 @@ class StartViewModel(
         }
     }
 
+    private fun setLoadingMessage(value: String)
+    {
+        viewModelScope.launch(Dispatchers.Main) {
+            loadingMessage.value = value
+        }
+    }
+
     private fun loadFromGoogle(shortGoogleUrl: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            viewModelScope.launch(Dispatchers.Main) {
-                loadingMessage.value = "Loading google route from mapstogpx..."
-            }
+            setLoadingMessage("Loading google route from mapstogpx...")
             val loaded = loadFromMapsToGpx(shortGoogleUrl)
 
             if (loaded == null) {
@@ -103,23 +106,21 @@ class StartViewModel(
 
             val (contentType, gpxInputStream) = loaded
             if (!contentType.contains("application/gpx+xml")) {
-                snackbarHostState.showSnackbar("Bad content type: ${contentType}")
+                snackbarHostState.showSnackbar("Bad content type: $contentType")
                 if(contentType.contains("text/html"))
                 {
-                    viewModelScope.launch(Dispatchers.Main) {
+                    viewModelScope.launch(Dispatchers.IO) {
                         htmlMessage.value = gpxInputStream.readAllBytes().decodeToString()
                     }
                     return@launch
                 }
-                viewModelScope.launch(Dispatchers.Main) {
-                    loadingMessage.value = gpxInputStream.readAllBytes().decodeToString()
+                viewModelScope.launch(Dispatchers.IO) {
+                    setLoadingMessage(gpxInputStream.readAllBytes().decodeToString())
                 }
                 return@launch
             }
 
-            viewModelScope.launch(Dispatchers.Main) {
-                loadingMessage.value = "Parsing gpx input stream..."
-            }
+            setLoadingMessage("Parsing gpx input stream...")
             val file: GpxFile
             try {
                 file = gpxFileLoader.loadGpxFromInputStream(gpxInputStream)
@@ -130,44 +131,10 @@ class StartViewModel(
                 return@launch
             }
 
-            viewModelScope.launch(Dispatchers.Main) {
-                loadingMessage.value = "Sending..."
-            }
+            setLoadingMessage("Sending...")
             sendFile(file)
             clearLoadingMessage()
         }
-    }
-
-    private fun loadFromGoogleUsingFullUrl(shortGoogleUrl: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            // getting points from url did not seem to work (though i did get the full url)
-            val fullUrl = getFullUrl(shortGoogleUrl)
-            if (fullUrl == null) {
-                snackbarHostState.showSnackbar("failed to parse google full url")
-                return@launch
-            }
-            val points = parsePoints(fullUrl)
-            println(fullUrl)
-        }
-    }
-
-    // see https://stackoverflow.com/a/69865988
-    fun String?.indexesOf(pat: String, ignoreCase: Boolean = true): List<Int> =
-        pat.toRegex(if (ignoreCase) setOf(RegexOption.IGNORE_CASE) else emptySet())
-            .findAll(this ?: "")
-            .map { it.range.first }
-            .toList()
-
-    private fun parsePoints(expandedUrl: String): List<Pair<Float, Float>> {
-        val latLngList = arrayListOf<Pair<Float, Float>>()
-        val indexes = expandedUrl.indexesOf("!3d")
-
-        indexes.forEach {
-            val coordinatesStr = expandedUrl.substring(it + 3).substringBefore("!2").split("!4d")
-            latLngList.add(Pair(coordinatesStr[0].toFloat(), coordinatesStr[1].toFloat()))
-        }
-
-        return latLngList
     }
 
     private suspend fun sendFile(file: GpxFile) {
@@ -202,38 +169,13 @@ class StartViewModel(
         snackbarHostState.showSnackbar("Route sent")
     }
 
-    fun getFullUrl(shortUrl: String): String? {
-        // see https://stackoverflow.com/a/31545634
-        var address = URL(shortUrl)
-
-        //Connect & check for the location field
-        var connection: HttpURLConnection? = null
-        try {
-            connection = address.openConnection(Proxy.NO_PROXY) as HttpURLConnection
-            connection!!.instanceFollowRedirects = false
-            connection!!.connect()
-            val expandedURL = connection!!.getHeaderField("Location")
-            if (expandedURL != null) {
-                return expandedURL
-            }
-        } catch (e: Throwable) {
-            println("Problem while expanding {}$address$e")
-        } finally {
-            if (connection != null) {
-                println(connection.inputStream)
-            }
-        }
-
-        return null
-    }
-
-    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
-    fun loadFromMapsToGpx(googleShortUrl: String): Pair<String, InputStream>? {
+    private fun loadFromMapsToGpx(googleShortUrl: String): Pair<String, InputStream>? {
         val url =
             "https://mapstogpx.com/load.php?d=default&lang=en&elev=off&tmode=off&pttype=fixed&o=gpx&cmt=off&desc=off&descasname=off&w=on&dtstr=20240804_092634&gdata=" + URLEncoder.encode(
-                googleShortUrl.replace("https://", "")
+                googleShortUrl.replace("https://", ""),
+                Charset.defaultCharset()
             )
-        var address = URL(url)
+        val address = URL(url)
 
         //Connect & check for the location field
         try {
