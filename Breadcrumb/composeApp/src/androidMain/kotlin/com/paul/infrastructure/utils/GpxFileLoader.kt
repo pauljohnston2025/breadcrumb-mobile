@@ -21,7 +21,7 @@ import io.ticofab.androidgpxparser.parser.domain.Point as GpxPoint;
 
 
 data class GpxFile(
-    val name: String,
+    val uri: String,
     val gpx: Gpx
 ) {
     suspend fun toRoute(snackbarHostState: SnackbarHostState): Route? {
@@ -75,6 +75,26 @@ data class GpxFile(
 
         return Route(routePoints)
     }
+
+    fun name() : String {
+        if (gpx.tracks.size != 0) {
+            val track = gpx.tracks[0]
+            if (track.trackName != null && track.trackName != "")
+            {
+                return track.trackName
+            }
+        }
+        else if (gpx.routes.size != 0)
+        {
+            val route = gpx.routes[0]
+            if (route.routeName !== null && route.routeName != "")
+            {
+                return route.routeName
+            }
+        }
+
+        return uri
+    }
 }
 
 
@@ -92,12 +112,16 @@ class GpxFileLoader(private val context: Context) {
     }
 
     suspend fun searchForGpxFile(): GpxFile {
-        val uri = searchForGpxFileUri()
-        return GpxFile(uri.toString(), loadFileContents(uri))
+        val uri_str = searchForGpxFileUri()
+        return GpxFile(uri_str, loadFileContents(Uri.parse(uri_str)))
     }
 
     suspend fun loadGpxFile(uri: Uri): GpxFile {
         return GpxFile(uri.toString(), loadFileContents(uri))
+    }
+
+    suspend fun loadGpxFile(uri: String): GpxFile {
+        return loadGpxFile(Uri.parse(uri))
     }
 
     suspend fun loadGpxFromInputStream(stream: InputStream): GpxFile {
@@ -105,14 +129,14 @@ class GpxFileLoader(private val context: Context) {
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    suspend fun searchForGpxFileUri(): Uri = suspendCancellableCoroutine { continuation ->
+    suspend fun searchForGpxFileUri(): String = suspendCancellableCoroutine { continuation ->
         require(searchCompletion == null)
         searchCompletion = { uri ->
             if (uri == null) {
                 continuation.resumeWithException(Exception("failed to load file: $uri"))
             } else {
                 println("Load file: " + uri.toString())
-                continuation.resume(uri) {
+                continuation.resume(uri.toString()) {
                     println("failed to resume")
                 }
             }
