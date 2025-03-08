@@ -209,7 +209,7 @@ fun Start(startViewModel: StartViewModel, deviceSelector: DeviceSelector) {
                         {
                             Button(
                                 onClick = {
-                                    startViewModel.loadFile(item.uri)
+                                    startViewModel.loadFile(item.uri, false)
                                 },
                                 modifier = Modifier
                                     .padding(0.dp)

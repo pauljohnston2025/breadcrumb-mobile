@@ -56,7 +56,7 @@ class StartViewModel(
         }
 
         if (fileLoad != null) {
-            loadFile(fileLoad)
+            loadFile(fileLoad, true)
         }
 
         if (shortGoogleUrl != null) {
@@ -74,20 +74,20 @@ class StartViewModel(
                 return@launch
             }
 
-            loadFile(uri)
+            loadFile(uri, true)
         }
     }
 
-    fun loadFile(fileName: String) {
-        loadFile(Uri.parse(fileName))
+    fun loadFile(fileName: String, firstTimeSeenFile: Boolean) {
+        loadFile(Uri.parse(fileName), firstTimeSeenFile)
     }
 
-    private fun loadFile(fileName: Uri) {
+    private fun loadFile(fileName: Uri, firstTimeSeenFile: Boolean) {
         setLoadingMessage("Parsing gpx input stream...")
         viewModelScope.launch(Dispatchers.IO) {
             val file: GpxFile
             try {
-                file = gpxFileLoader.loadGpxFile(fileName)
+                file = gpxFileLoader.loadGpxFile(fileName, firstTimeSeenFile)
             }
             catch (e: SecurityException) {
                 snackbarHostState.showSnackbar("Failed to load gpx file (you might not have permissions, please restart app to grant)")
@@ -153,7 +153,14 @@ class StartViewModel(
             val file: GpxFile
             try {
                 file = gpxFileLoader.loadGpxFromInputStream(gpxInputStream)
-            } catch (e: Exception) {
+            }
+            catch (e: SecurityException) {
+                snackbarHostState.showSnackbar("Failed to load gpx file (you might not have permissions, please restart app to grant)")
+                println(e)
+                clearLoadingMessage()
+                return@launch
+            }
+            catch (e: Exception) {
                 snackbarHostState.showSnackbar("Failed to load gpx file (possibly invalid format)")
                 println(e)
                 clearLoadingMessage()
