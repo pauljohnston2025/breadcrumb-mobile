@@ -62,9 +62,6 @@ class StartViewModel(
         if (shortGoogleUrl != null) {
             loadFromGoogle(shortGoogleUrl)
         }
-
-        history.add(HistoryItem("dummy1", "dummy1"))
-        history.add(HistoryItem("dummy2", "dummy2"))
     }
 
     fun pickRoute() {
@@ -187,8 +184,7 @@ class StartViewModel(
         try {
             val historyItem = HistoryItem(file.name(), file.uri)
             history.add(historyItem)
-            // keep only the last few items, we do not want to overflow out internal storage
-            settings.putString(HISTORY_KEY, Json.encodeToString(history.toList().takeLast(100)))
+            saveHistory()
             route = file.toRoute(snackbarHostState)
         } catch (e: Exception) {
             println("Failed to parse route: ${e.message}")
@@ -206,6 +202,11 @@ class StartViewModel(
             sendingFile.value = false
         }
         snackbarHostState.showSnackbar("Route sent")
+    }
+
+    private fun saveHistory() {
+        // keep only the last few items, we do not want to overflow out internal storage
+        settings.putString(HISTORY_KEY, Json.encodeToString(history.toList().takeLast(100)))
     }
 
     private fun loadFromMapsToGpx(googleShortUrl: String): Pair<String, InputStream>? {
@@ -232,6 +233,11 @@ class StartViewModel(
         }
 
         return null
+    }
+
+    fun clearHistory() {
+        history.clear()
+        saveHistory()
     }
 
 }
