@@ -56,7 +56,7 @@ data class GpxFile(
         // MonkeyDouble is 9 bytes, MonkeyFloat is 5 bytes , though if its small enough error they send as float
         // so 1000 is probably fine (since each point is double|double|float (15 to 23 bytes each))
         // should probably condense this down (possibly send the rectangular coordinate)
-        var nthPoint = Math.ceil(points.size / 500.0).toInt()
+        var nthPoint = Math.ceil(points.size / 400.0).toInt()
         if (nthPoint == 0) {
             // get all if less than 1000
             // should never happen now we are doing ceil()
