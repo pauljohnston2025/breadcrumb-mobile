@@ -8,28 +8,31 @@ import com.paul.infrastructure.connectiq.Connection
 import com.paul.infrastructure.connectiq.DeviceList
 import com.paul.ui.Screens
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.withTimeout
 
 class DeviceSelector(private val navController: NavHostController, connection: Connection) :
     ViewModel() {
     private var currentDevice: IQDevice? = null
     private var deviceList = DeviceList(connection)
     private var devicesFlow: MutableSharedFlow<List<IQDevice>> = MutableSharedFlow()
-    private var getDeviceMutex: Mutex = Mutex()
-    private var selectDeviceLock: Mutex = Mutex()
 
-    fun devicesFlow(): Flow<List<IQDevice>> {
-        // need to start the scan every time for whatever reason (think the view model gets cleared multiple times)
-        // cannot do this in init, as it gets no values (think the scope changes)
-        // seems in init the scope is pointing to a different object
+    init {
         viewModelScope.launch {
-            deviceList.subscribe().collect {
+            val sub = deviceList.subscribe()
+            sub.collect {
                 devicesFlow.emit(it)
             }
         }
+    }
+
+    fun devicesFlow(): Flow<List<IQDevice>> {
         return devicesFlow
     }
 
@@ -38,19 +41,28 @@ class DeviceSelector(private val navController: NavHostController, connection: C
     }
 
     suspend fun currentDevice(): IQDevice? {
-        // these locks are really bad, need a better way to do this
-        getDeviceMutex.lock()
         if (currentDevice == null) {
             selectDevice()
-            // need to cancel this on back pressed too
         }
 
-        // wait for selectDevice to unlock the lock
-        // these locks are really bad, need a better way to do this
-        // get the lock thats already held by the 'selectDevice'
-        selectDeviceLock.lock()
-        selectDeviceLock.unlock() // release it immediately, its served its purpose
-        getDeviceMutex.unlock()
+        // wait for the device to be selected
+        try {
+            withTimeout(10000) {
+                while (currentDevice == null) {
+                    delay(1000);
+                }
+            }
+        }
+        catch(e: TimeoutCancellationException) {
+            // assume they never went back, though they could have cancelled,
+            // and it they did cancel, this job will run again soon and press back again,
+            // exiting out of the app (not ideal) but better than all the locks we had,
+            // and never killing them on back pressed
+            viewModelScope.launch(Dispatchers.Main) {
+                navController.popBackStack()
+            }
+        }
+
         return currentDevice
     }
 
@@ -58,9 +70,7 @@ class DeviceSelector(private val navController: NavHostController, connection: C
         viewModelScope.launch { selectDevice() }
     }
 
-    suspend fun selectDevice() {
-        // these locks are really bad, need a better way to do this
-        selectDeviceLock.lock()
+    private fun selectDevice() {
         viewModelScope.launch(Dispatchers.Main) {
             navController.navigate(Screens.DeviceSelector.name)
         }
@@ -69,8 +79,5 @@ class DeviceSelector(private val navController: NavHostController, connection: C
     fun onDeviceSelected(device: IQDevice) {
         currentDevice = device
         navController.popBackStack()
-
-        // these locks are really bad, need a better way to do this
-        selectDeviceLock.unlock()
     }
 }

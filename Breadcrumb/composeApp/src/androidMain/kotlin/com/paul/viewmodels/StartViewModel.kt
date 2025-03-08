@@ -11,9 +11,13 @@ import com.paul.infrastructure.connectiq.Connection
 import com.paul.infrastructure.protocol.Route
 import com.paul.infrastructure.utils.GpxFile
 import com.paul.infrastructure.utils.GpxFileLoader
+import com.russhwolf.settings.Settings
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.jsonArray
 import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.Proxy
@@ -21,6 +25,7 @@ import java.net.URL
 import java.net.URLEncoder
 import java.nio.charset.Charset
 
+@Serializable
 data class HistoryItem(val name: String, val uri: String)
 
 class StartViewModel(
@@ -33,12 +38,23 @@ class StartViewModel(
     initialErrorMessage: String?
 ) : ViewModel() {
 
+    val HISTORY_KEY = "HISTORY"
+    val settings: Settings = Settings()
+
     val sendingFile: MutableState<Boolean> = mutableStateOf(false)
     val loadingMessage: MutableState<String> = mutableStateOf(initialErrorMessage ?: "")
     val htmlMessage: MutableState<String> = mutableStateOf(initialErrorMessage ?: "")
     val history = mutableStateListOf<HistoryItem>()
 
     init {
+        val historyJson = settings.getStringOrNull(HISTORY_KEY)
+        if (historyJson != null) {
+            val json = Json.parseToJsonElement(historyJson)
+            json.jsonArray.forEach {
+                history.add(Json.decodeFromJsonElement<HistoryItem>(it))
+            }
+        }
+
         if (fileLoad != null) {
             loadFile(fileLoad)
         }
@@ -75,7 +91,14 @@ class StartViewModel(
             val file: GpxFile
             try {
                 file = gpxFileLoader.loadGpxFile(fileName)
-            } catch (e: Exception) {
+            }
+            catch (e: SecurityException) {
+                snackbarHostState.showSnackbar("Failed to load gpx file (you might not have permissions, please restart app to grant)")
+                println(e)
+                clearLoadingMessage()
+                return@launch
+            }
+            catch (e: Exception) {
                 snackbarHostState.showSnackbar("Failed to load gpx file (possibly invalid format)")
                 println(e)
                 clearLoadingMessage()
@@ -154,12 +177,18 @@ class StartViewModel(
         if (device == null) {
             // todo make this a toast or something better for the user
             snackbarHostState.showSnackbar("no devices selected")
+            viewModelScope.launch(Dispatchers.Main) {
+                sendingFile.value = false
+            }
             return
         }
 
         var route: Route? = null
         try {
-            history.add(HistoryItem(file.name(), file.uri))
+            val historyItem = HistoryItem(file.name(), file.uri)
+            history.add(historyItem)
+            // keep only the last few items, we do not want to overflow out internal storage
+            settings.putString(HISTORY_KEY, Json.encodeToString(history.toList().takeLast(100)))
             route = file.toRoute(snackbarHostState)
         } catch (e: Exception) {
             println("Failed to parse route: ${e.message}")

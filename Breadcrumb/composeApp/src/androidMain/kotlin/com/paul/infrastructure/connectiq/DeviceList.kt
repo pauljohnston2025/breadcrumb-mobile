@@ -6,11 +6,13 @@ import com.garmin.android.connectiq.exception.InvalidStateException
 import com.garmin.android.connectiq.exception.ServiceUnavailableException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.publish
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -20,7 +22,7 @@ import kotlin.coroutines.coroutineContext
 class DeviceList(private val connection: Connection) {
 
     private var deviceList: List<IQDevice> = mutableListOf()
-    private var deviceListFlow: MutableSharedFlow<List<IQDevice>> = MutableSharedFlow()
+    private var deviceListFlow: MutableStateFlow<List<IQDevice>> = MutableStateFlow(listOf())
     private var job: Job? = null
 
     private val mDeviceEventListener = IQDeviceEventListener { device, status ->
@@ -40,13 +42,11 @@ class DeviceList(private val connection: Connection) {
 
     private suspend fun loadDevicesLoop() {
         // battery performance of calling this in a tight loop?
-        coroutineScope {
-            if (job == null) {
-                job = launch {
-                    while(true) {
-                        loadDevices()
-                        delay(1000)
-                    }
+        if (job == null) {
+            job = CoroutineScope(Dispatchers.IO).launch(Dispatchers.IO) {
+                while(true) {
+                    loadDevices()
+                    delay(1000)
                 }
             }
         }
