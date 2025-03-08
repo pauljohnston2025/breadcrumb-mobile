@@ -25,7 +25,7 @@ class StartViewModel(
     private val deviceSelector: DeviceSelector,
     private val gpxFileLoader: GpxFileLoader,
     private val snackbarHostState: SnackbarHostState,
-    initialSend: Uri?,
+    fileLoad: Uri?,
     shortGoogleUrl: String?,
     initialErrorMessage: String?
 ) : ViewModel() {
@@ -35,8 +35,8 @@ class StartViewModel(
     val htmlMessage: MutableState<String> = mutableStateOf(initialErrorMessage ?: "")
 
     init {
-        if (initialSend != null) {
-            loadInitialFile(initialSend)
+        if (fileLoad != null) {
+            loadInitialFile(fileLoad)
         }
 
         if (shortGoogleUrl != null) {
@@ -68,6 +68,7 @@ class StartViewModel(
                 file = gpxFileLoader.loadGpxFile(initalFile)
             } catch (e: Exception) {
                 snackbarHostState.showSnackbar("Failed to load gpx file (possibly invalid format)")
+                println(e);
                 clearLoadingMessage()
                 return@launch
             }
@@ -124,6 +125,7 @@ class StartViewModel(
                 file = gpxFileLoader.loadGpxFromInputStream(gpxInputStream)
             } catch (e: Exception) {
                 snackbarHostState.showSnackbar("Failed to load gpx file (possibly invalid format)")
+                println(e)
                 clearLoadingMessage()
                 return@launch
             }
@@ -183,10 +185,13 @@ class StartViewModel(
         try {
             route = file.toRoute(snackbarHostState)
         } catch (e: Exception) {
-            snackbarHostState.showSnackbar("Failed to parse route: ${e.message}")
+            println("Failed to parse route: ${e.message}")
         }
 
         if (route == null) {
+            viewModelScope.launch(Dispatchers.Main) {
+                sendingFile.value = false
+            }
             snackbarHostState.showSnackbar("Failed to convert to route")
             return
         }

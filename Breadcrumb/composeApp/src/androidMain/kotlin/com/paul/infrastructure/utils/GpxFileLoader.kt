@@ -8,31 +8,46 @@ import com.paul.infrastructure.protocol.Point
 import com.paul.infrastructure.protocol.Route
 import io.ticofab.androidgpxparser.parser.GPXParser
 import io.ticofab.androidgpxparser.parser.domain.Gpx
+import io.ticofab.androidgpxparser.parser.domain.TrackPoint
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
+import java.io.ByteArrayInputStream
 import java.io.InputStream
+import java.nio.charset.StandardCharsets
 import kotlin.coroutines.resumeWithException
+import io.ticofab.androidgpxparser.parser.domain.Point as GpxPoint;
+
 
 data class GpxFile(
     val name: String,
     val gpx: Gpx
 ) {
     suspend fun toRoute(snackbarHostState: SnackbarHostState): Route? {
-        // will need to figure out best way to parse different files
-        // for example it looks like its a track
-        if (gpx.tracks.size < 1) {
-            println("failed to get track")
+        // prefer track, then routes (world topo app creation is a route, most other gpx's i've seen are a single track)
+        var points = emptyList<GpxPoint>()
+        if (gpx.tracks.size != 0) {
+            val track = gpx.tracks[0]
+            println("loading points for ${track.trackName}")
+            if (track.trackSegments.size < 1) {
+                snackbarHostState.showSnackbar("failed to get segments")
+                return null
+            }
+
+            val segment = track.trackSegments[0]
+            points = segment.trackPoints
+        }
+        else if (gpx.routes.size != 0)
+        {
+            val route = gpx.routes[0]
+            println("loading points for ${route.routeName}")
+            points = route.routePoints
+        }
+        else {
+            println("failed to get track or route")
             return null
         }
-
-        val track = gpx.tracks[0]
-        println("loading points for ${track.trackName}")
-        if (track.trackSegments.size < 1) {
-            snackbarHostState.showSnackbar("failed to get segments")
-            return null
-        }
-
-        val segment = track.trackSegments[0]
 
         val routePoints = mutableListOf<Point>()
         // too figure out the max size we can have
@@ -41,14 +56,14 @@ data class GpxFile(
         // MonkeyDouble is 9 bytes, MonkeyFloat is 5 bytes , though if its small enough error they send as float
         // so 1000 is probably fine (since each point is double|double|float (15 to 23 bytes each))
         // should probably condense this down (possibly send the rectangular coordinate)
-        var nthPoint = Math.ceil(segment.trackPoints.size / 500.0).toInt()
+        var nthPoint = Math.ceil(points.size / 500.0).toInt()
         if (nthPoint == 0) {
             // get all if less than 1000
             // should never happen now we are doing ceil()
             nthPoint = 1
         }
-        for (i in 1 until segment.trackPoints.size step nthPoint) {
-            val trackPoint = segment.trackPoints[i]
+        for (i in 1 until points.size step nthPoint) {
+            val trackPoint = points[i]
             routePoints.add(
                 Point(
                     trackPoint.latitude.toFloat(),
@@ -111,9 +126,18 @@ class GpxFileLoader(private val context: Context) {
 
     private suspend fun loadFileContents(uri: Uri): Gpx {
         // see TracksBrowserActivity.displayImportTracksDialog in wormnav
-        val stream = context.contentResolver.openInputStream(uri)
-        // need to close stream?
-        return parser.parse(stream)
+        var streamContents = withContext(Dispatchers.IO) {
+            val stream = context.contentResolver.openInputStream(uri)
+            val ret = stream!!.readAllBytes().decodeToString()
+            stream.close()
+            ret
+        }
+        // world topo map app track creation includes <time></time> sections with no value, this breaks the
+        // parse, as it expects a time
+        streamContents = streamContents.replace("<time></time>", "");
+        val streamContentsAsStream: InputStream =
+            ByteArrayInputStream(streamContents.toByteArray(StandardCharsets.UTF_8))
+        return parser.parse(streamContentsAsStream)
     }
 
     fun fileLoaded(uri: Uri?) {
@@ -121,51 +145,3 @@ class GpxFileLoader(private val context: Context) {
         searchCompletion!!(uri)
     }
 }
-
-
-//class GpxFileLoader(private val context: Context, private val requestCode: Int) {
-//
-//    var searchCompletion: ((Int, Intent?) -> Unit)? = null
-//
-//    suspend fun searchForGpxFile(): GpxFile = suspendCancellableCoroutine { continuation ->
-//        require(searchCompletion == null)
-//        searchCompletion = { resultCode, data ->
-//            if (resultCode != RESULT_OK || data == null)
-//            {
-//                continuation.resumeWithException(Exception("failed to load file: $resultCode"))
-//            }
-//            else {
-//                val uri = data.data
-//                println("Load file: " + uri.toString())
-//                continuation.resume(GpxFile(uri.toString(), ubyteArrayOf())) {
-//                    println("failed to resume")
-//                }
-//            }
-//
-//            searchCompletion = null
-//        }
-//
-//        // BEGIN_INCLUDE (use_open_document_intent)
-//        // ACTION_OPEN_DOCUMENT is the intent to choose a file via the system's file browser.
-//        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
-//
-//
-//        // Filter to only show results that can be "opened", such as a file (as opposed to a list
-//        // of contacts or timezones)
-//        intent.addCategory(Intent.CATEGORY_OPENABLE)
-//
-//
-//        // Filter to show only images, using the image MIME data type.
-//        // If one wanted to search for ogg vorbis files, the type would be "audio/ogg".
-//        // To search for all documents available via installed storage providers, it would be
-//        // "*/*".
-//        intent.setType("*/*")
-//
-////        if (initialUri != null) intent.putExtra(
-////            DocumentsContract.EXTRA_INITIAL_URI,
-////            Data.lastImportedExportedUri
-////        )
-//        context.startActivity(intent, requestCode)
-//    }
-//
-//}
