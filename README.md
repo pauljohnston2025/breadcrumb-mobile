@@ -1,15 +1,8 @@
-This is a Kotlin Multiplatform project targeting Android.
+The companion app for loading gpx routes onto garmin watches using https://github.com/pauljohnston2025/breadcrumb-garmin
 
-* `/composeApp` is for code that will be shared across your Compose Multiplatform applications.
-  It contains several subfolders:
-  - `commonMain` is for code that’s common for all targets.
-  - Other folders are for Kotlin code that will be compiled for only the platform indicated in the folder name.
-    For example, if you want to use Apple’s CoreCrypto for the iOS part of your Kotlin app,
-    `iosMain` would be the right folder for such calls.
+![Logo](composeApp\src\androidMain\res\mipmap\icon.png)
 
-
-Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html)…
-
-
-Inspired by: https://andan67.github.io/wormnav/
-git: https://github.com/andan67/wormnav
+Supports 
+* Share gpx file from other apps
+* Share google directions
+* Open local gpx file
