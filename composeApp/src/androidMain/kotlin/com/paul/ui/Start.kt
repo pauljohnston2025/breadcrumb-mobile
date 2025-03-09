@@ -9,52 +9,35 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.defaultMinSize
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.AlertDialog
 import androidx.compose.material.Button
-import androidx.compose.material.ButtonColors
 import androidx.compose.material.ButtonDefaults
-import androidx.compose.material.Checkbox
 import androidx.compose.material.CircularProgressIndicator
-import androidx.compose.material.ExtendedFloatingActionButton
-import androidx.compose.material.Icon
 import androidx.compose.material.MaterialTheme
-import androidx.compose.material.Scaffold
-import androidx.compose.material.SnackbarHost
-import androidx.compose.material.SnackbarHostState
 import androidx.compose.material.Text
-import androidx.compose.material.icons.Icons
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.text.HtmlCompat
 import com.paul.viewmodels.DeviceSelector
 import com.paul.viewmodels.StartViewModel
-import kotlinx.coroutines.launch
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
@@ -102,7 +85,7 @@ fun Start(startViewModel: StartViewModel, deviceSelector: DeviceSelector) {
             horizontalAlignment = Alignment.CenterHorizontally) {
 
             AnimatedVisibility(
-                startViewModel.loadingMessage.value != "",
+                startViewModel.errorMessage.value != "",
                 modifier = Modifier
                     .verticalScroll(rememberScrollState()),
             ) {
@@ -112,7 +95,7 @@ fun Start(startViewModel: StartViewModel, deviceSelector: DeviceSelector) {
                 ) {
                     Button(
                         onClick = {
-                            startViewModel.loadingMessage.value = ""
+                            startViewModel.errorMessage.value = ""
                         },
                         colors = ButtonDefaults.buttonColors(
                             backgroundColor = Color.Gray,
@@ -122,11 +105,11 @@ fun Start(startViewModel: StartViewModel, deviceSelector: DeviceSelector) {
                         Text("X", color = Color.Red)
                     }
                 }
-                Text("Status: " + startViewModel.loadingMessage.value)
+                Text("Status: " + startViewModel.errorMessage.value)
             }
 
             AnimatedVisibility(
-                startViewModel.htmlMessage.value != "",
+                startViewModel.htmlErrorMessage.value != "",
                 modifier = Modifier
                     .verticalScroll(rememberScrollState()),
             ) {
@@ -136,7 +119,7 @@ fun Start(startViewModel: StartViewModel, deviceSelector: DeviceSelector) {
                 ) {
                     Button(
                         onClick = {
-                            startViewModel.htmlMessage.value = ""
+                            startViewModel.htmlErrorMessage.value = ""
                         },
                         colors = ButtonDefaults.buttonColors(
                             backgroundColor = Color.Gray,
@@ -148,7 +131,7 @@ fun Start(startViewModel: StartViewModel, deviceSelector: DeviceSelector) {
                 }
                 AndroidView(
                     factory = { context -> TextView(context) },
-                    update = { it.text = HtmlCompat.fromHtml(startViewModel.htmlMessage.value, HtmlCompat.FROM_HTML_MODE_COMPACT)}
+                    update = { it.text = HtmlCompat.fromHtml(startViewModel.htmlErrorMessage.value, HtmlCompat.FROM_HTML_MODE_COMPACT)}
                 )
             }
 
@@ -222,7 +205,7 @@ fun Start(startViewModel: StartViewModel, deviceSelector: DeviceSelector) {
             }
         }
 
-        AnimatedVisibility(startViewModel.sendingFile.value) {
+        AnimatedVisibility(startViewModel.sendingFile.value != "") {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -234,10 +217,14 @@ fun Start(startViewModel: StartViewModel, deviceSelector: DeviceSelector) {
                     horizontalAlignment = Alignment.CenterHorizontally // Center the children horizontally
                 ) {
                     Text(
-                        text = "Sending file",
-                        Modifier.padding(top=150.dp),
-                        color = Color.Blue,
-                        style = MaterialTheme.typography.body1.copy(fontSize = 50.sp)
+                        text = startViewModel.sendingFile.value,
+                        Modifier.padding(top=150.dp).align(Alignment.CenterHorizontally),
+                        color = Color.White,
+                        style = MaterialTheme.typography.body1.copy(
+                            fontSize = 30.sp,
+                            lineHeight = 35.sp,
+                            textAlign = TextAlign.Center,
+                        )
                     )
                 }
                 CircularProgressIndicator(
