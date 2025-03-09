@@ -1,6 +1,7 @@
 package com.paul.ui
 
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.compose.material.Scaffold
 import androidx.compose.material.SnackbarHost
 import androidx.compose.material.SnackbarHostState
@@ -58,6 +59,7 @@ fun App(
             composable(route = Screens.DeviceSelector.name) {
                 DeviceSelector(
                     deviceSelector = deviceSelector,
+                    navController = navController
                 )
             }
         }

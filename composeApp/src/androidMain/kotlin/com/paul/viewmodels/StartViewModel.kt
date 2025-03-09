@@ -41,9 +41,9 @@ class StartViewModel(
     val HISTORY_KEY = "HISTORY"
     val settings: Settings = Settings()
 
-    val sendingFile: MutableState<Boolean> = mutableStateOf(false)
-    val loadingMessage: MutableState<String> = mutableStateOf(initialErrorMessage ?: "")
-    val htmlMessage: MutableState<String> = mutableStateOf(initialErrorMessage ?: "")
+    val sendingFile: MutableState<String> = mutableStateOf("")
+    val errorMessage: MutableState<String> = mutableStateOf(initialErrorMessage ?: "")
+    val htmlErrorMessage: MutableState<String> = mutableStateOf(initialErrorMessage ?: "")
     val history = mutableStateListOf<HistoryItem>()
 
     init {
@@ -83,132 +83,112 @@ class StartViewModel(
     }
 
     private fun loadFile(fileName: Uri, firstTimeSeenFile: Boolean) {
-        setLoadingMessage("Parsing gpx input stream...")
         viewModelScope.launch(Dispatchers.IO) {
-            val file: GpxFile
-            try {
-                file = gpxFileLoader.loadGpxFile(fileName, firstTimeSeenFile)
+            sendingMessage("Parsing gpx input stream...") {
+                try {
+                    val file = gpxFileLoader.loadGpxFile(fileName, firstTimeSeenFile)
+                    sendFile(file)
+                } catch (e: SecurityException) {
+                    snackbarHostState.showSnackbar("Failed to load gpx file (you might not have permissions, please restart app to grant)")
+                    println(e)
+                } catch (e: Exception) {
+                    snackbarHostState.showSnackbar("Failed to load gpx file (possibly invalid format)")
+                    println(e)
+                }
             }
-            catch (e: SecurityException) {
-                snackbarHostState.showSnackbar("Failed to load gpx file (you might not have permissions, please restart app to grant)")
-                println(e)
-                clearLoadingMessage()
-                return@launch
-            }
-            catch (e: Exception) {
-                snackbarHostState.showSnackbar("Failed to load gpx file (possibly invalid format)")
-                println(e)
-                clearLoadingMessage()
-                return@launch
-            }
-
-            setLoadingMessage("Sending...")
-            sendFile(file)
-            clearLoadingMessage()
-        }
-    }
-
-    private fun clearLoadingMessage()
-    {
-        viewModelScope.launch(Dispatchers.Main) {
-            loadingMessage.value = ""
-        }
-    }
-
-    private fun setLoadingMessage(value: String)
-    {
-        viewModelScope.launch(Dispatchers.Main) {
-            loadingMessage.value = value
         }
     }
 
     private fun loadFromGoogle(shortGoogleUrl: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            setLoadingMessage("Loading google route from mapstogpx...")
-            val loaded = loadFromMapsToGpx(shortGoogleUrl)
-
-            if (loaded == null) {
-                snackbarHostState.showSnackbar("Failed to load from mapstogpx, consider using webpage directly")
-                clearLoadingMessage()
-                return@launch
+            sendingMessage("Loading google route from mapstogpx...") {
+                loadFromGoogleInner(shortGoogleUrl)
             }
+        }
+    }
 
-            val (contentType, gpxInputStream) = loaded
-            if (!contentType.contains("application/gpx+xml")) {
-                snackbarHostState.showSnackbar("Bad content type: $contentType")
-                if(contentType.contains("text/html"))
-                {
-                    viewModelScope.launch(Dispatchers.IO) {
-                        htmlMessage.value = gpxInputStream.readAllBytes().decodeToString()
+    private suspend fun loadFromGoogleInner(shortGoogleUrl: String) {
+        val loaded = loadFromMapsToGpx(shortGoogleUrl)
+
+        if (loaded == null) {
+            snackbarHostState.showSnackbar("Failed to load from mapstogpx, consider using webpage directly")
+            return
+        }
+
+        val (contentType, gpxInputStream) = loaded
+        if (!contentType.contains("application/gpx+xml")) {
+            snackbarHostState.showSnackbar("Bad content type: $contentType")
+            viewModelScope.launch(Dispatchers.IO) {
+                val message = gpxInputStream.readAllBytes().decodeToString()
+                viewModelScope.launch(Dispatchers.Main) {
+                    if (contentType.contains("text/html")) {
+                        htmlErrorMessage.value = message
                     }
-                    return@launch
+                    else {
+                        errorMessage.value = message
+                    }
                 }
-                viewModelScope.launch(Dispatchers.IO) {
-                    setLoadingMessage(gpxInputStream.readAllBytes().decodeToString())
-                }
-                return@launch
             }
+            return
+        }
 
-            setLoadingMessage("Parsing gpx input stream...")
-            val file: GpxFile
+        sendingMessage("Parsing gpx input stream...") {
             try {
-                file = gpxFileLoader.loadGpxFromInputStream(gpxInputStream)
-            }
-            catch (e: SecurityException) {
+                val file = gpxFileLoader.loadGpxFromInputStream(gpxInputStream)
+                sendFile(file)
+            } catch (e: SecurityException) {
                 snackbarHostState.showSnackbar("Failed to load gpx file (you might not have permissions, please restart app to grant)")
                 println(e)
-                clearLoadingMessage()
-                return@launch
-            }
-            catch (e: Exception) {
+            } catch (e: Exception) {
                 snackbarHostState.showSnackbar("Failed to load gpx file (possibly invalid format)")
                 println(e)
-                clearLoadingMessage()
-                return@launch
             }
-
-            setLoadingMessage("Sending...")
-            sendFile(file)
-            clearLoadingMessage()
         }
     }
 
     private suspend fun sendFile(file: GpxFile) {
-        viewModelScope.launch(Dispatchers.Main) {
-            sendingFile.value = true
-        }
         val device = deviceSelector.currentDevice()
         if (device == null) {
             // todo make this a toast or something better for the user
             snackbarHostState.showSnackbar("no devices selected")
-            viewModelScope.launch(Dispatchers.Main) {
-                sendingFile.value = false
-            }
             return
         }
 
         var route: Route? = null
-        try {
-            val historyItem = HistoryItem(file.name(), file.uri)
-            history.add(historyItem)
-            saveHistory()
-            route = file.toRoute(snackbarHostState)
-        } catch (e: Exception) {
-            println("Failed to parse route: ${e.message}")
+        sendingMessage("Loading Route") {
+            try {
+                val historyItem = HistoryItem(file.name(), file.uri)
+                history.add(historyItem)
+                saveHistory()
+                route = file.toRoute(snackbarHostState)
+            } catch (e: Exception) {
+                println("Failed to parse route: ${e.message}")
+            }
         }
 
         if (route == null) {
-            viewModelScope.launch(Dispatchers.Main) {
-                sendingFile.value = false
-            }
             snackbarHostState.showSnackbar("Failed to convert to route")
             return
         }
-        connection.send(device, route)
-        viewModelScope.launch(Dispatchers.Main) {
-            sendingFile.value = false
+
+        sendingMessage("Sending file") {
+            connection.send(device, route!!)
+            snackbarHostState.showSnackbar("Route sent")
         }
-        snackbarHostState.showSnackbar("Route sent")
+    }
+
+    private suspend fun sendingMessage(msg: String, cb: suspend () -> Unit) {
+        try {
+            viewModelScope.launch(Dispatchers.Main) {
+                sendingFile.value = msg
+            }
+            cb()
+        }
+        finally {
+            viewModelScope.launch(Dispatchers.Main) {
+                sendingFile.value = ""
+            }
+        }
     }
 
     private fun saveHistory() {
