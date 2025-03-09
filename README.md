@@ -5,4 +5,7 @@ Supports
 * Share google directions
 * Open local gpx file
 
+Install the latest apk from the release page https://github.com/pauljohnston2025/breadcrumb-mobile/releases
+or build from source using android studio/gradle
+
 ![Logo](https://github.com/pauljohnston2025/breadcrumb-mobile/blob/master/composeApp/src/androidMain/res/mipmap/iconlarge.png)
