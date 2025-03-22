@@ -37,6 +37,7 @@ class MainActivity : ComponentActivity() {
     val connection = Connection(this)
     val gpxFileLoader = GpxFileLoader(this)
     val imageProcessor = ImageProcessor(this)
+//    val webServer = WebServer()
 
     // based on ActivityResultContracts.OpenDocument()
     val getGpxContent =
@@ -84,6 +85,7 @@ class MainActivity : ComponentActivity() {
     init {
         gpxFileLoader.setLauncher(getGpxContent)
         imageProcessor.setLauncher(getImageContent)
+//        webServer.run()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -139,6 +141,15 @@ class MainActivity : ComponentActivity() {
         setContent {
             App(connection, gpxFileLoader, imageProcessor, fileLoad, shortGoogleUrl, initialErrorMessage)
         }
+
+        val serviceIntent = Intent(this, WebServerService::class.java)
+        startService(serviceIntent)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        val serviceIntent = Intent(this, WebServerService::class.java)
+        stopService(serviceIntent)
     }
 }
 

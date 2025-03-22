@@ -27,6 +27,12 @@ kotlin {
             implementation(libs.gpx.parser)
             // apparently there is no way to do aar from libs.version.toml
             implementation("com.garmin.connectiq:ciq-companion-app-sdk:2.0.3@aar")
+            // for webserver
+            implementation(libs.ktor.server.netty) // Or the latest version
+            implementation(libs.ktor.server.core)
+            implementation(libs.ktor.server.content.negotiation)
+            implementation(libs.ktor.serialization.kotlinx.json)
+            implementation(libs.logback.classic) // Required for logging in Ktor
         }
         commonMain.dependencies {
             implementation(compose.runtime)
@@ -60,6 +66,8 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += "/META-INF/INDEX.LIST"
+            excludes += "/META-INF/io.netty.versions.properties"
         }
     }
     buildTypes {

@@ -210,6 +210,15 @@ fun Start(startViewModel: StartViewModel, deviceSelector: DeviceSelector) {
                         ) {
                             Text("Set background")
                         }
+
+                        Button(
+                            onClick = {
+                                startViewModel.tryWebReq()
+                            },
+                            modifier = Modifier.padding(10.dp)
+                        ) {
+                            Text("tryWebReq()")
+                        }
                     }
                 }
             }

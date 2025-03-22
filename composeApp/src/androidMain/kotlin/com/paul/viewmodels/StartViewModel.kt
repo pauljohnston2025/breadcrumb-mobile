@@ -333,4 +333,23 @@ class StartViewModel(
 
     }
 
+    fun tryWebReq() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val url = "http://127.0.0.1:8080/"
+            println("starting req to $url")
+            val address = URL(url)
+
+            //Connect & check for the location field
+            try {
+                val connection = address.openConnection(Proxy.NO_PROXY) as HttpURLConnection
+                println("connecting")
+                connection.connect()
+                println("connected")
+                println("got response code " + connection.responseCode)
+            } catch (e: Throwable) {
+                println("Problem while expanding $address$e")
+            }
+        }
+    }
+
 }
