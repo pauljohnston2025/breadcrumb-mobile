@@ -1,6 +1,7 @@
 package com.paul.viewmodels
 
 import android.net.Uri
+import android.util.Log
 import androidx.compose.material.SnackbarHostState
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateListOf
@@ -101,10 +102,10 @@ class StartViewModel(
                     sendFile(file)
                 } catch (e: SecurityException) {
                     snackbarHostState.showSnackbar("Failed to load gpx file (you might not have permissions, please restart app to grant)")
-                    println(e)
+                    Log.d("stdout", e.toString())
                 } catch (e: Exception) {
                     snackbarHostState.showSnackbar("Failed to load gpx file (possibly invalid format)")
-                    println(e)
+                    Log.d("stdout", e.toString())
                 }
             }
         }
@@ -149,10 +150,10 @@ class StartViewModel(
                 sendFile(file)
             } catch (e: SecurityException) {
                 snackbarHostState.showSnackbar("Failed to load gpx file (you might not have permissions, please restart app to grant)")
-                println(e)
+                Log.d("stdout", e.toString())
             } catch (e: Exception) {
                 snackbarHostState.showSnackbar("Failed to load gpx file (possibly invalid format)")
-                println(e)
+                Log.d("stdout", e.toString())
             }
         }
     }
@@ -173,7 +174,7 @@ class StartViewModel(
                 saveHistory()
                 route = file.toRoute(snackbarHostState)
             } catch (e: Exception) {
-                println("Failed to parse route: ${e.message}")
+                Log.d("stdout","Failed to parse route: ${e.message}")
             }
         }
 
@@ -227,7 +228,7 @@ class StartViewModel(
             return Pair(connection.contentType, connection.inputStream)
 
         } catch (e: Throwable) {
-            println("Problem while expanding {}$address$e")
+            Log.d("stdout","Problem while expanding {}$address$e")
         }
 
         return null
@@ -337,24 +338,25 @@ class StartViewModel(
     fun tryWebReq() {
         viewModelScope.launch(Dispatchers.IO) {
             val url = "http://127.0.0.1:8080/"
-            println("starting req to $url")
+            Log.d("stdout","starting req to $url")
             val address = URL(url)
 
             //Connect & check for the location field
             try {
                 val connection = address.openConnection(Proxy.NO_PROXY) as HttpURLConnection
-                println("connecting")
+                Log.d("stdout","connecting")
                 connection.connect()
-                println("connected")
-                println("got response code " + connection.responseCode)
+                Log.d("stdout","connected")
+                Log.d("stdout","got response code " + connection.responseCode)
             } catch (e: Throwable) {
-                println("Problem while expanding $address$e")
+                Log.d("stdout","Problem while expanding $address$e")
             }
         }
     }
 
     fun requestTileLoad() {
         viewModelScope.launch(Dispatchers.IO) {
+            Log.d("stdout","requesting tile load")
             val device = deviceSelector.currentDevice()
             if (device == null) {
                 // todo make this a toast or something better for the user

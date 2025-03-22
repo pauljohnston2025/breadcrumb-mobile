@@ -3,6 +3,7 @@ package com.paul.infrastructure.utils
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
+import android.util.Log
 import androidx.activity.result.ActivityResultLauncher
 import androidx.compose.material.SnackbarHostState
 import com.paul.infrastructure.protocol.Point
@@ -35,7 +36,7 @@ data class GpxFile(
         var points = emptyList<GpxPoint>()
         if (gpx.tracks.size != 0) {
             val track = gpx.tracks[0]
-            println("loading points for ${track.trackName}")
+            Log.d("stdout","loading points for ${track.trackName}")
             if (track.trackSegments.size < 1) {
                 snackbarHostState.showSnackbar("failed to get segments")
                 return null
@@ -47,11 +48,11 @@ data class GpxFile(
         else if (gpx.routes.size != 0)
         {
             val route = gpx.routes[0]
-            println("loading points for ${route.routeName}")
+            Log.d("stdout","loading points for ${route.routeName}")
             points = route.routePoints
         }
         else {
-            println("failed to get track or route")
+            Log.d("stdout","failed to get track or route")
             return null
         }
 
@@ -207,9 +208,9 @@ class GpxFileLoader(private val context: Context) {
             if (uri == null) {
                 continuation.resumeWithException(Exception("failed to load file: $uri"))
             } else {
-                println("Load file: " + uri.toString())
+                Log.d("stdout","Load file: " + uri.toString())
                 continuation.resume(uri.toString()) {
-                    println("failed to resume")
+                    Log.d("stdout","failed to resume")
                 }
             }
 

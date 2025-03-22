@@ -1,6 +1,7 @@
 package com.paul.infrastructure.connectiq
 
 import android.content.Context
+import android.util.Log
 import com.garmin.android.connectiq.ConnectIQ
 import com.garmin.android.connectiq.ConnectIQ.ConnectIQListener
 import com.garmin.android.connectiq.ConnectIQ.IQDeviceEventListener
@@ -35,25 +36,25 @@ class Connection(private val context: Context) {
             // we are already connected, todo handle the case where 2 callers call connect at the same time (before onSdkReady is called)
             // need to make an outstanding task that gets returned?
             continuation.resume(Unit) {
-                println("cancelled whilst resuming")
+                Log.d("stdout","cancelled whilst resuming")
             }
         } else {
             connectIQ.initialize(context, true, object : ConnectIQListener {
                 override fun onInitializeError(errStatus: IQSdkErrorStatus) {
-                    println("Failed to initialise: ${errStatus.name}")
+                    Log.d("stdout","Failed to initialise: ${errStatus.name}")
                     continuation.resumeWithException(Exception(errStatus.name))
                 }
 
                 override fun onSdkReady() {
-                    println("onSdkReady()")
+                    Log.d("stdout","onSdkReady()")
                     isConnected = true
                     continuation.resume(Unit) {
-                        println("cancelled whilst resuming")
+                        Log.d("stdout","cancelled whilst resuming")
                     }
                 }
 
                 override fun onSdkShutDown() {
-                    println("onSdkShutDown()")
+                    Log.d("stdout","onSdkShutDown()")
                     isConnected = false
                 }
             })
@@ -66,7 +67,7 @@ class Connection(private val context: Context) {
             sendInternal(device, payload)
         } catch (e: Exception) {
             // todo make this a toast or something better
-            println("failed to send: $e")
+            Log.d("stdout","failed to send: $e")
         }
     }
 
@@ -93,7 +94,7 @@ class Connection(private val context: Context) {
                     app: IQApp,
                     status: IQMessageStatus
                 ) {
-                    println("onMessageStatus device: " + device.toString() + " app: " + app.toString() + " status: " + status.name)
+                    Log.d("stdout","onMessageStatus device: " + device.toString() + " app: " + app.toString() + " status: " + status.name)
                     if (completed) {
                         return
                     }
@@ -104,9 +105,9 @@ class Connection(private val context: Context) {
                     }
 
                     completed = true
-                    println("onMessageStatus: reciver.send")
+                    Log.d("stdout","onMessageStatus: reciver.send")
                     continuation.resume(Unit) {
-                        println("cancelled whilst resuming")
+                        Log.d("stdout","cancelled whilst resuming")
                     }
                 }
             })

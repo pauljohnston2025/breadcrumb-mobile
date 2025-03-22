@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.util.Log
 import androidx.activity.result.ActivityResultLauncher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -116,9 +117,9 @@ class ImageProcessor(private val context: Context) {
             if (uri == null) {
                 continuation.resumeWithException(Exception("failed to load file: $uri"))
             } else {
-                println("Load file: " + uri.toString())
+                Log.d("stdout","Load file: " + uri.toString())
                 continuation.resume(uri) {
-                    println("failed to resume")
+                    Log.d("stdout","failed to resume")
                 }
             }
 

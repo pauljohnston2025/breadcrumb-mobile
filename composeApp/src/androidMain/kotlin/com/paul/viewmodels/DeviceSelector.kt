@@ -1,5 +1,6 @@
 package com.paul.viewmodels
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavHostController
@@ -39,7 +40,7 @@ class DeviceSelector(private val navController: NavHostController, connection: C
     }
 
     override fun onCleared() {
-        println("view model cleared")
+        Log.d("stdout","view model cleared")
     }
 
     fun cancelSelection() {

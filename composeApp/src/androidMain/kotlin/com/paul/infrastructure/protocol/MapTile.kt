@@ -22,9 +22,9 @@ data class Colour(
         val colour =  ((Math.round(red.toInt() / 255.0f) * 3) shl 4) or
                 ((Math.round(green.toInt() / 255.0f) * 3) shl 2) or
                 (Math.round(blue.toInt() / 255.0f) * 3)
-//        println("red is: " + red.toInt());
-//        println("red is: " + red.toUInt());
-//        println("colour is: " + colour);
+//        Log.d("stdout","red is: " + red.toInt());
+//        Log.d("stdout","red is: " + red.toUInt());
+//        Log.d("stdout","colour is: " + colour);
         return colour.toByte()
     }
 
@@ -66,7 +66,7 @@ class MapTile(
         var str = "";
         for (colour in pixelData) {
             var colourByte = colour.asPackedColour()
-//            println("colour byte is: " + colourByte.toInt())
+//            Log.d("stdout","colour byte is: " + colourByte.toInt())
             // we also cannot send all 0's since its the null terminator
             // so we will set the second highest bit
             str += byteArrayOf((colourByte.toInt() or 0x40).toByte()).decodeToString()

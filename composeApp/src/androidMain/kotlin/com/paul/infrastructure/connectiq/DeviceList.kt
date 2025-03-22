@@ -1,5 +1,6 @@
 package com.paul.infrastructure.connectiq
 
+import android.util.Log
 import com.garmin.android.connectiq.ConnectIQ.IQDeviceEventListener
 import com.garmin.android.connectiq.IQDevice
 import com.garmin.android.connectiq.exception.InvalidStateException
@@ -26,7 +27,7 @@ class DeviceList(private val connection: Connection) {
     private var job: Job? = null
 
     private val mDeviceEventListener = IQDeviceEventListener { device, status ->
-        println("onDeviceStatusChanged():" + device + ": " + status.name)
+        Log.d("stdout","onDeviceStatusChanged():" + device + ": " + status.name)
 
         // todo don't block
         runBlocking {
@@ -53,7 +54,7 @@ class DeviceList(private val connection: Connection) {
     }
 
     private suspend fun loadDevices() {
-//        println("loadDevices")
+//        Log.d("stdout","loadDevices")
         val connectIQ = connection.getInstance()
         try {
             // cleanup from old run
@@ -70,19 +71,19 @@ class DeviceList(private val connection: Connection) {
             // need to call getStatus()
             for (device in deviceList) {
                 connectIQ.registerForDeviceEvents(device, mDeviceEventListener)
-//                println("device: ${device.friendlyName} status: ${device.status.name}")
+//                Log.d("stdout","device: ${device.friendlyName} status: ${device.status.name}")
             }
             deviceListFlow.emit(deviceList)
         } catch (e: InvalidStateException) {
             // This generally means you forgot to call initialize(), but since
             // we are in the callback for initialize(), this should never happen
-            println("invalid state")
+            Log.d("stdout","invalid state")
         } catch (e: ServiceUnavailableException) {
             // This will happen if for some reason your app was not able to connect
             // to the ConnectIQ service running within Garmin Connect Mobile.  This
             // could be because Garmin Connect Mobile is not installed or needs to
             // be upgraded.
-            println("service unavailable")
+            Log.d("stdout","service unavailable")
         }
     }
 }
