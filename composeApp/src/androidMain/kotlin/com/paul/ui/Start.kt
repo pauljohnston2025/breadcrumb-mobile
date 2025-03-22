@@ -220,6 +220,17 @@ fun Start(startViewModel: StartViewModel, deviceSelector: DeviceSelector) {
                             Text("tryWebReq()")
                         }
                     }
+
+                    Row(horizontalArrangement = Arrangement.SpaceBetween) {
+                        Button(
+                            onClick = {
+                                startViewModel.requestTileLoad()
+                            },
+                            modifier = Modifier.padding(10.dp)
+                        ) {
+                            Text("requestTileLoad()")
+                        }
+                    }
                 }
             }
 

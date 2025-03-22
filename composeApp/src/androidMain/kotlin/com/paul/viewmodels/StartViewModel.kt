@@ -13,6 +13,7 @@ import androidx.lifecycle.viewModelScope
 import com.paul.infrastructure.connectiq.Connection
 import com.paul.infrastructure.protocol.Colour
 import com.paul.infrastructure.protocol.MapTile
+import com.paul.infrastructure.protocol.RequestTileLoad
 import com.paul.infrastructure.protocol.Route
 import com.paul.infrastructure.utils.GpxFile
 import com.paul.infrastructure.utils.GpxFileLoader
@@ -335,7 +336,7 @@ class StartViewModel(
 
     fun tryWebReq() {
         viewModelScope.launch(Dispatchers.IO) {
-            val url = "http://127.0.0.1:8080/"
+            val url = "http://127.0.0.1:8080/loadtile"
             println("starting req to $url")
             val address = URL(url)
 
@@ -352,4 +353,19 @@ class StartViewModel(
         }
     }
 
+    fun requestTileLoad() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val device = deviceSelector.currentDevice()
+            if (device == null) {
+                // todo make this a toast or something better for the user
+                snackbarHostState.showSnackbar("no devices selected")
+                return@launch
+            }
+
+            sendingMessage("Requesting tile load") {
+                connection.send(device, RequestTileLoad())
+                snackbarHostState.showSnackbar("Requesting tile load sent")
+            }
+        }
+    }
 }

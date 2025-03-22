@@ -30,6 +30,9 @@ kotlin {
             // for webserver
             implementation(libs.ktor.server.netty) // Or the latest version
             implementation(libs.ktor.server.core)
+            implementation(libs.ktor.server.resources)
+            implementation(libs.ktor.server.call.logging)
+            implementation(libs.ktor.server.status.pages)
             implementation(libs.ktor.server.content.negotiation)
             implementation(libs.ktor.serialization.kotlinx.json)
             implementation(libs.logback.classic) // Required for logging in Ktor

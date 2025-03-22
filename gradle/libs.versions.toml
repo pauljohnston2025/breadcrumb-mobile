@@ -38,6 +38,9 @@ ktor-serialization-kotlinx-json = { module = "io.ktor:ktor-serialization-kotlinx
 ktor-server-content-negotiation = { module = "io.ktor:ktor-server-content-negotiation", version.ref = "ktorServer" }
 ktor-server-core = { module = "io.ktor:ktor-server-core", version.ref = "ktorServer" }
 ktor-server-netty = { module = "io.ktor:ktor-server-netty", version.ref = "ktorServer" }
+ktor-server-resources = { module = "io.ktor:ktor-server-resources", version.ref = "ktorServer" }
+ktor-server-call-logging = { module = "io.ktor:ktor-server-call-logging", version.ref = "ktorServer" }
+ktor-server-status-pages = { module = "io.ktor:ktor-server-status-pages", version.ref = "ktorServer" }
 multiplatform-settings = {module = "com.russhwolf:multiplatform-settings", version.ref = "multiplatform-settings"}
 multiplatform-settings-no-arg = {module = "com.russhwolf:multiplatform-settings-no-arg", version.ref = "multiplatform-settings"}
 serialization-json = {module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version = "1.8.0"}

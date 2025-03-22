@@ -66,7 +66,7 @@ class MapTile(
         var str = "";
         for (colour in pixelData) {
             var colourByte = colour.asPackedColour()
-            println("colour byte is: " + colourByte.toInt())
+//            println("colour byte is: " + colourByte.toInt())
             // we also cannot send all 0's since its the null terminator
             // so we will set the second highest bit
             str += byteArrayOf((colourByte.toInt() or 0x40).toByte()).decodeToString()
