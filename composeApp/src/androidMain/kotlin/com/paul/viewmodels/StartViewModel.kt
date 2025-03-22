@@ -237,7 +237,7 @@ class StartViewModel(
     }
 
     suspend fun sendMockTileInner(x: Int, y: Int, colour: Colour) {
-        val tilesize = 64
+        val tilesize = 50
         val data = List(tilesize * tilesize) { colour };
         val tile = MapTile(x, y, data);
 
@@ -262,7 +262,7 @@ class StartViewModel(
                 snackbarHostState.showSnackbar("no devices selected")
                 return@launch
             }
-            val size = 6;
+            val size = 1;
             for (x in 0..size) {
                 for (y in 0..size) {
                     sendMockTileInner(x,y,colour)
