@@ -336,7 +336,7 @@ class StartViewModel(
 
     fun tryWebReq() {
         viewModelScope.launch(Dispatchers.IO) {
-            val url = "http://127.0.0.1:8080/loadtile"
+            val url = "http://127.0.0.1:8080/"
             println("starting req to $url")
             val address = URL(url)
 
