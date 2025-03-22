@@ -13,6 +13,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.paul.infrastructure.connectiq.Connection
 import com.paul.infrastructure.utils.GpxFileLoader
+import com.paul.infrastructure.utils.ImageProcessor
 import com.paul.viewmodels.DeviceSelector
 import com.paul.viewmodels.StartViewModel
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -22,6 +23,7 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 fun App(
     connection: Connection,
     gpxFileLoader: GpxFileLoader,
+    imageProcessor: ImageProcessor,
     fileLoad: Uri?,
     shortGoogleUrl: String?,
     initialErrorMessage: String?,
@@ -47,6 +49,7 @@ fun App(
                             connection,
                             deviceSelector,
                             gpxFileLoader,
+                            imageProcessor,
                             snackbarHostState,
                             fileLoad,
                             shortGoogleUrl,

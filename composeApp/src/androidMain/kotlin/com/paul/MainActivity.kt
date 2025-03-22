@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.paul.infrastructure.connectiq.Connection
 import com.paul.infrastructure.utils.GpxFileLoader
+import com.paul.infrastructure.utils.ImageProcessor
 import com.paul.ui.App
 import java.io.IOException
 import java.lang.reflect.Modifier
@@ -35,9 +36,10 @@ class MainActivity : ComponentActivity() {
 
     val connection = Connection(this)
     val gpxFileLoader = GpxFileLoader(this)
+    val imageProcessor = ImageProcessor(this)
 
     // based on ActivityResultContracts.OpenDocument()
-    val getContent =
+    val getGpxContent =
         registerForActivityResult(object : ActivityResultContract<Array<String>, Uri?>() {
             @CallSuper
             override fun createIntent(context: Context, input: Array<String>): Intent {
@@ -58,8 +60,30 @@ class MainActivity : ComponentActivity() {
             gpxFileLoader.fileLoaded(uri)
         }
 
+    val getImageContent =
+        registerForActivityResult(object : ActivityResultContract<Array<String>, Uri?>() {
+            @CallSuper
+            override fun createIntent(context: Context, input: Array<String>): Intent {
+                return Intent(Intent.ACTION_OPEN_DOCUMENT)
+                    .addCategory(Intent.CATEGORY_OPENABLE)
+                    .setType("*/*")
+            }
+
+            override fun getSynchronousResult(
+                context: Context,
+                input: Array<String>
+            ): SynchronousResult<Uri?>? = null
+
+            override fun parseResult(resultCode: Int, intent: Intent?): Uri? {
+                return intent.takeIf { resultCode == RESULT_OK }?.data
+            }
+        }) { uri: Uri? ->
+            imageProcessor.fileLoaded(uri)
+        }
+
     init {
-        gpxFileLoader.setLauncher(getContent)
+        gpxFileLoader.setLauncher(getGpxContent)
+        imageProcessor.setLauncher(getImageContent)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -113,7 +137,7 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            App(connection, gpxFileLoader, fileLoad, shortGoogleUrl, initialErrorMessage)
+            App(connection, gpxFileLoader, imageProcessor, fileLoad, shortGoogleUrl, initialErrorMessage)
         }
     }
 }

@@ -5,6 +5,9 @@ import androidx.compose.material.SnackbarHostState
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.core.graphics.blue
+import androidx.core.graphics.green
+import androidx.core.graphics.red
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.paul.infrastructure.connectiq.Connection
@@ -13,6 +16,7 @@ import com.paul.infrastructure.protocol.MapTile
 import com.paul.infrastructure.protocol.Route
 import com.paul.infrastructure.utils.GpxFile
 import com.paul.infrastructure.utils.GpxFileLoader
+import com.paul.infrastructure.utils.ImageProcessor
 import com.russhwolf.settings.Settings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -35,12 +39,15 @@ class StartViewModel(
     private val connection: Connection,
     private val deviceSelector: DeviceSelector,
     private val gpxFileLoader: GpxFileLoader,
+    private val imageProcessor: ImageProcessor,
     private val snackbarHostState: SnackbarHostState,
     fileLoad: Uri?,
     shortGoogleUrl: String?,
     initialErrorMessage: String?
 ) : ViewModel() {
 
+    val TILE_SIZE = 50
+    val TILE_COUNT = 2
     val HISTORY_KEY = "HISTORY"
     val settings: Settings = Settings()
 
@@ -237,8 +244,11 @@ class StartViewModel(
     }
 
     suspend fun sendMockTileInner(x: Int, y: Int, colour: Colour) {
-        val tilesize = 50
-        val data = List(tilesize * tilesize) { colour };
+        var data = List(TILE_SIZE * TILE_SIZE) { colour };
+        // random colour tiles for now
+//        data = data.map {
+//            Colour.random()
+//        }
         val tile = MapTile(x, y, data);
 
         val device = deviceSelector.currentDevice()
@@ -262,13 +272,65 @@ class StartViewModel(
                 snackbarHostState.showSnackbar("no devices selected")
                 return@launch
             }
-            val size = 1;
-            for (x in 0..size) {
-                for (y in 0..size) {
+            val size = TILE_COUNT;
+            for (x in 0 until size) {
+                for (y in 0 until size) {
                     sendMockTileInner(x,y,colour)
                 }
             }
         }
+    }
+
+    fun sendImage() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val device = deviceSelector.currentDevice()
+            if (device == null) {
+                // todo make this a toast or something better for the user
+                snackbarHostState.showSnackbar("no devices selected")
+                return@launch
+            }
+
+            val uri: Uri
+            try {
+                uri = imageProcessor.searchForImageFileUri()
+            } catch (e: Exception) {
+                snackbarHostState.showSnackbar("Failed to find file (invalid or no selection)")
+                return@launch
+            }
+
+            val resizedBitmap = imageProcessor.parseImage(uri, TILE_SIZE * TILE_COUNT)
+            val bitmaps = imageProcessor.splitBitmapDynamic(resizedBitmap!!, TILE_SIZE, TILE_SIZE)
+            var x = 0;
+            var y = 0;
+            for (bitmap in bitmaps!!)
+            {
+                val colourData = mutableListOf<Colour>()
+                for (pixelX in 0 until TILE_SIZE) {
+                    for (pixelY in 0 until TILE_SIZE) {
+                        val colour = bitmap.getPixel(pixelX, pixelY)
+                        colourData.add(
+                            Colour(
+                                colour.red.toUByte(),
+                                colour.green.toUByte(),
+                                colour.blue.toUByte()
+                            )
+                        )
+                    }
+                }
+                val tile = MapTile(x, y, colourData);
+                sendingMessage("Sending image tile $x $y") {
+                    connection.send(device, tile)
+                    snackbarHostState.showSnackbar("Tile image sent $x $y")
+                }
+                ++x;
+                if (x == TILE_COUNT)
+                {
+                    x=0;
+                    ++y;
+                }
+            }
+        }
+
     }
 
 }

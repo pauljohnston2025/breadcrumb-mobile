@@ -161,43 +161,56 @@ fun Start(startViewModel: StartViewModel, deviceSelector: DeviceSelector) {
 
             Spacer(modifier = Modifier.height(16.dp))
             Row {
-
                 Box(
                     modifier = Modifier
                         .size(100.dp)
                         .background(color)
                 )
+                Column {
+                    Row {
+                        Button(
+                            onClick = {
+                                startViewModel.sendMockTile(
+                                    x.toInt(),
+                                    y.toInt(),
+                                    Colour(
+                                        red.toUByte(),
+                                        green.toUByte(),
+                                        blue.toUByte()
+                                    )
+                                )
+                            },
+                            modifier = Modifier.padding(10.dp)
+                        ) {
+                            Text("Send Tile")
+                        }
 
-                Button(
-                    onClick = {
-                        startViewModel.sendMockTile(
-                            x.toInt(),
-                            y.toInt(),
-                            Colour(
-                                red.toUByte(),
-                                green.toUByte(),
-                                blue.toUByte()
-                            )
-                        )
-                    },
-                    modifier = Modifier.padding(10.dp)
-                ) {
-                    Text("Send Tile")
-                }
+                        Button(
+                            onClick = {
+                                startViewModel.sendAllTiles(
+                                    Colour(
+                                        red.toUByte(),
+                                        green.toUByte(),
+                                        blue.toUByte()
+                                    )
+                                )
+                            },
+                            modifier = Modifier.padding(10.dp)
+                        ) {
+                            Text("Send All Tiles")
+                        }
+                    }
 
-                Button(
-                    onClick = {
-                        startViewModel.sendAllTiles(
-                            Colour(
-                                red.toUByte(),
-                                green.toUByte(),
-                                blue.toUByte()
-                            )
-                        )
-                    },
-                    modifier = Modifier.padding(10.dp)
-                ) {
-                    Text("Send All Tiles")
+                    Row(horizontalArrangement = Arrangement.SpaceBetween) {
+                        Button(
+                            onClick = {
+                                startViewModel.sendImage()
+                            },
+                            modifier = Modifier.padding(10.dp)
+                        ) {
+                            Text("Set background")
+                        }
+                    }
                 }
             }
 
