@@ -8,12 +8,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.paul.infrastructure.connectiq.Connection
+import com.paul.infrastructure.protocol.Colour
+import com.paul.infrastructure.protocol.MapTile
 import com.paul.infrastructure.protocol.Route
 import com.paul.infrastructure.utils.GpxFile
 import com.paul.infrastructure.utils.GpxFileLoader
 import com.russhwolf.settings.Settings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromJsonElement
@@ -225,6 +228,47 @@ class StartViewModel(
     fun clearHistory() {
         history.clear()
         saveHistory()
+    }
+
+    fun sendMockTile(x: Int, y: Int, colour: Colour) {
+        viewModelScope.launch(Dispatchers.IO) {
+            sendMockTileInner(x,y,colour)
+        }
+    }
+
+    suspend fun sendMockTileInner(x: Int, y: Int, colour: Colour) {
+        val tilesize = 64
+        val data = List(tilesize * tilesize) { colour };
+        val tile = MapTile(x, y, data);
+
+        val device = deviceSelector.currentDevice()
+        if (device == null) {
+            // todo make this a toast or something better for the user
+            snackbarHostState.showSnackbar("no devices selected")
+            return
+        }
+
+        sendingMessage("Sending tile $x $y") {
+            connection.send(device, tile)
+            snackbarHostState.showSnackbar("Tile sent $x $y")
+        }
+    }
+
+    fun sendAllTiles(colour: Colour){
+        viewModelScope.launch(Dispatchers.IO) {
+            val device = deviceSelector.currentDevice()
+            if (device == null) {
+                // todo make this a toast or something better for the user
+                snackbarHostState.showSnackbar("no devices selected")
+                return@launch
+            }
+            val size = 6;
+            for (x in 0..size) {
+                for (y in 0..size) {
+                    sendMockTileInner(x,y,colour)
+                }
+            }
+        }
     }
 
 }

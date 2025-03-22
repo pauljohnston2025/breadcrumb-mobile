@@ -93,7 +93,7 @@ class Connection(private val context: Context) {
                     app: IQApp,
                     status: IQMessageStatus
                 ) {
-                    println("onMessageStatus with status: " + status.name)
+                    println("onMessageStatus device: " + device.toString() + " app: " + app.toString() + " status: " + status.name)
                     if (completed) {
                         return
                     }
