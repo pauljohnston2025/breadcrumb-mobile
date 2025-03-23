@@ -42,10 +42,17 @@ class ImageProcessor(private val context: Context) {
      * @return A Bitmap object representing the resized image, or null if there was an error.
      */
     suspend fun parseImage(stream: InputStream, res: Int): Bitmap? {
-        var imageData: ByteArray
+        var imageData: ByteArray = byteArrayOf()
         withContext(Dispatchers.IO) {
-            imageData = stream.readAllBytes()
-            stream.close()
+            try {
+                imageData = stream.readAllBytes()
+                stream.close()
+            }
+            catch(t: Throwable)
+            {
+                Log.d("stdout", "stream load failed $t")
+                return@withContext null
+            }
         }
 
         try {
@@ -54,18 +61,24 @@ class ImageProcessor(private val context: Context) {
 
             //Decodes a bitmap from the specified byte array
             val imageStream = ByteArrayInputStream(imageData)
-            var bitmap = BitmapFactory.decodeStream(imageStream, null, options)
+            val bitmap = BitmapFactory.decodeStream(imageStream, null, options)
 
             if (bitmap == null) {
                 return null // Handle decoding failure
             }
 
-            // Resize the Bitmap to 100x100
             val resizedBitmap = Bitmap.createScaledBitmap(bitmap, res, res, true)
 
             // Recycle the original bitmap to free up memory (important for large images)
-            bitmap.recycle()
-            imageStream.close()
+            // createScaledBitmap can copy the bitmap if there is no scaling,
+            // so do not recycle the original bitmap
+            if (resizedBitmap !== bitmap)
+            {
+                bitmap.recycle()
+            }
+            withContext(Dispatchers.IO) {
+                imageStream.close()
+            }
             return resizedBitmap
         } catch (e: Exception) {
             e.printStackTrace() // Log the exception for debugging

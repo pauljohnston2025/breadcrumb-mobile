@@ -142,65 +142,14 @@ fun Start(startViewModel: StartViewModel, deviceSelector: DeviceSelector) {
                 )
             }
 
-            var x by remember { mutableStateOf("0") }
-            var y by remember { mutableStateOf("0") }
-            var red by remember { mutableStateOf("255") }
-            var green by remember { mutableStateOf("0") }
-            var blue by remember { mutableStateOf("0") }
-            val color = previewColor(red.toIntOrNull() ?: 0, green.toIntOrNull() ?: 0, blue.toIntOrNull() ?: 0)
-
             Row {
-                TileInput("X", x) { x = it }
-                TileInput("Y", y) { y = it }
-            }
-            Row {
-                ColorInput("Red", red) { red = it }
-                ColorInput("Green", green) { green = it }
-                ColorInput("Blue", blue) { blue = it }
+                FloatInput("Lat", startViewModel.lat) { startViewModel.lat = it }
+                FloatInput("Long", startViewModel.long) { startViewModel.long = it }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
             Row {
-                Box(
-                    modifier = Modifier
-                        .size(100.dp)
-                        .background(color)
-                )
                 Column {
-                    Row {
-                        Button(
-                            onClick = {
-                                startViewModel.sendMockTile(
-                                    x.toInt(),
-                                    y.toInt(),
-                                    Colour(
-                                        red.toUByte(),
-                                        green.toUByte(),
-                                        blue.toUByte()
-                                    )
-                                )
-                            },
-                            modifier = Modifier.padding(10.dp)
-                        ) {
-                            Text("Send Tile")
-                        }
-
-                        Button(
-                            onClick = {
-                                startViewModel.sendAllTiles(
-                                    Colour(
-                                        red.toUByte(),
-                                        green.toUByte(),
-                                        blue.toUByte()
-                                    )
-                                )
-                            },
-                            modifier = Modifier.padding(10.dp)
-                        ) {
-                            Text("Send All Tiles")
-                        }
-                    }
-
                     Row(horizontalArrangement = Arrangement.SpaceBetween) {
                         Button(
                             onClick = {
@@ -213,31 +162,11 @@ fun Start(startViewModel: StartViewModel, deviceSelector: DeviceSelector) {
 
                         Button(
                             onClick = {
-                                startViewModel.loadImageToTemp()
+                                startViewModel.requestTileLoad(startViewModel.lat.toFloat(), startViewModel.long.toFloat())
                             },
                             modifier = Modifier.padding(10.dp)
                         ) {
-                            Text("Load image to temp file")
-                        }
-                    }
-
-                    Row(horizontalArrangement = Arrangement.SpaceBetween) {
-                        Button(
-                            onClick = {
-                                startViewModel.requestTileLoad()
-                            },
-                            modifier = Modifier.padding(10.dp)
-                        ) {
-                            Text("requestTileLoad()")
-                        }
-
-                        Button(
-                            onClick = {
-                                startViewModel.tryWebReq()
-                            },
-                            modifier = Modifier.padding(10.dp)
-                        ) {
-                            Text("tryWebReq()")
+                            Text("requestLatLongLoad()")
                         }
                     }
                 }
@@ -349,39 +278,18 @@ fun Start(startViewModel: StartViewModel, deviceSelector: DeviceSelector) {
 }
 
 @Composable
-fun ColorInput(label: String, value: String, onValueChange: (String) -> Unit) {
+fun FloatInput(label: String, value: String, onValueChange: (String) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(text = "$label: ")
         TextField(
             value = value,
             onValueChange = {
-                if (it.isEmpty() || it.toIntOrNull() != null && it.toInt() in 0..255) {
+                if (it.isEmpty() || it.toFloatOrNull() != null) {
                     onValueChange(it)
                 }
             },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             modifier = Modifier.width(100.dp)
         )
     }
-}
-
-@Composable
-fun TileInput(label: String, value: String, onValueChange: (String) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(text = "$label: ")
-        TextField(
-            value = value,
-            onValueChange = {
-                if (it.isEmpty() || it.toIntOrNull() != null && it.toInt() in 0..255) {
-                    onValueChange(it)
-                }
-            },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.width(100.dp)
-        )
-    }
-}
-
-fun previewColor(red: Int, green: Int, blue: Int): Color {
-    return Color(red.coerceIn(0, 255), green.coerceIn(0, 255), blue.coerceIn(0, 255))
 }

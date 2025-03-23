@@ -4,8 +4,11 @@ import android.net.Uri
 import android.util.Log
 import androidx.compose.material.SnackbarHostState
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.core.graphics.blue
 import androidx.core.graphics.green
 import androidx.core.graphics.red
@@ -47,12 +50,13 @@ class StartViewModel(
     shortGoogleUrl: String?,
     initialErrorMessage: String?
 ) : ViewModel() {
-
-    val TILE_SIZE = 50
-    val TILE_COUNT = 8
+    val TILE_SIZE = 64
+    val TILE_COUNT = 6
     val HISTORY_KEY = "HISTORY"
     val settings: Settings = Settings()
 
+    var lat by mutableStateOf("-27.472077")
+    var long by mutableStateOf("153.023551")
     val sendingFile: MutableState<String> = mutableStateOf("")
     val errorMessage: MutableState<String> = mutableStateOf(initialErrorMessage ?: "")
     val htmlErrorMessage: MutableState<String> = mutableStateOf(initialErrorMessage ?: "")
@@ -354,7 +358,7 @@ class StartViewModel(
         }
     }
 
-    fun requestTileLoad() {
+    fun requestTileLoad(lat: Float, long: Float) {
         viewModelScope.launch(Dispatchers.IO) {
             Log.d("stdout","requesting tile load")
             val device = deviceSelector.currentDevice()
@@ -365,7 +369,7 @@ class StartViewModel(
             }
 
             sendingMessage("Requesting tile load") {
-                connection.send(device, RequestTileLoad(0f, 0f))
+                connection.send(device, RequestTileLoad(lat, long))
                 snackbarHostState.showSnackbar("Requesting tile load sent")
             }
         }

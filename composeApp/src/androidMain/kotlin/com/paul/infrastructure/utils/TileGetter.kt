@@ -1,6 +1,8 @@
 package com.paul.infrastructure.utils
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.util.Log
 import androidx.core.graphics.blue
 import androidx.core.graphics.green
 import androidx.core.graphics.red
@@ -20,26 +22,70 @@ class TileGetter(
 ) {
     suspend fun getTile(req: LoadTileRequest): LoadTileResponse
     {
+        val bigTileSize = 256f
+        val smallTilesPerBigTile = bigTileSize/req.tileSize
+        val x = (req.x / smallTilesPerBigTile).toInt();
+        val y = (req.y / smallTilesPerBigTile).toInt();
+
         // todo cache tiles and do this way better (get tiles based on pixels)
-        val brisbaneUrl = "https://a.tile.opentopomap.org/11/1894/1186.png"
-        val address = URL(brisbaneUrl)
-        val connection: HttpURLConnection
-        withContext(Dispatchers.IO) {
-            connection = address.openConnection(Proxy.NO_PROXY) as HttpURLConnection
-            connection.connect()
+        val tileUrl = "https://a.tile.opentopomap.org/${req.z}/${x}/${y}.png"
+        Log.d("stdout", "fetching $tileUrl")
+        val bitmaps: List<Bitmap>
+        try {
+            val address = URL(tileUrl)
+            val connection: HttpURLConnection
+            withContext(Dispatchers.IO) {
+                connection = address.openConnection(Proxy.NO_PROXY) as HttpURLConnection
+                connection.connect()
+            }
+            if (connection.responseCode != 200) {
+                Log.d("stdout", "fetching $tileUrl failed ${connection.responseCode}")
+                val colourData = List(req.tileSize * req.tileSize) {
+                    Colour(
+                        0.toUByte(),
+                        0.toUByte(),
+                        0.toUByte()
+                    )
+                }
+                val tile = MapTile(req.x, req.y, colourData)
+                return LoadTileResponse(tile.colourString())
+            }
+
+
+            val resizedBitmap = imageProcessor.parseImage(connection.inputStream, bigTileSize.toInt())!!
+            bitmaps = imageProcessor.splitBitmapDynamic(resizedBitmap, req.tileSize, req.tileSize)!!
         }
-        if (connection.responseCode != 200) {
-            val colourData = List(req.tileX * req.tileY) {Colour(0.toUByte(),0.toUByte(),0.toUByte())}
-            val tile = MapTile(req.tileX, req.tileY, colourData)
+        catch (e: Throwable)
+        {
+            Log.d("stdout", "fetching $tileUrl failed $e")
+            val colourData = List(req.tileSize * req.tileSize) {
+                Colour(
+                    0.toUByte(),
+                    0.toUByte(),
+                    0.toUByte()
+                )
+            }
+            val tile = MapTile(req.x, req.y, colourData)
             return LoadTileResponse(tile.colourString())
         }
 
-//        val file = File(context.filesDir, "testimage.png")
-//        val resizedBitmap = imageProcessor.parseImage(file.toUri(), req.tileSize * req.tileCountXY)
-        val resizedBitmap = imageProcessor.parseImage(connection.inputStream, req.tileSize * req.tileCountXY)
-        val bitmaps = imageProcessor.splitBitmapDynamic(resizedBitmap!!, req.tileSize, req.tileSize)
-
-        val bitmap = bitmaps!![req.tileX * req.tileCountXY + req.tileY]
+        val xOffset = req.x % smallTilesPerBigTile.toInt()
+        val yOffset = req.y % smallTilesPerBigTile.toInt()
+        val offset = xOffset * smallTilesPerBigTile.toInt() + yOffset
+        if (offset > bitmaps.size || offset< 0)
+        {
+            Log.d("stdout", "our math aint mathing $offset")
+            val colourData = List(req.tileSize * req.tileSize) {
+                Colour(
+                    0.toUByte(),
+                    0.toUByte(),
+                    0.toUByte()
+                )
+            }
+            val tile = MapTile(req.x, req.y, colourData)
+            return LoadTileResponse(tile.colourString())
+        }
+        val bitmap = bitmaps[offset]
         val colourData = mutableListOf<Colour>()
         for (pixelX in 0 until req.tileSize) {
             for (pixelY in 0 until req.tileSize) {
@@ -54,7 +100,7 @@ class TileGetter(
             }
         }
 
-        val tile = MapTile(req.tileX, req.tileY, colourData)
+        val tile = MapTile(req.x, req.y, colourData)
 
         return LoadTileResponse(tile.colourString())
     }
