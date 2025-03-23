@@ -1,18 +1,15 @@
 package com.paul.infrastructure.utils
 
 import android.content.Context
-import android.util.Log
 import androidx.core.graphics.blue
 import androidx.core.graphics.green
 import androidx.core.graphics.red
-import androidx.core.net.toUri
 import com.paul.infrastructure.protocol.Colour
 import com.paul.infrastructure.protocol.MapTile
 import com.paul.infrastructure.web.LoadTileRequest
 import com.paul.infrastructure.web.LoadTileResponse
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.io.File
 import java.net.HttpURLConnection
 import java.net.Proxy
 import java.net.URL
@@ -47,12 +44,6 @@ class TileGetter(
         for (pixelX in 0 until req.tileSize) {
             for (pixelY in 0 until req.tileSize) {
                 val colour = bitmap.getPixel(pixelX, pixelY)
-
-//                colourData.add(
-//                    Colour (
-//                        255.toUByte(),0.toUByte(),255.toUByte()
-//                    )
-//                )
                 colourData.add(
                     Colour(
                         colour.red.toUByte(),
