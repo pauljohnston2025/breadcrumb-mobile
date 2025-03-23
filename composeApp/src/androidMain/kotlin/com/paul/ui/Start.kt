@@ -208,16 +208,16 @@ fun Start(startViewModel: StartViewModel, deviceSelector: DeviceSelector) {
                             },
                             modifier = Modifier.padding(10.dp)
                         ) {
-                            Text("Set background")
+                            Text("Send background")
                         }
 
                         Button(
                             onClick = {
-                                startViewModel.tryWebReq()
+                                startViewModel.loadImageToTemp()
                             },
                             modifier = Modifier.padding(10.dp)
                         ) {
-                            Text("tryWebReq()")
+                            Text("Load image to temp file")
                         }
                     }
 
@@ -229,6 +229,15 @@ fun Start(startViewModel: StartViewModel, deviceSelector: DeviceSelector) {
                             modifier = Modifier.padding(10.dp)
                         ) {
                             Text("requestTileLoad()")
+                        }
+
+                        Button(
+                            onClick = {
+                                startViewModel.tryWebReq()
+                            },
+                            modifier = Modifier.padding(10.dp)
+                        ) {
+                            Text("tryWebReq()")
                         }
                     }
                 }

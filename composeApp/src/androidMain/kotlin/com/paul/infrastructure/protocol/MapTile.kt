@@ -53,7 +53,11 @@ class MapTile(
         // todo optimise this even further to manually packed array, each int serialises as a minimum of 5 bytes
         data.add(x);
         data.add(y);
+        data.add(colourString())
+        return data
+    }
 
+    fun colourString(): String {
         // monkey c is a really annoying encoding, it does not allow sending a raw byte array
         // you can send strings, but they have to be valid utf8, fortunately we are not using the
         // top 2 bits in our encoding yet (so all our values are in the ascii range)
@@ -65,14 +69,12 @@ class MapTile(
 
         var str = "";
         for (colour in pixelData) {
-            var colourByte = colour.asPackedColour()
+            val colourByte = colour.asPackedColour()
 //            Log.d("stdout","colour byte is: " + colourByte.toInt())
             // we also cannot send all 0's since its the null terminator
             // so we will set the second highest bit
             str += byteArrayOf((colourByte.toInt() or 0x40).toByte()).decodeToString()
         }
-        data.add(str)
-
-        return data
+        return str
     }
 }

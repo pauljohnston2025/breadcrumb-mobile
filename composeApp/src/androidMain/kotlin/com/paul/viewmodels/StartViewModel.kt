@@ -49,7 +49,7 @@ class StartViewModel(
 ) : ViewModel() {
 
     val TILE_SIZE = 50
-    val TILE_COUNT = 2
+    val TILE_COUNT = 8
     val HISTORY_KEY = "HISTORY"
     val settings: Settings = Settings()
 
@@ -367,6 +367,23 @@ class StartViewModel(
             sendingMessage("Requesting tile load") {
                 connection.send(device, RequestTileLoad())
                 snackbarHostState.showSnackbar("Requesting tile load sent")
+            }
+        }
+    }
+
+    fun loadImageToTemp() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val uri: Uri
+            try {
+                uri = imageProcessor.searchForImageFileUri()
+            } catch (e: Exception) {
+                snackbarHostState.showSnackbar("Failed to find file (invalid or no selection)")
+                return@launch
+            }
+
+            sendingMessage("loading image to temp") {
+                imageProcessor.writeUriToFile("testimage.png", uri)
+                snackbarHostState.showSnackbar("Image loaded to temp")
             }
         }
     }

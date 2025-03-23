@@ -6,11 +6,16 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Log
 import androidx.activity.result.ActivityResultLauncher
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayInputStream
+import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
 import kotlin.coroutines.resumeWithException
 import kotlin.math.ceil
 
@@ -90,8 +95,8 @@ class ImageProcessor(private val context: Context) {
         val numColumns = ceil(originalWidth.toDouble() / chunkWidth).toInt()
         val numRows = ceil(originalHeight.toDouble() / chunkHeight).toInt()
 
-        for (row in 0 until numRows) {
-            for (col in 0 until numColumns) {
+        for (col in 0 until numColumns) {
+            for (row in 0 until numRows) {
                 val x = col * chunkWidth
                 val y = row * chunkHeight
 
@@ -128,6 +133,23 @@ class ImageProcessor(private val context: Context) {
 
         require(getContentLauncher != null)
         getContentLauncher!!.launch(arrayOf("*"))
+    }
+
+    public suspend fun writeUriToFile(filename: String, uri: Uri) {
+        withContext(Dispatchers.IO) {
+            try {
+                val stream = context.contentResolver.openInputStream(uri)!!
+                val imageData = stream.readAllBytes()
+                stream.close()
+
+                val file = File(context.filesDir, filename)
+                FileOutputStream(file).use { outputStream ->
+                    outputStream.write(imageData)
+                }
+            } catch (e: IOException) {
+                e.printStackTrace() // Log the exception for debugging
+            }
+        }
     }
 
     fun fileLoaded(uri: Uri?) {

@@ -4,7 +4,10 @@ import android.app.Service
 import android.content.Intent
 import android.os.IBinder
 import android.util.Log
-import io.ktor.resources.Resource
+import com.paul.infrastructure.utils.ImageProcessor
+import com.paul.infrastructure.utils.TileGetter
+import com.paul.infrastructure.web.LoadTileRequest
+import com.paul.infrastructure.web.LoadTileResponse
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
 import io.ktor.server.application.createApplicationPlugin
@@ -16,7 +19,6 @@ import io.ktor.server.netty.Netty
 import io.ktor.server.netty.NettyApplicationEngine
 import io.ktor.server.plugins.calllogging.CallLogging
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.request.httpMethod
 import io.ktor.server.request.path
 import io.ktor.server.resources.Resources
@@ -26,23 +28,9 @@ import io.ktor.server.response.responseType
 import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
 import io.ktor.util.AttributeKey
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.slf4j.event.Level
 import io.ktor.server.resources.get as resourcesGet
-
-@Serializable
-@Resource("/loadtile")
-data class LoadTileRequest(
-    val lat: Float,
-    val long: Float,
-    val scale: Float,
-    val tileSize: Int,
-    val tileCountXY: Int,
-)
-
-@Serializable
-data class LoadTileResponse(val data: String)
 
 val startTimeKey = AttributeKey<Long>("StartTime")
 val responseKey = AttributeKey<Any>("Response")
@@ -89,6 +77,8 @@ val RequestLogging = createApplicationPlugin(name = "RequestLogging") {
 }
 
 class WebServerService : Service() {
+    // service has its own impl of tileGetter, since it runs outside of the main activity
+    private val tileGetter = TileGetter(ImageProcessor(this), this)
 
     private val serverPort = 8080
     private var server: EmbeddedServer<NettyApplicationEngine, NettyApplicationEngine.Configuration>? = null
@@ -125,16 +115,6 @@ class WebServerService : Service() {
             level = Level.INFO
             filter { call -> call.request.path().startsWith("/") }
         }
-//        install(StatusPages) {
-//            status { call, status ->
-//                val startTime = call.attributes[startTimeKey]
-//                val duration = System.currentTimeMillis() - startTime
-//                Log.d("stdout","StatusPages: Outgoing response - Status: $status Duration: $duration ms")
-//            }
-//            exception<Throwable> { call, cause ->
-//                Log.d("stdout","StatusPages: Exception occurred: $cause")
-//            }
-//        }
         install(RequestLogging)
 
         install(ContentNegotiation) {
@@ -146,11 +126,7 @@ class WebServerService : Service() {
 
         routing {
             resourcesGet<LoadTileRequest>  { params ->
-                    Log.d("WebserverService", "handling LoadTileRequest")
-                    val response = LoadTileResponse(
-                        "helloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworldhelloworld"
-                    )
-                    call.respond(response)
+                call.respond(tileGetter.getTile(params))
             }
 
             get("/") {
