@@ -16,6 +16,7 @@ import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.io.InputStream
 import kotlin.coroutines.resumeWithException
 import kotlin.math.ceil
 
@@ -29,6 +30,10 @@ class ImageProcessor(private val context: Context) {
         getContentLauncher = _getContentLauncher
     }
 
+    suspend fun parseImage(uri: Uri, res: Int): Bitmap? {
+        return parseImage(context.contentResolver.openInputStream(uri)!!, res)
+    }
+
     /**
      * Reads image data from a byte array, decodes it, and resizes it.
      *
@@ -36,10 +41,9 @@ class ImageProcessor(private val context: Context) {
      * @param imageData The byte array containing the image data.  Can be JPEG, PNG, etc.
      * @return A Bitmap object representing the resized image, or null if there was an error.
      */
-    suspend fun parseImage(uri: Uri, res: Int): Bitmap? {
+    suspend fun parseImage(stream: InputStream, res: Int): Bitmap? {
         var imageData: ByteArray
         withContext(Dispatchers.IO) {
-            val stream = context.contentResolver.openInputStream(uri)!!
             imageData = stream.readAllBytes()
             stream.close()
         }
