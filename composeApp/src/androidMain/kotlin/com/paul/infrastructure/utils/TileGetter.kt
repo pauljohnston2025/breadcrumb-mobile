@@ -38,6 +38,6 @@ class TileGetter(
 
         val tile = MapTile(req.tileX, req.tileY, colourData)
 
-        return LoadTileResponse(tile.colourList())
+        return LoadTileResponse(tile.colourString())
     }
 }

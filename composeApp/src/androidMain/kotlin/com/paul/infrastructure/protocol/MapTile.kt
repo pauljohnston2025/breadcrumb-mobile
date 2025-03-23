@@ -1,5 +1,6 @@
 package com.paul.infrastructure.protocol
 
+import com.garmin.monkeybrains.serialization.MonkeyArray
 import kotlin.random.Random
 
 data class Colour(
@@ -16,10 +17,15 @@ data class Colour(
     private val blue: UByte,
 )
 {
-    fun asPackedColour(): Int {
+    fun asPackedColour(): Byte {
         // not the best conversion, but ok for now
-        val colour = (red.toInt() shl 16) or (green.toInt() shl 8) or blue.toInt()
-        return colour
+        val colour =  ((Math.round(red.toInt() / 255.0f) * 3) shl 4) or
+                ((Math.round(green.toInt() / 255.0f) * 3) shl 2) or
+                (Math.round(blue.toInt() / 255.0f) * 3)
+//        Log.d("stdout","red is: " + red.toInt());
+//        Log.d("stdout","red is: " + red.toUInt());
+//        Log.d("stdout","colour is: " + colour);
+        return colour.toByte()
     }
 
     companion object {
@@ -47,11 +53,11 @@ class MapTile(
         // todo optimise this even further to manually packed array, each int serialises as a minimum of 5 bytes
         data.add(x);
         data.add(y);
-        data.add(colourList())
+        data.add(colourString())
         return data
     }
 
-    fun colourList(): List<Int> {
+    fun colourString(): String {
         // monkey c is a really annoying encoding, it does not allow sending a raw byte array
         // you can send strings, but they have to be valid utf8, fortunately we are not using the
         // top 2 bits in our encoding yet (so all our values are in the ascii range)
@@ -60,17 +66,15 @@ class MapTile(
         // (base64 encoding suggested, but that has its own overhead of ~33-37%)
         // extra byte per 4 byte sent is only 25% overhead
         // not using the top 2 bits has a 25% overhead too, but with 1 less byte for 4 colours sent
-        // this is why we are switching to fetch the tiles from the watch rather than through pushing from app
-        // http request seems much faster than connectIQ.sendMessage()
 
-        var res = mutableListOf<Int>();
+        var str = "";
         for (colour in pixelData) {
-            val colourInt = colour.asPackedColour()
+            val colourByte = colour.asPackedColour()
 //            Log.d("stdout","colour byte is: " + colourByte.toInt())
             // we also cannot send all 0's since its the null terminator
             // so we will set the second highest bit
-            res.add(colourInt)
+            str += byteArrayOf((colourByte.toInt() or 0x40).toByte()).decodeToString()
         }
-        return res
+        return str
     }
 }
