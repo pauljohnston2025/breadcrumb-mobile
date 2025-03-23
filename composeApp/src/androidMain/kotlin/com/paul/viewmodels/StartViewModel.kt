@@ -365,7 +365,7 @@ class StartViewModel(
             }
 
             sendingMessage("Requesting tile load") {
-                connection.send(device, RequestTileLoad())
+                connection.send(device, RequestTileLoad(0f, 0f))
                 snackbarHostState.showSnackbar("Requesting tile load sent")
             }
         }

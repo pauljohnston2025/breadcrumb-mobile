@@ -1,13 +1,14 @@
 package com.paul.infrastructure.protocol
 
-import kotlin.random.Random
-
-class RequestTileLoad() : Protocol {
+class RequestTileLoad(
+ private val lat: Float,
+ private val long: Float,
+) : Protocol {
     override fun type(): ProtocolType {
         return ProtocolType.PROTOCOL_REQUEST_TILE_LOAD
     }
 
     override fun payload(): List<Any> {
-        return mutableListOf()
+        return mutableListOf(lat, long)
     }
 }
