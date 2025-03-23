@@ -1,6 +1,5 @@
 package com.paul.infrastructure.protocol
 
-import com.garmin.monkeybrains.serialization.MonkeyArray
 import kotlin.random.Random
 
 data class Colour(
@@ -17,7 +16,7 @@ data class Colour(
     private val blue: UByte,
 )
 {
-    fun asPackedColour(): Byte {
+    fun asCharColour(): Byte {
         // not the best conversion, but ok for now
         val colour =  ((Math.round(red.toInt() / 255.0f) * 3) shl 4) or
                 ((Math.round(green.toInt() / 255.0f) * 3) shl 2) or
@@ -26,6 +25,12 @@ data class Colour(
 //        Log.d("stdout","red is: " + red.toUInt());
 //        Log.d("stdout","colour is: " + colour);
         return colour.toByte()
+    }
+
+    fun asPackedColour(): Int {
+        // not the best conversion, but ok for now
+        val colour = (red.toInt() shl 16) or (green.toInt() shl 8) or blue.toInt()
+        return colour
     }
 
     companion object {
@@ -53,7 +58,7 @@ class MapTile(
         // todo optimise this even further to manually packed array, each int serialises as a minimum of 5 bytes
         data.add(x);
         data.add(y);
-        data.add(colourString())
+        data.add(colourList())
         return data
     }
 
@@ -69,12 +74,24 @@ class MapTile(
 
         var str = "";
         for (colour in pixelData) {
-            val colourByte = colour.asPackedColour()
+            val colourByte = colour.asCharColour()
 //            Log.d("stdout","colour byte is: " + colourByte.toInt())
             // we also cannot send all 0's since its the null terminator
             // so we will set the second highest bit
             str += byteArrayOf((colourByte.toInt() or 0x40).toByte()).decodeToString()
         }
         return str
+    }
+
+    fun colourList(): List<Int> {
+        val res = mutableListOf<Int>();
+        for (colour in pixelData) {
+            val colourInt = colour.asPackedColour()
+//            Log.d("stdout","colour byte is: " + colourByte.toInt())
+            // we also cannot send all 0's since its the null terminator
+            // so we will set the second highest bit
+            res.add(colourInt)
+        }
+        return res
     }
 }
