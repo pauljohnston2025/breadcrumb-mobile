@@ -11,20 +11,21 @@ data class Colour(
     // 2 bits blue
     // so valid colour values are, we might pick an entirely new colour palate in the future,
     // but this should be ok for proof of concept
-    private val red: UByte,
-    private val green: UByte,
-    private val blue: UByte,
+    val red: UByte,
+    val green: UByte,
+    val blue: UByte,
 )
 {
     fun asCharColour(): Byte {
-        // not the best conversion, but ok for now
-        val colour =  ((Math.round(red.toInt() / 255.0f) * 3) shl 4) or
-                ((Math.round(green.toInt() / 255.0f) * 3) shl 2) or
-                (Math.round(blue.toInt() / 255.0f) * 3)
-//        Log.d("stdout","red is: " + red.toInt());
-//        Log.d("stdout","red is: " + red.toUInt());
-//        Log.d("stdout","colour is: " + colour);
-        return colour.toByte()
+        return HardCodedColourPalette().convertColourToPalette(this)
+//        // not the best conversion, but ok for now
+//        val colour =  ((Math.round(red.toInt() / 255.0f) * 3) shl 4) or
+//                ((Math.round(green.toInt() / 255.0f) * 3) shl 2) or
+//                (Math.round(blue.toInt() / 255.0f) * 3)
+////        Log.d("stdout","red is: " + red.toInt());
+////        Log.d("stdout","red is: " + red.toUInt());
+////        Log.d("stdout","colour is: " + colour);
+//        return colour.toByte()
     }
 
     fun asPackedColour(): Int {
@@ -58,7 +59,7 @@ class MapTile(
         // todo optimise this even further to manually packed array, each int serialises as a minimum of 5 bytes
         data.add(x);
         data.add(y);
-        data.add(colourList())
+        data.add(colourString())
         return data
     }
 
@@ -95,3 +96,116 @@ class MapTile(
         return res
     }
 }
+
+class HardCodedColourPalette {
+    data class RGBColor(val r: Int, val g: Int, val b: Int)
+
+    // note: these need to match whats on the watch
+    val colorPalette48: List<RGBColor> = listOf(
+        // Greens (Emphasis) - 16 colors
+        RGBColor(61, 179, 61),       // Vibrant Green
+        RGBColor(102, 179, 102),      // Medium Green
+        RGBColor(153, 204, 153),      // Light Green
+        RGBColor(0, 102, 0),         // Dark Green
+        RGBColor(128, 179, 77),      // Slightly Yellowish Green
+        RGBColor(77, 179, 128),      // Slightly Bluish Green
+        RGBColor(179, 179, 179),       // Pale Green
+        RGBColor(92, 128, 77),      // Olive Green
+        RGBColor(179, 230, 0),        // Lime Green
+        RGBColor(102, 179, 0),        // Spring Green
+        RGBColor(77, 204, 77),      // Bright Green
+        RGBColor(128, 153, 128),      // Grayish Green
+        RGBColor(153, 204, 153),      // Soft Green
+        RGBColor(0, 128, 0),         // Forest Green
+        RGBColor(128, 128, 128),      // Earthy Green
+        RGBColor(97, 153, 153),         // Sea Green
+
+        // Reds - 6 colors
+        RGBColor(230, 0, 0),         // Bright Red
+        RGBColor(204, 102, 102),      // Light Red (Pink)
+        RGBColor(153, 0, 0),         // Dark Red
+        RGBColor(230, 92, 77),      // Coral Red
+        RGBColor(179, 0, 38),         // Crimson
+        RGBColor(204, 102, 102),      // Rose
+
+        // Blues - 6 colors
+        RGBColor(0, 0, 230),         // Bright Blue
+        RGBColor(102, 102, 204),      // Light Blue
+        RGBColor(0, 0, 153),         // Dark Blue
+        RGBColor(102, 153, 230),      // Sky Blue
+        RGBColor(38, 0, 179),         // Indigo
+        RGBColor(77, 128, 179),      // Steel Blue
+
+        // Yellows - 4 colors
+        RGBColor(230, 230, 0),        // Bright Yellow
+        RGBColor(204, 204, 102),      // Light Yellow
+        RGBColor(153, 153, 0),        // Dark Yellow (Gold)
+        RGBColor(179, 153, 77),      // Mustard Yellow
+
+        // Oranges - 4 colors
+        RGBColor(230, 115, 0),        // Bright Orange
+        RGBColor(204, 153, 102),      // Light Orange
+        RGBColor(153, 77, 0),         // Dark Orange
+        RGBColor(179, 51, 0),         // Burnt Orange
+
+        // Purples - 4 colors
+        RGBColor(230, 0, 230),        // Bright Purple
+        RGBColor(204, 102, 204),      // Light Purple
+        RGBColor(153, 0, 153),        // Dark Purple
+        RGBColor(230, 153, 230),      // Lavender
+
+        // Neutral/Grayscale - 4 colors
+        RGBColor(242, 242, 242),      // White
+        RGBColor(179, 179, 179),       // Light Gray
+        RGBColor(77, 77, 77),         // Dark Gray
+        RGBColor(13, 13, 13),          // Black
+
+        //Extra Greens - 4 colors to meet 48 colors
+        RGBColor(34, 139, 34),    // ForestGreen
+        RGBColor(50, 205, 50),    // LimeGreen
+        RGBColor(144, 238, 144),  // LightGreen
+        RGBColor(0, 100, 0),       // DarkGreen
+    )
+
+    fun findNearestColorIndex(red: Int, green: Int, blue: Int, palette: List<RGBColor>): Int {
+        var minDistance = Float.MAX_VALUE
+        var nearestIndex = 0
+
+        for (i in palette.indices) {
+            val paletteColor = palette[i]
+            val distance = colorDistance(red, green, blue, paletteColor.r, paletteColor.g, paletteColor.b)
+
+            if (distance < minDistance) {
+                minDistance = distance
+                nearestIndex = i
+            }
+        }
+        return nearestIndex
+    }
+
+    fun colorDistance(r1: Int, g1: Int, b1: Int, r2: Int, g2: Int, b2: Int): Float {
+        val rMean = (r1 + r2) / 2f
+        val rDiff = r1 - r2
+        val gDiff = g1 - g2
+        val bDiff = b1 - b2
+
+        val weightR = 2 + rMean / 256
+        val weightG = 4
+        val weightB = 2 + (255 - rMean) / 256
+
+        return (weightR * rDiff * rDiff + weightG * gDiff * gDiff + weightB * bDiff * bDiff) as Float
+    }
+
+    fun rgbTo6Bit(red: Int, green: Int, blue: Int, colorPalette: List<RGBColor>): Byte {
+        val paletteIndex = findNearestColorIndex(red, green, blue, colorPalette)
+        return paletteIndex.toByte()
+    }
+
+    fun convertColourToPalette(colour: Colour): Byte {
+        val packedColor = rgbTo6Bit(colour.red.toInt(), colour.green.toInt(), colour.blue.toInt(), colorPalette48)
+        println("Packed color (6-bit): 0x${String.format("%02X", packedColor)}")
+        return packedColor
+    }
+}
+
+

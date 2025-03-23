@@ -33,7 +33,7 @@ class TileGetter(
         if (connection.responseCode != 200) {
             val colourData = List(req.tileX * req.tileY) {Colour(0.toUByte(),0.toUByte(),0.toUByte())}
             val tile = MapTile(req.tileX, req.tileY, colourData)
-            return LoadTileResponse(tile.colourList())
+            return LoadTileResponse(tile.colourString())
         }
 
 //        val file = File(context.filesDir, "testimage.png")
@@ -58,6 +58,6 @@ class TileGetter(
 
         val tile = MapTile(req.tileX, req.tileY, colourData)
 
-        return LoadTileResponse(tile.colourList())
+        return LoadTileResponse(tile.colourString())
     }
 }

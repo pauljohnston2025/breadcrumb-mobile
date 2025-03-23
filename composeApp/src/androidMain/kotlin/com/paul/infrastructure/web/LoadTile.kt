@@ -16,4 +16,4 @@ data class LoadTileRequest(
 )
 
 @Serializable
-data class LoadTileResponse(val data: List<Int>)
+data class LoadTileResponse(val data: String)
