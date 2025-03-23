@@ -97,7 +97,9 @@ class WebServerService : Service() {
 //         val host = if(isEmulator()) "0.0.0.0" else "127.0.0.1";
         // to make this work on the emulator you ned to run
         // adb forward tcp:8080 tcp:8080
-        server = embeddedServer(Netty, port = serverPort, host = "127.0.0.1") {
+        // need to listen externally so that we can still connect over wifi
+        // or hotspot
+        server = embeddedServer(Netty, port = serverPort, host = "0.0.0.0") {
             module()
         }.start(wait = false)
     }
