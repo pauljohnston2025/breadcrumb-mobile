@@ -177,10 +177,13 @@ class HardCodedColourPalette {
         RGBColor(242, 242, 242),      // White
         RGBColor(179, 179, 179),       // Light Gray
         RGBColor(77, 77, 77),         // Dark Gray
-        RGBColor(0, 0, 0)         // Black
+        RGBColor(0, 0, 0),         // Black
 
-        // still need 4 more to get to 64, do not make them blacks, or dark greys as too many
-        // colours merge to them
+        // manually picked to match map tiles
+        RGBColor(246, 230, 98), // road colours (yellow)
+        RGBColor(194, 185, 108), // slightly darker yellow road
+        RGBColor(214, 215, 216), // some mountains (light grey)
+        RGBColor(213, 237, 168), // some greenery that was not a nice colour
     )
 
 
