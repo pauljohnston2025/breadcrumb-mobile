@@ -74,12 +74,17 @@ class MapTile(
         // not using the top 2 bits has a 25% overhead too, but with 1 less byte for 4 colours sent
 
         var str = "";
+        // testing data
+        var i = 0
         for (colour in pixelData) {
-            val colourByte = colour.asCharColour()
+//            val colourByte = colour.asCharColour()
+            val colourByte = i++;
 //            Log.d("stdout","colour byte is: " + colourByte.toInt())
             // we also cannot send all 0's since its the null terminator
             // so we will set the second highest bit
-            str += byteArrayOf((colourByte.toInt() or 0x40).toByte()).decodeToString()
+            val byteVal = ((colourByte.toInt() or 0x40) and 0x7F).toByte()
+            val char = byteArrayOf(byteVal).decodeToString()
+            str += char
         }
         return str
     }
@@ -101,8 +106,8 @@ class HardCodedColourPalette {
     data class RGBColor(val r: Int, val g: Int, val b: Int)
 
     // note: these need to match whats on the watch
-    val colorPalette48: List<RGBColor> = listOf(
-        // Greens (Emphasis) - 16 colors
+    val colorPalette64: List<RGBColor> = listOf(
+        // Greens (Emphasis) - 22 colors
         RGBColor(61, 179, 61),       // Vibrant Green
         RGBColor(102, 179, 102),      // Medium Green
         RGBColor(153, 204, 153),      // Light Green
@@ -111,61 +116,76 @@ class HardCodedColourPalette {
         RGBColor(77, 179, 128),      // Slightly Bluish Green
         RGBColor(179, 179, 179),       // Pale Green
         RGBColor(92, 128, 77),      // Olive Green
+        RGBColor(148, 209, 23),
+        RGBColor(107, 142, 35),  // OliveDrab
         RGBColor(179, 230, 0),        // Lime Green
         RGBColor(102, 179, 0),        // Spring Green
         RGBColor(77, 204, 77),      // Bright Green
         RGBColor(128, 153, 128),      // Grayish Green
         RGBColor(153, 204, 153),      // Soft Green
         RGBColor(0, 128, 0),         // Forest Green
-        RGBColor(128, 128, 128),      // Earthy Green
-        RGBColor(97, 153, 153),         // Sea Green
+        RGBColor(34, 139, 34),    // ForestGreen
+        RGBColor(50, 205, 50),    // LimeGreen
+        RGBColor(144, 238, 144),  // LightGreen
+        RGBColor(0, 100, 0),       // DarkGreen
+        RGBColor(60, 179, 113),     // Medium Sea Green
+        RGBColor(46, 139, 87),      // SeaGreen
 
-        // Reds - 6 colors
+        // Reds - 8 colors
         RGBColor(230, 0, 0),         // Bright Red
         RGBColor(204, 102, 102),      // Light Red (Pink)
         RGBColor(153, 0, 0),         // Dark Red
         RGBColor(230, 92, 77),      // Coral Red
         RGBColor(179, 0, 38),         // Crimson
         RGBColor(204, 102, 102),      // Rose
+        RGBColor(255, 0, 0),     // Pure Red
+        RGBColor(255, 69, 0),    // RedOrange
 
-        // Blues - 6 colors
+        // Blues - 8 colors
         RGBColor(0, 0, 230),         // Bright Blue
         RGBColor(102, 102, 204),      // Light Blue
         RGBColor(0, 0, 153),         // Dark Blue
         RGBColor(102, 153, 230),      // Sky Blue
         RGBColor(38, 0, 179),         // Indigo
         RGBColor(77, 128, 179),      // Steel Blue
+        RGBColor(0, 0, 255),       // Pure Blue
+        RGBColor(0, 191, 255),      // DeepSkyBlue
 
-        // Yellows - 4 colors
+        // Yellows - 6 colors
         RGBColor(230, 230, 0),        // Bright Yellow
         RGBColor(204, 204, 102),      // Light Yellow
         RGBColor(153, 153, 0),        // Dark Yellow (Gold)
         RGBColor(179, 153, 77),      // Mustard Yellow
+        RGBColor(255, 255, 0),   // Pure Yellow
+        RGBColor(255, 215, 0),   // Gold
 
-        // Oranges - 4 colors
+        // Oranges - 6 colors
         RGBColor(230, 115, 0),        // Bright Orange
         RGBColor(204, 153, 102),      // Light Orange
         RGBColor(153, 77, 0),         // Dark Orange
         RGBColor(179, 51, 0),         // Burnt Orange
+        RGBColor(255, 165, 0),    // Orange
+        RGBColor(255, 140, 0),    // DarkOrange
 
-        // Purples - 4 colors
+        // Purples - 6 colors
         RGBColor(230, 0, 230),        // Bright Purple
         RGBColor(204, 102, 204),      // Light Purple
         RGBColor(153, 0, 153),        // Dark Purple
         RGBColor(230, 153, 230),      // Lavender
+        RGBColor(128, 0, 128),   // Purple
+        RGBColor(75, 0, 130),   // Indigo
 
-        // Neutral/Grayscale - 4 colors
-        RGBColor(242, 242, 242),      // White
+        // Neutral/Grayscale - 8 colors
+        RGBColor(255, 255, 255),   // White
+        RGBColor(220, 220, 220),      // Almost White
+        RGBColor(192, 192, 192),      // Silver
         RGBColor(179, 179, 179),       // Light Gray
+        RGBColor(128, 128, 128),  // Gray
+        RGBColor(105, 105, 105), // DimGray
         RGBColor(77, 77, 77),         // Dark Gray
-        RGBColor(13, 13, 13),          // Black
-
-        //Extra Greens - 4 colors to meet 48 colors
-        RGBColor(34, 139, 34),    // ForestGreen
-        RGBColor(50, 205, 50),    // LimeGreen
-        RGBColor(144, 238, 144),  // LightGreen
-        RGBColor(0, 100, 0),       // DarkGreen
+        RGBColor(0, 0, 0)         // Black
     )
+
 
     fun findNearestColorIndex(red: Int, green: Int, blue: Int, palette: List<RGBColor>): Int {
         var minDistance = Float.MAX_VALUE
@@ -202,7 +222,7 @@ class HardCodedColourPalette {
     }
 
     fun convertColourToPalette(colour: Colour): Byte {
-        val packedColor = rgbTo6Bit(colour.red.toInt(), colour.green.toInt(), colour.blue.toInt(), colorPalette48)
+        val packedColor = rgbTo6Bit(colour.red.toInt(), colour.green.toInt(), colour.blue.toInt(), colorPalette64)
         println("Packed color (6-bit): 0x${String.format("%02X", packedColor)}")
         return packedColor
     }

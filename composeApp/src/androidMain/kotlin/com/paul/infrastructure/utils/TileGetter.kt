@@ -1,6 +1,7 @@
 package com.paul.infrastructure.utils
 
 import android.content.Context
+import android.util.Log
 import androidx.core.graphics.blue
 import androidx.core.graphics.green
 import androidx.core.graphics.red
@@ -20,6 +21,15 @@ class TileGetter(
     private val imageProcessor: ImageProcessor,
     private val context: Context,
 ) {
+//    var red = 92
+//    var green = 100
+//    var blue = 50
+
+    var red = 176
+    var green = 205
+    var blue = 251
+
+    var maxBlue = 0
     suspend fun getTile(req: LoadTileRequest): LoadTileResponse
     {
         // todo cache tiles and do this way better (get tiles based on pixels)
@@ -46,13 +56,39 @@ class TileGetter(
         for (pixelX in 0 until req.tileSize) {
             for (pixelY in 0 until req.tileSize) {
                 val colour = bitmap.getPixel(pixelX, pixelY)
+
+                // test colour sweep so we know all convert correctly
+                red++
+                if (red==256) {
+                    red = 0
+                    green++
+                }
+
+                if (green == 256) {
+                    green = 0
+                    blue ++
+                }
+
+                if (blue == 256) {
+                    blue = 255
+                }
+
+                Log.d("stdout", "$red $green $blue")
+
                 colourData.add(
                     Colour(
-                        colour.red.toUByte(),
-                        colour.green.toUByte(),
-                        colour.blue.toUByte()
+                        red.toUByte(),
+                        green.toUByte(),
+                        blue.toUByte()
                     )
                 )
+//                colourData.add(
+//                    Colour(
+//                        colour.red.toUByte(),
+//                        colour.green.toUByte(),
+//                        colour.blue.toUByte()
+//                    )
+//                )
             }
         }
 
