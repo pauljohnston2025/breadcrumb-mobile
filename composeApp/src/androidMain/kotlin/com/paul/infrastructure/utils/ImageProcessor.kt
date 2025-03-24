@@ -34,13 +34,6 @@ class ImageProcessor(private val context: Context) {
         return parseImage(context.contentResolver.openInputStream(uri)!!, res)
     }
 
-    /**
-     * Reads image data from a byte array, decodes it, and resizes it.
-     *
-     * @param res The Output image size in pixels `res x res`
-     * @param imageData The byte array containing the image data.  Can be JPEG, PNG, etc.
-     * @return A Bitmap object representing the resized image, or null if there was an error.
-     */
     suspend fun parseImage(stream: InputStream, res: Int): Bitmap? {
         var imageData: ByteArray = byteArrayOf()
         withContext(Dispatchers.IO) {
@@ -54,7 +47,17 @@ class ImageProcessor(private val context: Context) {
                 return@withContext null
             }
         }
+        return parseImage(imageData, res)
+    }
 
+    /**
+     * Reads image data from a byte array, decodes it, and resizes it.
+     *
+     * @param res The Output image size in pixels `res x res`
+     * @param imageData The byte array containing the image data.  Can be JPEG, PNG, etc.
+     * @return A Bitmap object representing the resized image, or null if there was an error.
+     */
+    suspend fun parseImage(imageData: ByteArray, res: Int): Bitmap? {
         try {
             // Decode the byte array into a Bitmap
             val options = BitmapFactory.Options()

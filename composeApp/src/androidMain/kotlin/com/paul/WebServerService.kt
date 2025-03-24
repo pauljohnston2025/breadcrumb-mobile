@@ -48,7 +48,7 @@ val RequestLogging = createApplicationPlugin(name = "RequestLogging") {
             "$name: ${values.joinToString()}"
         }
 
-        Log.d("WebserverService","Incoming request - Method: $method, Path: $path\n  Headers:\n    $headers\n  Parameters:\n    $parameters")
+//        Log.d("WebserverService","Incoming request - Method: $method, Path: $path\n  Headers:\n    $headers\n  Parameters:\n    $parameters")
 
         // Store the start time in the call attributes
         call.attributes.put(startTimeKey, System.currentTimeMillis())
@@ -71,8 +71,8 @@ val RequestLogging = createApplicationPlugin(name = "RequestLogging") {
             "$name: ${values.joinToString()}"
         }
         val responseType = call.response.responseType
-        Log.d("WebserverService", "Outgoing response - Method: $method, Path: $path\n  Status: $statusCode\n  Headers:\n" +
-                "    $headers\n  Duration: $duration ms\n  ResponseType: $responseType\n  Response: $responseObject")
+//        Log.d("WebserverService", "Outgoing response - Method: $method, Path: $path\n  Status: $statusCode\n  Headers:\n" +
+//                "    $headers\n  Duration: $duration ms\n  ResponseType: $responseType\n  Response: $responseObject")
     }
 }
 
