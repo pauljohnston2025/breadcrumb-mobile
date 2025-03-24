@@ -23,11 +23,14 @@ class TileGetter(
     suspend fun getTile(req: LoadTileRequest): LoadTileResponse
     {
         val bigTileSize = 256f
-        val smallTilesPerBigTile = bigTileSize/req.tileSize
-        val x = (req.x / smallTilesPerBigTile).toInt();
-        val y = (req.y / smallTilesPerBigTile).toInt();
+        val smallTilesPerBigTile = Math.ceil(bigTileSize.toDouble()/req.tileSize).toInt()
+        val scaleUpSize = smallTilesPerBigTile * req.tileSize
+        val x = req.x / smallTilesPerBigTile
+        val y = req.y / smallTilesPerBigTile
 
         // todo cache tiles and do this way better (get tiles based on pixels)
+//        val brisbaneUrl = "https://a.tile.opentopomap.org/11/1894/1186.png"
+//        var tileUrl = brisbaneUrl;
         val tileUrl = "https://a.tile.opentopomap.org/${req.z}/${x}/${y}.png"
         Log.d("stdout", "fetching $tileUrl")
         val bitmaps: List<Bitmap>
@@ -51,8 +54,7 @@ class TileGetter(
                 return LoadTileResponse(tile.colourString())
             }
 
-
-            val resizedBitmap = imageProcessor.parseImage(connection.inputStream, bigTileSize.toInt())!!
+            val resizedBitmap = imageProcessor.parseImage(connection.inputStream, scaleUpSize)!!
             bitmaps = imageProcessor.splitBitmapDynamic(resizedBitmap, req.tileSize, req.tileSize)!!
         }
         catch (e: Throwable)
@@ -72,7 +74,7 @@ class TileGetter(
         val xOffset = req.x % smallTilesPerBigTile.toInt()
         val yOffset = req.y % smallTilesPerBigTile.toInt()
         val offset = xOffset * smallTilesPerBigTile.toInt() + yOffset
-        if (offset > bitmaps.size || offset< 0)
+        if (offset >= bitmaps.size || offset < 0)
         {
             Log.d("stdout", "our math aint mathing $offset")
             val colourData = List(req.tileSize * req.tileSize) {

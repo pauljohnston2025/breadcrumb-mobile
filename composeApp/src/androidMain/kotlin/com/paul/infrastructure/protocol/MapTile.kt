@@ -148,6 +148,7 @@ class HardCodedColourPalette {
         RGBColor(77, 128, 179),      // Steel Blue
         RGBColor(0, 0, 255),       // Pure Blue
         RGBColor(0, 191, 255),      // DeepSkyBlue
+        RGBColor(151, 210, 227), // ocean blue
 
         // Yellows - 6 colors
         RGBColor(230, 230, 0),        // Bright Yellow
@@ -175,7 +176,7 @@ class HardCodedColourPalette {
 
         // Neutral/Grayscale - 4 colors
         RGBColor(242, 242, 242),      // White
-        RGBColor(179, 179, 179),       // Light Gray
+//        RGBColor(179, 179, 179),       // Light Gray
         RGBColor(77, 77, 77),         // Dark Gray
         RGBColor(0, 0, 0),         // Black
 
@@ -223,7 +224,7 @@ class HardCodedColourPalette {
 
     fun convertColourToPalette(colour: Colour): Byte {
         val packedColor = rgbTo6Bit(colour.red.toInt(), colour.green.toInt(), colour.blue.toInt(), colorPalette64)
-        println("Packed color (6-bit): 0x${String.format("%02X", packedColor)}")
+//        println("Packed color (6-bit): 0x${String.format("%02X", packedColor)}")
         return packedColor
     }
 }
