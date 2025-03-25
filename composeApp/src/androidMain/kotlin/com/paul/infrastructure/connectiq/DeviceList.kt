@@ -1,24 +1,22 @@
 package com.paul.infrastructure.connectiq
 
 import android.util.Log
+import com.garmin.android.connectiq.ConnectIQ.IQApplicationEventListener
 import com.garmin.android.connectiq.ConnectIQ.IQDeviceEventListener
+import com.garmin.android.connectiq.ConnectIQ.IQMessageStatus
+import com.garmin.android.connectiq.IQApp
 import com.garmin.android.connectiq.IQDevice
 import com.garmin.android.connectiq.exception.InvalidStateException
 import com.garmin.android.connectiq.exception.ServiceUnavailableException
+import com.paul.infrastructure.connectiq.Connection.Companion.CONNECT_IQ_APP_ID
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.publish
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withContext
-import kotlin.coroutines.coroutineContext
 
 class DeviceList(private val connection: Connection) {
 
@@ -30,9 +28,23 @@ class DeviceList(private val connection: Connection) {
         Log.d("stdout","onDeviceStatusChanged():" + device + ": " + status.name)
 
         // todo don't block
+        // todo update the device status too, so we know wheat it looks like
         runBlocking {
             deviceListFlow.emit(deviceList)
         }
+    }
+
+    // see https://developer.garmin.com/connect-iq/core-topics/mobile-sdk-for-android/
+    // Receiving Messages
+    private val mDeviceAppMessageListener = IQApplicationEventListener { device, app, messageData, status ->
+        // First inspect the status to make sure this
+        // was a SUCCESS. If not then the status will indicate why there
+        // was an issue receiving the message from the Connect IQ application.
+        if (status == IQMessageStatus.SUCCESS) {
+            // Handle the message.
+        }
+
+        Log.d("stdout","mDeviceAppMessageListener():" + device + ": " + status.name + " " + messageData)
     }
 
     suspend fun subscribe(): Flow<List<IQDevice>> {
@@ -71,6 +83,8 @@ class DeviceList(private val connection: Connection) {
             // need to call getStatus()
             for (device in deviceList) {
                 connectIQ.registerForDeviceEvents(device, mDeviceEventListener)
+                // Register to receive messages from our application
+                connectIQ.registerForAppEvents(device, IQApp(CONNECT_IQ_APP_ID), mDeviceAppMessageListener)
 //                Log.d("stdout","device: ${device.friendlyName} status: ${device.status.name}")
             }
             deviceListFlow.emit(deviceList)

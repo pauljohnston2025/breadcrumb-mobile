@@ -4,20 +4,16 @@ import android.content.Context
 import android.util.Log
 import com.garmin.android.connectiq.ConnectIQ
 import com.garmin.android.connectiq.ConnectIQ.ConnectIQListener
-import com.garmin.android.connectiq.ConnectIQ.IQDeviceEventListener
 import com.garmin.android.connectiq.ConnectIQ.IQMessageStatus
 import com.garmin.android.connectiq.ConnectIQ.IQSdkErrorStatus
 import com.garmin.android.connectiq.ConnectIQ.IQSendMessageListener
 import com.garmin.android.connectiq.IQApp
 import com.garmin.android.connectiq.IQDevice
-import com.garmin.android.connectiq.exception.InvalidStateException
-import com.garmin.android.connectiq.exception.ServiceUnavailableException
 import com.paul.infrastructure.protocol.Protocol
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resumeWithException
+
 
 class Connection(private val context: Context) {
 

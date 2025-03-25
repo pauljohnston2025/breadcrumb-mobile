@@ -54,9 +54,30 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/plain" />
             </intent-filter>
+
+<!--            <intent-filter>-->
+<!--                -->
+<!--                <action android:name="android.intent.action.VIEW" />-->
+<!--                <category android:name="android.intent.category.DEFAULT" />-->
+<!--&lt;!&ndash;                <category android:name="android.intent.category.BROWSABLE" />&ndash;&gt;-->
+
+<!--                <data android:scheme="http"-->
+<!--                    android:host="open.breadcrumb.app.example.com"-->
+<!--                />-->
+<!--            </intent-filter>-->
+
+<!--            see https://forums.garmin.com/developer/connect-iq/f/discussion/4339/start-an-android-service-from-watch?pifragment-1298=2#pifragment-1298=2-->
+
         </activity>
         <service android:name=".WebServerService"
             android:exported="false">
         </service>
+        <receiver android:name=".ConnectIQMessageReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.garmin.android.connectiq.INCOMING_MESSAGE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>
