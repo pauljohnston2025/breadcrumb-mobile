@@ -2,6 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:allowBackup="true"
@@ -55,16 +56,18 @@
                 <data android:mimeType="text/plain" />
             </intent-filter>
 
-<!--            <intent-filter>-->
-<!--                -->
-<!--                <action android:name="android.intent.action.VIEW" />-->
-<!--                <category android:name="android.intent.category.DEFAULT" />-->
-<!--&lt;!&ndash;                <category android:name="android.intent.category.BROWSABLE" />&ndash;&gt;-->
+            <intent-filter
+                android:exported="true"
+                >
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.BROWSABLE" />
 
-<!--                <data android:scheme="http"-->
-<!--                    android:host="open.breadcrumb.app.example.com"-->
-<!--                />-->
-<!--            </intent-filter>-->
+                <data android:scheme="myapp"
+                    android:host="open.breadcrumb.app.example.com"
+                />
+            </intent-filter>
 
 <!--            see https://forums.garmin.com/developer/connect-iq/f/discussion/4339/start-an-android-service-from-watch?pifragment-1298=2#pifragment-1298=2-->
 

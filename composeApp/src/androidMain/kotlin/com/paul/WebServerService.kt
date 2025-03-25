@@ -88,7 +88,15 @@ class WebServerService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        startKtorServer()
+        try {
+            startKtorServer()
+        }
+        catch (t: Throwable)
+        {
+            // todo handle shutting down the old service somehow
+            // then start a new one
+            Log.e("stdout", "failed to start service, probably already bound: $t")
+        }
         return START_STICKY
     }
 

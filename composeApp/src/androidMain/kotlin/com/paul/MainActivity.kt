@@ -1,32 +1,29 @@
 package com.paul
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContract
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.CallSuper
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
-import androidx.compose.material.Button
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.paul.infrastructure.connectiq.Connection
 import com.paul.infrastructure.utils.GpxFileLoader
 import com.paul.infrastructure.utils.ImageProcessor
 import com.paul.ui.App
-import java.io.IOException
-import java.lang.reflect.Modifier
-import java.net.HttpURLConnection
-import java.net.Proxy
-import java.net.URL
 
 
 class MainActivity : ComponentActivity() {
@@ -137,7 +134,9 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            App(connection, gpxFileLoader, imageProcessor, fileLoad, shortGoogleUrl, initialErrorMessage)
+            PermissionHandler {
+                App(connection, gpxFileLoader, imageProcessor, fileLoad, shortGoogleUrl, initialErrorMessage)
+            }
         }
 
         val serviceIntent = Intent(this, WebServerService::class.java)
@@ -149,6 +148,37 @@ class MainActivity : ComponentActivity() {
         val serviceIntent = Intent(this, WebServerService::class.java)
         stopService(serviceIntent)
     }
+}
+
+@Composable
+fun PermissionHandler(content: @Composable () -> Unit) {
+    val context = LocalContext.current
+    var hasNotificationPermission = remember {
+        mutableStateOf(
+        ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+
+    val requestPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        hasNotificationPermission.value = isGranted
+        if (!isGranted) {
+            Toast.makeText(context, "Notification permission required", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    LaunchedEffect(key1 = Unit) {
+        if (!hasNotificationPermission.value) {
+            requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
+    // continue anyway, its not supper critical
+    content()
 }
 
 @Preview
