@@ -60,7 +60,7 @@ class TileGetter(
                             0.toUByte()
                         )
                     }
-                    val tile = MapTile(req.x, req.y, colourData)
+                    val tile = MapTile(req.x, req.y, req.z, colourData)
                     return LoadTileResponse(tile.colourString())
                 }
 
@@ -83,7 +83,7 @@ class TileGetter(
                     0.toUByte()
                 )
             }
-            val tile = MapTile(req.x, req.y, colourData)
+            val tile = MapTile(req.x, req.y, req.z, colourData)
             return LoadTileResponse(tile.colourString())
         }
 
@@ -100,7 +100,7 @@ class TileGetter(
                     0.toUByte()
                 )
             }
-            val tile = MapTile(req.x, req.y, colourData)
+            val tile = MapTile(req.x, req.y, req.z, colourData)
             return LoadTileResponse(tile.colourString())
         }
         val bitmap = bitmaps[offset]
@@ -118,7 +118,7 @@ class TileGetter(
             }
         }
 
-        val tile = MapTile(req.x, req.y, colourData)
+        val tile = MapTile(req.x, req.y, req.z, colourData)
 
         return LoadTileResponse(tile.colourString())
     }

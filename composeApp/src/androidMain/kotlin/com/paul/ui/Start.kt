@@ -9,13 +9,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
@@ -42,7 +42,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.text.HtmlCompat
-import com.paul.infrastructure.protocol.Colour
 import com.paul.viewmodels.DeviceSelector
 import com.paul.viewmodels.StartViewModel
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -142,7 +141,10 @@ fun Start(startViewModel: StartViewModel, deviceSelector: DeviceSelector) {
                 )
             }
 
-            Row {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
                 FloatInput("Lat", startViewModel.lat) { startViewModel.lat = it }
                 FloatInput("Long", startViewModel.long) { startViewModel.long = it }
             }
@@ -153,20 +155,20 @@ fun Start(startViewModel: StartViewModel, deviceSelector: DeviceSelector) {
                     Row(horizontalArrangement = Arrangement.SpaceBetween) {
                         Button(
                             onClick = {
-                                startViewModel.sendImage()
+                                startViewModel.clearLocation()
                             },
                             modifier = Modifier.padding(10.dp)
                         ) {
-                            Text("Send background")
+                            Text("Clear location")
                         }
 
                         Button(
                             onClick = {
-                                startViewModel.requestTileLoad(startViewModel.lat.toFloat(), startViewModel.long.toFloat())
+                                startViewModel.loadLocation(startViewModel.lat.toFloat(), startViewModel.long.toFloat())
                             },
                             modifier = Modifier.padding(10.dp)
                         ) {
-                            Text("requestLatLongLoad()")
+                            Text("Load location")
                         }
                     }
                 }
@@ -278,8 +280,10 @@ fun Start(startViewModel: StartViewModel, deviceSelector: DeviceSelector) {
 }
 
 @Composable
-fun FloatInput(label: String, value: String, onValueChange: (String) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+fun RowScope.FloatInput(label: String, value: String, onValueChange: (String) -> Unit) {
+    Column(
+        modifier = Modifier.weight(1F)
+    ) {
         Text(text = "$label: ")
         TextField(
             value = value,
@@ -289,7 +293,7 @@ fun FloatInput(label: String, value: String, onValueChange: (String) -> Unit) {
                 }
             },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            modifier = Modifier.width(100.dp)
+            modifier = Modifier
         )
     }
 }

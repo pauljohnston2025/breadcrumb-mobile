@@ -15,9 +15,10 @@ import androidx.core.graphics.red
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.paul.infrastructure.connectiq.Connection
+import com.paul.infrastructure.protocol.CancelLocationRequest
 import com.paul.infrastructure.protocol.Colour
 import com.paul.infrastructure.protocol.MapTile
-import com.paul.infrastructure.protocol.RequestTileLoad
+import com.paul.infrastructure.protocol.RequestLocationLoad
 import com.paul.infrastructure.protocol.Route
 import com.paul.infrastructure.utils.GpxFile
 import com.paul.infrastructure.utils.GpxFileLoader
@@ -50,8 +51,6 @@ class StartViewModel(
     shortGoogleUrl: String?,
     initialErrorMessage: String?
 ) : ViewModel() {
-    val TILE_SIZE = 64
-    val TILE_COUNT = 6
     val HISTORY_KEY = "HISTORY"
     val settings: Settings = Settings()
 
@@ -243,19 +242,20 @@ class StartViewModel(
         saveHistory()
     }
 
-    fun sendMockTile(x: Int, y: Int, colour: Colour) {
+    fun sendMockTile(x: Int, y: Int, z: Int, colour: Colour) {
         viewModelScope.launch(Dispatchers.IO) {
-            sendMockTileInner(x,y,colour)
+            sendMockTileInner(x,y,z,colour)
         }
     }
 
-    suspend fun sendMockTileInner(x: Int, y: Int, colour: Colour) {
+    suspend fun sendMockTileInner(x: Int, y: Int, z: Int, colour: Colour) {
+        val TILE_SIZE = 64;
         var data = List(TILE_SIZE * TILE_SIZE) { colour };
         // random colour tiles for now
 //        data = data.map {
 //            Colour.random()
 //        }
-        val tile = MapTile(x, y, data);
+        val tile = MapTile(x, y, z, data);
 
         val device = deviceSelector.currentDevice()
         if (device == null) {
@@ -268,75 +268,6 @@ class StartViewModel(
             connection.send(device, tile)
             snackbarHostState.showSnackbar("Tile sent $x $y")
         }
-    }
-
-    fun sendAllTiles(colour: Colour){
-        viewModelScope.launch(Dispatchers.IO) {
-            val device = deviceSelector.currentDevice()
-            if (device == null) {
-                // todo make this a toast or something better for the user
-                snackbarHostState.showSnackbar("no devices selected")
-                return@launch
-            }
-            val size = TILE_COUNT;
-            for (x in 0 until size) {
-                for (y in 0 until size) {
-                    sendMockTileInner(x,y,colour)
-                }
-            }
-        }
-    }
-
-    fun sendImage() {
-        viewModelScope.launch(Dispatchers.IO) {
-            val device = deviceSelector.currentDevice()
-            if (device == null) {
-                // todo make this a toast or something better for the user
-                snackbarHostState.showSnackbar("no devices selected")
-                return@launch
-            }
-
-            val uri: Uri
-            try {
-                uri = imageProcessor.searchForImageFileUri()
-            } catch (e: Exception) {
-                snackbarHostState.showSnackbar("Failed to find file (invalid or no selection)")
-                return@launch
-            }
-
-            val resizedBitmap = imageProcessor.parseImage(uri, TILE_SIZE * TILE_COUNT)
-            val bitmaps = imageProcessor.splitBitmapDynamic(resizedBitmap!!, TILE_SIZE, TILE_SIZE)
-            var x = 0;
-            var y = 0;
-            for (bitmap in bitmaps!!)
-            {
-                val colourData = mutableListOf<Colour>()
-                for (pixelX in 0 until TILE_SIZE) {
-                    for (pixelY in 0 until TILE_SIZE) {
-                        val colour = bitmap.getPixel(pixelX, pixelY)
-                        colourData.add(
-                            Colour(
-                                colour.red.toUByte(),
-                                colour.green.toUByte(),
-                                colour.blue.toUByte()
-                            )
-                        )
-                    }
-                }
-                val tile = MapTile(x, y, colourData);
-                sendingMessage("Sending image tile $x $y") {
-                    connection.send(device, tile)
-                    snackbarHostState.showSnackbar("Tile image sent $x $y")
-                }
-                ++x;
-                if (x == TILE_COUNT)
-                {
-                    x=0;
-                    ++y;
-                }
-            }
-        }
-
     }
 
     fun tryWebReq() {
@@ -358,9 +289,9 @@ class StartViewModel(
         }
     }
 
-    fun requestTileLoad(lat: Float, long: Float) {
+    fun loadLocation(lat: Float, long: Float) {
         viewModelScope.launch(Dispatchers.IO) {
-            Log.d("stdout","requesting tile load")
+            Log.d("stdout","requesting load location")
             val device = deviceSelector.currentDevice()
             if (device == null) {
                 // todo make this a toast or something better for the user
@@ -368,9 +299,26 @@ class StartViewModel(
                 return@launch
             }
 
-            sendingMessage("Requesting tile load") {
-                connection.send(device, RequestTileLoad(lat, long))
-                snackbarHostState.showSnackbar("Requesting tile load sent")
+            sendingMessage("Requesting load location") {
+                connection.send(device, RequestLocationLoad(lat, long))
+                snackbarHostState.showSnackbar("Requesting load location sent")
+            }
+        }
+    }
+
+    fun clearLocation() {
+        viewModelScope.launch(Dispatchers.IO) {
+            Log.d("stdout","requesting clear location")
+            val device = deviceSelector.currentDevice()
+            if (device == null) {
+                // todo make this a toast or something better for the user
+                snackbarHostState.showSnackbar("no devices selected")
+                return@launch
+            }
+
+            sendingMessage("Requesting clear location") {
+                connection.send(device, CancelLocationRequest())
+                snackbarHostState.showSnackbar("Requesting clear location sent")
             }
         }
     }

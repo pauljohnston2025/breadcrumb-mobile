@@ -48,6 +48,7 @@ data class Colour(
 class MapTile(
     private val x: Int,
     private val y: Int,
+    private val z: Int,
     private val pixelData: List<Colour>
 ) : Protocol {
     override fun type(): ProtocolType {
@@ -56,9 +57,9 @@ class MapTile(
 
     override fun payload(): List<Any> {
         val data = mutableListOf<Any>()
-        // todo optimise this even further to manually packed array, each int serialises as a minimum of 5 bytes
-        data.add(x);
-        data.add(y);
+        data.add(x)
+        data.add(y)
+        data.add(z)
         data.add(colourString())
         return data
     }

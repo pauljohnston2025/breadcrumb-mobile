@@ -3,7 +3,8 @@ package com.paul.infrastructure.protocol
 enum class ProtocolType(val value: UByte) {
     PROTOCOL_ROUTE_DATA(0u),
     PROTOCOL_MAP_TILE(1u),
-    PROTOCOL_REQUEST_TILE_LOAD(2u),
+    PROTOCOL_REQUEST_LOCATION_LOAD(2u),
+    PROTOCOL_CANCEL_LOCATION_REQUEST(3u),
 }
 
 interface Protocol {
