@@ -3,10 +3,12 @@ package com.paul
 import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -33,31 +35,14 @@ class ConnectIQMessageReceiver : BroadcastReceiver() {
 //            Log.d(TAG, "  remoteApplication: $remoteApplication")
 //            Log.d(TAG, "  remoteDevice: $remoteDevice")
             if (appId?.lowercase() == CONNECT_IQ_APP_ID.replace("-", "").lowercase()
-                // payload appears to change between runs
-                /* && payload.toString().lowercase() == "[B@cd05ca5".lowercase() */
-                )
-            {
+            // payload appears to change between runs
+            /* && payload.toString().lowercase() == "[B@cd05ca5".lowercase() */
+            ) {
                 Log.d(TAG, "got our special start message")
                 // apparently you cannot launch an app if the app is closed, or running inthe background
                 // https://stackoverflow.com/questions/59636083/broadcastreceiver-cant-start-activity-from-closed-or-in-background-app
                 // https://developer.android.com/guide/components/activities/background-starts
-                // might need to send notification instead
-//                val componentName = ComponentName(
-//                    "com.paul.breadcrumb",
-//                    "com.paul.MainActivity"
-//                )
-
-//                val launchIntent = Intent(Intent.ACTION_VIEW).apply {
-////                    component = componentName
-//                    data = Uri.parse("myapp://open.breadcrumb.app.example.com")
-//                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-//                }
-//
-//                try {
-//                    context.startActivity(launchIntent)
-//                } catch (e: Exception) {
-//                    Log.e(TAG, "intent error: ${context.packageName} $e")
-//                }
+                // need to send notification instead
 
                 // todo check if we are already running somehow
                 // no need to prompt for open if we are already running the tile service
@@ -65,7 +50,7 @@ class ConnectIQMessageReceiver : BroadcastReceiver() {
                     context,
                     "Please open breadcrumb companion app",
                     "The companion app needs to be launched so that we can start reading tiles for maps"
-                    )
+                )
 
             }
         }
@@ -89,18 +74,29 @@ class ConnectIQMessageReceiver : BroadcastReceiver() {
             context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.createNotificationChannel(channel)
 
+//        val launchIntent = Intent(Intent.ACTION_VIEW).apply {
+//            data = Uri.parse("myapp://open.breadcrumb.app.example.com")
+//            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+//        }
+        val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)
+
+        val pendingIntent: PendingIntent = PendingIntent.getActivity(context, 0, launchIntent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+
         // Build the Notification
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.icon)
             .setContentTitle(title)
             .setContentText(message)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .setAutoCancel(true)  // Automatically removes the notification when the user taps it
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
 
-        // Show the Notification
         with(NotificationManagerCompat.from(context)) {
-            // notificationId is a unique int for each notification that you must define
-            if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
+            if (ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) ==
                 PackageManager.PERMISSION_GRANTED
             ) {
                 notify(NOTIFICATION_ID, builder.build())
