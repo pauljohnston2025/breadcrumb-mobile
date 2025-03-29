@@ -80,7 +80,7 @@ data class GpxFile(
             )
         }
 
-        return Route(routePoints)
+        return Route(name(), routePoints)
     }
 
     fun name() : String {
