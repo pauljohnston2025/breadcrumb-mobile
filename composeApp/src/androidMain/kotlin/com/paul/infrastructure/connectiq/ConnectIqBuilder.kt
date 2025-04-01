@@ -1,10 +1,9 @@
 package com.paul.infrastructure.connectiq
 
 import android.content.Context
-import android.os.Build
 import com.garmin.android.connectiq.ConnectIQ
 import com.garmin.android.connectiq.ConnectIQ.IQConnectType
-import com.paul.infrastructure.utils.isEmulator
+import com.paul.infrastructure.service.isEmulator
 
 class ConnectIqBuilder(private val context: Context) {
 

@@ -2,6 +2,7 @@ package com.paul.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -30,8 +31,16 @@ fun DeviceSelector(deviceSelector: DeviceSelector, navController: NavHostControl
             Text("Choose device:")
             LazyColumn {
                 itemsIndexed(devicesList.value) { index, item ->
-                    Button(onClick = { deviceSelector.onDeviceSelected(item) }) {
-                        Text("$index. ${item.friendlyName} ${item.status.name}")
+                    Row {
+                        Button(onClick = { deviceSelector.onDeviceSelected(item) }) {
+                            Column {
+                                Text("name: ${item.friendlyName}")
+                                Text("status: ${item.status}")
+                            }
+                        }
+                        Button(onClick = { deviceSelector.openDeviceSettings(item) }) {
+                            Text("settings")
+                        }
                     }
                 }
             }

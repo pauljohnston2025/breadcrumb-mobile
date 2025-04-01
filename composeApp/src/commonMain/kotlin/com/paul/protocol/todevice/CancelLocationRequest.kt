@@ -1,4 +1,4 @@
-package com.paul.infrastructure.protocol
+package com.paul.protocol.todevice
 
 class CancelLocationRequest() : Protocol {
     override fun type(): ProtocolType {

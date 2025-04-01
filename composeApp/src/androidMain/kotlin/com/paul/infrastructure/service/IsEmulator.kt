@@ -1,4 +1,4 @@
-package com.paul.infrastructure.utils
+package com.paul.infrastructure.service
 
 import android.os.Build
 

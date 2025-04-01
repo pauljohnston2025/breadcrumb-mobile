@@ -1,4 +1,4 @@
-package com.paul.infrastructure.protocol
+package com.paul.protocol.todevice
 
 class RequestLocationLoad(
  private val lat: Float,

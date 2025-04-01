@@ -21,8 +21,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.content.ContextCompat
 import com.paul.infrastructure.connectiq.Connection
-import com.paul.infrastructure.utils.GpxFileLoader
-import com.paul.infrastructure.utils.ImageProcessor
+import com.paul.infrastructure.connectiq.DeviceList
+import com.paul.infrastructure.service.FileHelper
+import com.paul.infrastructure.service.GpxFileLoader
+import com.paul.infrastructure.service.ImageProcessor
 import com.paul.ui.App
 
 
@@ -31,12 +33,13 @@ class MainActivity : ComponentActivity() {
         private const val GOOGLE_SHORT_URL_PREFIX = "https://"
     }
 
+    val fileHelper = FileHelper(this)
     val connection = Connection(this)
-    val gpxFileLoader = GpxFileLoader(this)
-    val imageProcessor = ImageProcessor(this)
+    val deviceList = DeviceList(connection)
+    val gpxFileLoader = GpxFileLoader()
 
     // based on ActivityResultContracts.OpenDocument()
-    val getGpxContent =
+    val getFileContent =
         registerForActivityResult(object : ActivityResultContract<Array<String>, Uri?>() {
             @CallSuper
             override fun createIntent(context: Context, input: Array<String>): Intent {
@@ -54,33 +57,11 @@ class MainActivity : ComponentActivity() {
                 return intent.takeIf { resultCode == RESULT_OK }?.data
             }
         }) { uri: Uri? ->
-            gpxFileLoader.fileLoaded(uri)
-        }
-
-    val getImageContent =
-        registerForActivityResult(object : ActivityResultContract<Array<String>, Uri?>() {
-            @CallSuper
-            override fun createIntent(context: Context, input: Array<String>): Intent {
-                return Intent(Intent.ACTION_OPEN_DOCUMENT)
-                    .addCategory(Intent.CATEGORY_OPENABLE)
-                    .setType("*/*")
-            }
-
-            override fun getSynchronousResult(
-                context: Context,
-                input: Array<String>
-            ): SynchronousResult<Uri?>? = null
-
-            override fun parseResult(resultCode: Int, intent: Intent?): Uri? {
-                return intent.takeIf { resultCode == RESULT_OK }?.data
-            }
-        }) { uri: Uri? ->
-            imageProcessor.fileLoaded(uri)
+            fileHelper.fileLoaded(uri)
         }
 
     init {
-        gpxFileLoader.setLauncher(getGpxContent)
-        imageProcessor.setLauncher(getImageContent)
+        fileHelper.setLauncher(getFileContent)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -135,7 +116,15 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             PermissionHandler {
-                App(connection, gpxFileLoader, imageProcessor, fileLoad, shortGoogleUrl, initialErrorMessage)
+                App(
+                    connection,
+                    deviceList,
+                    gpxFileLoader,
+                    fileHelper,
+                    fileLoad?.toString(),
+                    shortGoogleUrl,
+                    initialErrorMessage
+                )
             }
         }
 
@@ -155,7 +144,7 @@ fun PermissionHandler(content: @Composable () -> Unit) {
     val context = LocalContext.current
     var hasNotificationPermission = remember {
         mutableStateOf(
-        ContextCompat.checkSelfPermission(
+            ContextCompat.checkSelfPermission(
                 context,
                 Manifest.permission.POST_NOTIFICATIONS
             ) == PackageManager.PERMISSION_GRANTED

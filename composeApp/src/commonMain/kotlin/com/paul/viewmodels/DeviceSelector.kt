@@ -4,9 +4,9 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavHostController
-import com.garmin.android.connectiq.IQDevice
-import com.paul.infrastructure.connectiq.Connection
-import com.paul.infrastructure.connectiq.DeviceList
+import com.paul.domain.IqDevice
+import com.paul.infrastructure.connectiq.IConnection
+import com.paul.infrastructure.connectiq.IDeviceList
 import com.paul.ui.Screens
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -15,15 +15,16 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 
-class DeviceSelector(private val navController: NavHostController, connection: Connection) :
+class DeviceSelector(
+    private val navController: NavHostController,
+    connection: IConnection,
+    private val deviceList: IDeviceList) :
     ViewModel() {
-    private var currentDevice: IQDevice? = null
-    private var deviceList = DeviceList(connection)
-    private var devicesFlow: MutableSharedFlow<List<IQDevice>> = MutableSharedFlow()
+    private var currentDevice: IqDevice? = null
+    private var devicesFlow: MutableSharedFlow<List<IqDevice>> = MutableSharedFlow()
     private var currentDevicePoll: Job? = null
 
     init {
@@ -35,7 +36,7 @@ class DeviceSelector(private val navController: NavHostController, connection: C
         }
     }
 
-    fun devicesFlow(): Flow<List<IQDevice>> {
+    fun devicesFlow(): Flow<List<IqDevice>> {
         return devicesFlow
     }
 
@@ -47,7 +48,7 @@ class DeviceSelector(private val navController: NavHostController, connection: C
         currentDevicePoll?.cancel()
     }
 
-    suspend fun currentDevice(): IQDevice? {
+    suspend fun currentDevice(): IqDevice? {
         if (currentDevice == null) {
             selectDevice()
         }
@@ -86,8 +87,12 @@ class DeviceSelector(private val navController: NavHostController, connection: C
         }
     }
 
-    fun onDeviceSelected(device: IQDevice) {
+    fun onDeviceSelected(device: IqDevice) {
         currentDevice = device
         navController.popBackStack()
+    }
+
+    fun openDeviceSettings(device: IqDevice) {
+
     }
 }

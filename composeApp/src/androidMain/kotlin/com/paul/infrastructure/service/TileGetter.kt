@@ -1,30 +1,27 @@
-package com.paul.infrastructure.utils
+package com.paul.infrastructure.service
 
-import android.content.Context
 import android.graphics.Bitmap
 import android.util.Log
 import androidx.core.graphics.blue
 import androidx.core.graphics.green
 import androidx.core.graphics.red
-import com.paul.infrastructure.protocol.Colour
-import com.paul.infrastructure.protocol.MapTile
 import com.paul.infrastructure.web.LoadTileRequest
 import com.paul.infrastructure.web.LoadTileResponse
+import com.paul.protocol.todevice.Colour
+import com.paul.protocol.todevice.MapTile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.io.File
-import java.io.FileInputStream
-import java.io.FileOutputStream
-import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.Proxy
 import java.net.URL
 
+// todo: move this into common code
+// only thing holding it back is the image processing and web requests
 class TileGetter(
     private val imageProcessor: ImageProcessor,
-    private val context: Context,
-) {
-    suspend fun getTile(req: LoadTileRequest): LoadTileResponse
+    private val fileHelper: IFileHelper,
+) : ITileGetter {
+    override suspend fun getTile(req: LoadTileRequest): LoadTileResponse
     {
         val bigTileSize = 256f
         val smallTilesPerBigTile = Math.ceil(bigTileSize.toDouble()/req.tileSize).toInt()
@@ -42,7 +39,7 @@ class TileGetter(
 
         val bitmaps: List<Bitmap>
         try {
-            var tileContents = readTile(fileName)
+            var tileContents = fileHelper.readFile(fileName)
             if (tileContents == null)
             {
                 val address = URL(tileUrl)
@@ -53,21 +50,13 @@ class TileGetter(
                 }
                 if (connection.responseCode != 200) {
                     Log.d("stdout", "fetching $tileUrl failed ${connection.responseCode}")
-                    val colourData = List(req.tileSize * req.tileSize) {
-                        Colour(
-                            0.toUByte(),
-                            0.toUByte(),
-                            0.toUByte()
-                        )
-                    }
-                    val tile = MapTile(req.x, req.y, req.z, colourData)
-                    return LoadTileResponse(tile.colourString())
+                    return erroredTile(req)
                 }
 
                 withContext(Dispatchers.IO) {
                     tileContents = connection.inputStream.readAllBytes()
                 }
-                writeToFile(fileName, tileContents!!)
+                fileHelper.writeLocalFile(fileName, tileContents!!)
             }
 
             val resizedBitmap = imageProcessor.parseImage(tileContents, scaleUpSize)!!
@@ -76,15 +65,7 @@ class TileGetter(
         catch (e: Throwable)
         {
             Log.d("stdout", "fetching $tileUrl failed $e")
-            val colourData = List(req.tileSize * req.tileSize) {
-                Colour(
-                    0.toUByte(),
-                    0.toUByte(),
-                    0.toUByte()
-                )
-            }
-            val tile = MapTile(req.x, req.y, req.z, colourData)
-            return LoadTileResponse(tile.colourString())
+            return erroredTile(req)
         }
 
         val xOffset = req.x % smallTilesPerBigTile.toInt()
@@ -93,15 +74,7 @@ class TileGetter(
         if (offset >= bitmaps.size || offset < 0)
         {
             Log.d("stdout", "our math aint mathing $offset")
-            val colourData = List(req.tileSize * req.tileSize) {
-                Colour(
-                    0.toUByte(),
-                    0.toUByte(),
-                    0.toUByte()
-                )
-            }
-            val tile = MapTile(req.x, req.y, req.z, colourData)
-            return LoadTileResponse(tile.colourString())
+            return erroredTile(req)
         }
         val bitmap = bitmaps[offset]
         val colourData = mutableListOf<Colour>()
@@ -121,36 +94,5 @@ class TileGetter(
         val tile = MapTile(req.x, req.y, req.z, colourData)
 
         return LoadTileResponse(tile.colourString())
-    }
-
-    private fun writeToFile(filename: String, data: ByteArray) {
-        val file = File(context.filesDir, filename)
-
-        // Ensure the parent directory exists
-        val parentDir = file.parentFile
-        if (parentDir != null && !parentDir.exists()) {
-            parentDir.mkdirs() // Create the parent directory and any missing intermediate directories
-        }
-
-        FileOutputStream(file).use { outputStream ->
-            outputStream.write(data)
-        }
-    }
-
-    private fun readTile(filename: String): ByteArray? {
-        val file = File(context.filesDir, filename)
-        if (!file.exists()) {
-            return null
-        }
-
-        return try {
-            val fileInputStream = FileInputStream(file)
-            val res = fileInputStream.readAllBytes()
-            fileInputStream.close()
-            return res
-        } catch (e: IOException) {
-            e.printStackTrace()
-            null
-        }
     }
 }

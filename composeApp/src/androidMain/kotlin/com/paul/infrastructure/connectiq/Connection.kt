@@ -9,17 +9,14 @@ import com.garmin.android.connectiq.ConnectIQ.IQSdkErrorStatus
 import com.garmin.android.connectiq.ConnectIQ.IQSendMessageListener
 import com.garmin.android.connectiq.IQApp
 import com.garmin.android.connectiq.IQDevice
-import com.paul.infrastructure.protocol.Protocol
+import com.paul.protocol.todevice.Protocol
+import com.paul.domain.IqDevice as CommonDevice
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resumeWithException
 
 
-class Connection(private val context: Context) {
-
-    companion object {
-        val CONNECT_IQ_APP_ID = "20edd04a-9fdc-4291-b061-f49d5699394d"
-    }
+class Connection(private val context: Context) : IConnection {
 
     private var isConnected = false
     private var connectIQ: ConnectIQ = ConnectIqBuilder(context).getInstance()
@@ -27,7 +24,7 @@ class Connection(private val context: Context) {
     fun getInstance(): ConnectIQ = connectIQ
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    suspend fun start(): Unit = suspendCancellableCoroutine { continuation ->
+    override suspend fun start(): Unit = suspendCancellableCoroutine { continuation ->
         if (isConnected) {
             // we are already connected, todo handle the case where 2 callers call connect at the same time (before onSdkReady is called)
             // need to make an outstanding task that gets returned?
@@ -57,10 +54,11 @@ class Connection(private val context: Context) {
         }
     }
 
-    suspend fun send(device: IQDevice, payload: Protocol): Unit {
+    override suspend fun send(device: CommonDevice, payload: Protocol): Unit {
         start()
         try {
-            sendInternal(device, payload)
+            val cd = device as CommonDeviceImpl
+            sendInternal(cd.device, payload)
         } catch (e: Exception) {
             // todo make this a toast or something better
             Log.d("stdout","failed to send: $e")
@@ -72,7 +70,7 @@ class Connection(private val context: Context) {
         device: IQDevice,
         payload: Protocol,
     ): Unit = suspendCancellableCoroutine { continuation ->
-        val app = IQApp(CONNECT_IQ_APP_ID)
+        val app = IQApp(IConnection.CONNECT_IQ_APP_ID)
 
         val toSend = payload.payload().toMutableList()
         toSend.add(0, payload.type().value.toInt())

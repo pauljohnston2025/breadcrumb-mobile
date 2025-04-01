@@ -1,35 +1,37 @@
 package com.paul.ui
 
 import android.net.Uri
-import androidx.activity.compose.BackHandler
 import androidx.compose.material.Scaffold
 import androidx.compose.material.SnackbarHost
 import androidx.compose.material.SnackbarHostState
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.paul.infrastructure.connectiq.Connection
-import com.paul.infrastructure.utils.GpxFileLoader
-import com.paul.infrastructure.utils.ImageProcessor
-import com.paul.viewmodels.DeviceSelector
+import com.paul.infrastructure.connectiq.IConnection
+import com.paul.infrastructure.connectiq.IDeviceList
+import com.paul.infrastructure.service.IFileHelper
+import com.paul.infrastructure.service.IGpxFileLoader
 import com.paul.viewmodels.StartViewModel
 import org.jetbrains.compose.ui.tooling.preview.Preview
+import com.paul.viewmodels.DeviceSelector as DeviceSelectorModel
 
 @Composable
 @Preview
 fun App(
-    connection: Connection,
-    gpxFileLoader: GpxFileLoader,
-    imageProcessor: ImageProcessor,
-    fileLoad: Uri?,
+    connection: IConnection,
+    deviceList: IDeviceList,
+    gpxFileLoader: IGpxFileLoader,
+    fileHelper: IFileHelper,
+    fileLoad: String?,
     shortGoogleUrl: String?,
     initialErrorMessage: String?,
     navController: NavHostController = rememberNavController()
 ) {
-    val deviceSelector = viewModel { DeviceSelector(navController, connection) }
+    val deviceSelector = viewModel { DeviceSelectorModel(navController, connection, deviceList) }
     val snackbarHostState = remember { SnackbarHostState() }
 
     Scaffold(
@@ -49,7 +51,7 @@ fun App(
                             connection,
                             deviceSelector,
                             gpxFileLoader,
-                            imageProcessor,
+                            fileHelper,
                             snackbarHostState,
                             fileLoad,
                             shortGoogleUrl,

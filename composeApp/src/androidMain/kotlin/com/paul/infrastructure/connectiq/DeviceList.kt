@@ -5,10 +5,10 @@ import com.garmin.android.connectiq.ConnectIQ.IQApplicationEventListener
 import com.garmin.android.connectiq.ConnectIQ.IQDeviceEventListener
 import com.garmin.android.connectiq.ConnectIQ.IQMessageStatus
 import com.garmin.android.connectiq.IQApp
-import com.garmin.android.connectiq.IQDevice
 import com.garmin.android.connectiq.exception.InvalidStateException
 import com.garmin.android.connectiq.exception.ServiceUnavailableException
-import com.paul.infrastructure.connectiq.Connection.Companion.CONNECT_IQ_APP_ID
+import com.paul.domain.IqDevice
+import com.paul.infrastructure.connectiq.IConnection.Companion.CONNECT_IQ_APP_ID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -16,20 +16,17 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 
-class DeviceList(private val connection: Connection) {
+class DeviceList(private val connection: Connection) : IDeviceList {
 
-    private var deviceList: List<IQDevice> = mutableListOf()
-    private var deviceListFlow: MutableStateFlow<List<IQDevice>> = MutableStateFlow(listOf())
+    private var deviceList: List<CommonDeviceImpl> = mutableListOf()
+    private var deviceListFlow: MutableStateFlow<List<CommonDeviceImpl>> = MutableStateFlow(listOf())
     private var job: Job? = null
 
     private val mDeviceEventListener = IQDeviceEventListener { device, status ->
         Log.d("stdout","onDeviceStatusChanged():" + device + ": " + status.name)
 
-        // todo don't block
-        // todo update the device status too, so we know wheat it looks like
-        runBlocking {
+        CoroutineScope(Dispatchers.IO).launch {
             deviceListFlow.emit(deviceList)
         }
     }
@@ -47,7 +44,7 @@ class DeviceList(private val connection: Connection) {
         Log.d("stdout","mDeviceAppMessageListener():" + device + ": " + status.name + " " + messageData)
     }
 
-    suspend fun subscribe(): Flow<List<IQDevice>> {
+    override suspend fun subscribe(): Flow<List<IqDevice>> {
         connection.start()
         loadDevicesLoop()
         return deviceListFlow
@@ -72,19 +69,23 @@ class DeviceList(private val connection: Connection) {
             // cleanup from old run
             if (deviceList.isNotEmpty()) {
                 for (device in deviceList) {
-                    connectIQ.unregisterForDeviceEvents(device)
+                    connectIQ.unregisterForDeviceEvents(device.device)
                 }
             }
 
+            // would love to use a callback flow, but there
+            // does not seem to be any way of doing that with the garmin api
             // get new list
-            deviceList = connectIQ.knownDevices.toList()
+            deviceList = connectIQ.knownDevices.toList().map {
+                CommonDeviceImpl(it)
+            }
             // Let's register for device status updates.  By doing so we will
             // automatically get a status update for each device so we do not
             // need to call getStatus()
             for (device in deviceList) {
-                connectIQ.registerForDeviceEvents(device, mDeviceEventListener)
+                connectIQ.registerForDeviceEvents(device.device, mDeviceEventListener)
                 // Register to receive messages from our application
-                connectIQ.registerForAppEvents(device, IQApp(CONNECT_IQ_APP_ID), mDeviceAppMessageListener)
+                connectIQ.registerForAppEvents(device.device, IQApp(CONNECT_IQ_APP_ID), mDeviceAppMessageListener)
 //                Log.d("stdout","device: ${device.friendlyName} status: ${device.status.name}")
             }
             deviceListFlow.emit(deviceList)

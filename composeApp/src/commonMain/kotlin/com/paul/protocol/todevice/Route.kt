@@ -1,7 +1,4 @@
-package com.paul.infrastructure.protocol
-
-import kotlin.math.max
-import kotlin.math.min
+package com.paul.protocol.todevice
 
 data class Point(val latitude: Float, val longitude: Float, val altitude: Float)
 

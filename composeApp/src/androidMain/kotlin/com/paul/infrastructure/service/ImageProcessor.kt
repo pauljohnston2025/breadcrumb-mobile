@@ -1,4 +1,4 @@
-package com.paul.infrastructure.utils
+package com.paul.infrastructure.service
 
 import android.content.Context
 import android.graphics.Bitmap
@@ -6,10 +6,8 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Log
 import androidx.activity.result.ActivityResultLauncher
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayInputStream
@@ -21,14 +19,6 @@ import kotlin.coroutines.resumeWithException
 import kotlin.math.ceil
 
 class ImageProcessor(private val context: Context) {
-    private var getContentLauncher: ActivityResultLauncher<Array<String>>? =
-        null
-    private var searchCompletion: ((Uri?) -> Unit)? = null
-
-    fun setLauncher(_getContentLauncher: ActivityResultLauncher<Array<String>>) {
-        require(getContentLauncher == null)
-        getContentLauncher = _getContentLauncher
-    }
 
     suspend fun parseImage(uri: Uri, res: Int): Bitmap? {
         return parseImage(context.contentResolver.openInputStream(uri)!!, res)
@@ -133,47 +123,5 @@ class ImageProcessor(private val context: Context) {
         }
 
         return bitmaps
-    }
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    suspend fun searchForImageFileUri(): Uri = suspendCancellableCoroutine { continuation ->
-        require(searchCompletion == null)
-        searchCompletion = { uri ->
-            if (uri == null) {
-                continuation.resumeWithException(Exception("failed to load file: $uri"))
-            } else {
-                Log.d("stdout","Load file: " + uri.toString())
-                continuation.resume(uri) {
-                    Log.d("stdout","failed to resume")
-                }
-            }
-
-            searchCompletion = null
-        }
-
-        require(getContentLauncher != null)
-        getContentLauncher!!.launch(arrayOf("*"))
-    }
-
-    public suspend fun writeUriToFile(filename: String, uri: Uri) {
-        withContext(Dispatchers.IO) {
-            try {
-                val stream = context.contentResolver.openInputStream(uri)!!
-                val imageData = stream.readAllBytes()
-                stream.close()
-
-                val file = File(context.filesDir, filename)
-                FileOutputStream(file).use { outputStream ->
-                    outputStream.write(imageData)
-                }
-            } catch (e: IOException) {
-                e.printStackTrace() // Log the exception for debugging
-            }
-        }
-    }
-
-    fun fileLoaded(uri: Uri?) {
-        require(searchCompletion != null)
-        searchCompletion!!(uri)
     }
 }

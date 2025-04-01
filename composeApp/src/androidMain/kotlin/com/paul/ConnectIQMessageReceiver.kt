@@ -8,13 +8,12 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.garmin.android.connectiq.ConnectIQ
-import com.paul.infrastructure.connectiq.Connection.Companion.CONNECT_IQ_APP_ID
+import com.paul.infrastructure.connectiq.IConnection.Companion.CONNECT_IQ_APP_ID
 
 
 class ConnectIQMessageReceiver : BroadcastReceiver() {
@@ -80,8 +79,10 @@ class ConnectIQMessageReceiver : BroadcastReceiver() {
 //        }
         val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)
 
-        val pendingIntent: PendingIntent = PendingIntent.getActivity(context, 0, launchIntent,
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val pendingIntent: PendingIntent = PendingIntent.getActivity(
+            context, 0, launchIntent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
 
         // Build the Notification
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)

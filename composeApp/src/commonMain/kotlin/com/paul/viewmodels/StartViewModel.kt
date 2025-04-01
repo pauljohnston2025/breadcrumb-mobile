@@ -1,28 +1,24 @@
 package com.paul.viewmodels
 
-import android.net.Uri
 import android.util.Log
 import androidx.compose.material.SnackbarHostState
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.core.graphics.blue
-import androidx.core.graphics.green
-import androidx.core.graphics.red
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.paul.infrastructure.connectiq.Connection
-import com.paul.infrastructure.protocol.CancelLocationRequest
-import com.paul.infrastructure.protocol.Colour
-import com.paul.infrastructure.protocol.MapTile
-import com.paul.infrastructure.protocol.RequestLocationLoad
-import com.paul.infrastructure.protocol.Route
-import com.paul.infrastructure.utils.GpxFile
-import com.paul.infrastructure.utils.GpxFileLoader
-import com.paul.infrastructure.utils.ImageProcessor
+import com.paul.domain.GpxRoute
+import com.paul.infrastructure.connectiq.IConnection
+import com.paul.infrastructure.service.IFileHelper
+import com.paul.infrastructure.service.IGpxFileLoader
+import com.paul.protocol.todevice.CancelLocationRequest
+import com.paul.protocol.todevice.Colour
+import com.paul.protocol.todevice.MapTile
+import com.paul.protocol.todevice.RequestLocationLoad
+import com.paul.protocol.todevice.RequestSettings
+import com.paul.protocol.todevice.Route
 import com.russhwolf.settings.Settings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -31,7 +27,6 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonArray
-import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.Proxy
 import java.net.URL
@@ -42,12 +37,12 @@ import java.nio.charset.Charset
 data class HistoryItem(val name: String, val uri: String)
 
 class StartViewModel(
-    private val connection: Connection,
+    private val connection: IConnection,
     private val deviceSelector: DeviceSelector,
-    private val gpxFileLoader: GpxFileLoader,
-    private val imageProcessor: ImageProcessor,
+    private val gpxFileLoader: IGpxFileLoader,
+    private val fileHelper: IFileHelper,
     private val snackbarHostState: SnackbarHostState,
-    fileLoad: Uri?,
+    fileLoad: String?,
     shortGoogleUrl: String?,
     initialErrorMessage: String?
 ) : ViewModel() {
@@ -83,7 +78,7 @@ class StartViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             val uri: String
             try {
-                uri = gpxFileLoader.searchForGpxFileUri()
+                uri = fileHelper.findFile()
             } catch (e: Exception) {
                 snackbarHostState.showSnackbar("Failed to find file (invalid or no selection)")
                 return@launch
@@ -94,15 +89,17 @@ class StartViewModel(
     }
 
     fun loadFile(fileName: String, firstTimeSeenFile: Boolean) {
-        loadFile(Uri.parse(fileName), firstTimeSeenFile)
-    }
-
-    private fun loadFile(fileName: Uri, firstTimeSeenFile: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
             sendingMessage("Parsing gpx input stream...") {
                 try {
-                    val file = gpxFileLoader.loadGpxFile(fileName, firstTimeSeenFile)
-                    sendFile(file)
+                    val lastFileNamePart = fileHelper.getFileName(fileName)
+                        ?: fileHelper.generateRandomFilename(".gpx")
+                    val fileContents = fileHelper.readFile(fileName)!!
+                    val gpxRoute = gpxFileLoader.loadGpxFromBytes(fileContents)
+                    if (firstTimeSeenFile) {
+                        fileHelper.writeLocalFile(lastFileNamePart, gpxRoute.rawBytes())
+                    }
+                    sendRoute(gpxRoute, lastFileNamePart)
                 } catch (e: SecurityException) {
                     snackbarHostState.showSnackbar("Failed to load gpx file (you might not have permissions, please restart app to grant)")
                     Log.d("stdout", e.toString())
@@ -130,16 +127,15 @@ class StartViewModel(
             return
         }
 
-        val (contentType, gpxInputStream) = loaded
+        val (contentType, gpxBytes) = loaded
         if (!contentType.contains("application/gpx+xml")) {
             snackbarHostState.showSnackbar("Bad content type: $contentType")
             viewModelScope.launch(Dispatchers.IO) {
-                val message = gpxInputStream.readAllBytes().decodeToString()
+                val message = gpxBytes.decodeToString()
                 viewModelScope.launch(Dispatchers.Main) {
                     if (contentType.contains("text/html")) {
                         htmlErrorMessage.value = message
-                    }
-                    else {
+                    } else {
                         errorMessage.value = message
                     }
                 }
@@ -149,8 +145,10 @@ class StartViewModel(
 
         sendingMessage("Parsing gpx input stream...") {
             try {
-                val file = gpxFileLoader.loadGpxFromInputStream(gpxInputStream)
-                sendFile(file)
+                val gpxRoute = gpxFileLoader.loadGpxFromBytes(gpxBytes)
+                val filename = fileHelper.generateRandomFilename(".gpx");
+                fileHelper.writeLocalFile(filename, gpxRoute.rawBytes())
+                sendRoute(gpxRoute, filename)
             } catch (e: SecurityException) {
                 snackbarHostState.showSnackbar("Failed to load gpx file (you might not have permissions, please restart app to grant)")
                 Log.d("stdout", e.toString())
@@ -161,7 +159,7 @@ class StartViewModel(
         }
     }
 
-    private suspend fun sendFile(file: GpxFile) {
+    private suspend fun sendRoute(file: GpxRoute, localFilePath: String) {
         val device = deviceSelector.currentDevice()
         if (device == null) {
             // todo make this a toast or something better for the user
@@ -172,12 +170,12 @@ class StartViewModel(
         var route: Route? = null
         sendingMessage("Loading Route") {
             try {
-                val historyItem = HistoryItem(file.name(), file.uri)
+                val historyItem = HistoryItem(file.name(), localFilePath)
                 history.add(historyItem)
                 saveHistory()
                 route = file.toRoute(snackbarHostState)
             } catch (e: Exception) {
-                Log.d("stdout","Failed to parse route: ${e.message}")
+                Log.d("stdout", "Failed to parse route: ${e.message}")
             }
         }
 
@@ -198,8 +196,7 @@ class StartViewModel(
                 sendingFile.value = msg
             }
             cb()
-        }
-        finally {
+        } finally {
             viewModelScope.launch(Dispatchers.Main) {
                 sendingFile.value = ""
             }
@@ -211,12 +208,13 @@ class StartViewModel(
         settings.putString(HISTORY_KEY, Json.encodeToString(history.toList().takeLast(100)))
     }
 
-    private fun loadFromMapsToGpx(googleShortUrl: String): Pair<String, InputStream>? {
+    private suspend fun loadFromMapsToGpx(googleShortUrl: String): Pair<String, ByteArray>? {
         val url =
             "https://mapstogpx.com/load.php?d=default&lang=en&elev=off&tmode=off&pttype=fixed&o=gpx&cmt=off&desc=off&descasname=off&w=on&dtstr=20240804_092634&gdata=" + URLEncoder.encode(
                 googleShortUrl.replace("https://", ""),
                 Charset.defaultCharset()
             )
+        // todo switch out the url call to kmp compatible
         val address = URL(url)
 
         //Connect & check for the location field
@@ -228,10 +226,14 @@ class StartViewModel(
             if (connection.responseCode != 200) {
                 return null
             }
-            return Pair(connection.contentType, connection.inputStream)
-
+            withContext(Dispatchers.IO) {
+                return@withContext Pair(
+                    connection.contentType,
+                    connection.inputStream.readAllBytes()
+                )
+            }
         } catch (e: Throwable) {
-            Log.d("stdout","Problem while expanding {}$address$e")
+            Log.d("stdout", "Problem while expanding {}$address$e")
         }
 
         return null
@@ -242,15 +244,9 @@ class StartViewModel(
         saveHistory()
     }
 
-    fun sendMockTile(x: Int, y: Int, z: Int, colour: Colour) {
-        viewModelScope.launch(Dispatchers.IO) {
-            sendMockTileInner(x,y,z,colour)
-        }
-    }
-
     suspend fun sendMockTileInner(x: Int, y: Int, z: Int, colour: Colour) {
         val TILE_SIZE = 64;
-        var data = List(TILE_SIZE * TILE_SIZE) { colour };
+        val data = List(TILE_SIZE * TILE_SIZE) { colour };
         // random colour tiles for now
 //        data = data.map {
 //            Colour.random()
@@ -270,28 +266,9 @@ class StartViewModel(
         }
     }
 
-    fun tryWebReq() {
-        viewModelScope.launch(Dispatchers.IO) {
-            val url = "http://127.0.0.1:8080/"
-            Log.d("stdout","starting req to $url")
-            val address = URL(url)
-
-            //Connect & check for the location field
-            try {
-                val connection = address.openConnection(Proxy.NO_PROXY) as HttpURLConnection
-                Log.d("stdout","connecting")
-                connection.connect()
-                Log.d("stdout","connected")
-                Log.d("stdout","got response code " + connection.responseCode)
-            } catch (e: Throwable) {
-                Log.d("stdout","Problem while expanding $address$e")
-            }
-        }
-    }
-
     fun loadLocation(lat: Float, long: Float) {
         viewModelScope.launch(Dispatchers.IO) {
-            Log.d("stdout","requesting load location")
+            Log.d("stdout", "requesting load location")
             val device = deviceSelector.currentDevice()
             if (device == null) {
                 // todo make this a toast or something better for the user
@@ -308,7 +285,7 @@ class StartViewModel(
 
     fun clearLocation() {
         viewModelScope.launch(Dispatchers.IO) {
-            Log.d("stdout","requesting clear location")
+            Log.d("stdout", "requesting clear location")
             val device = deviceSelector.currentDevice()
             if (device == null) {
                 // todo make this a toast or something better for the user
@@ -323,19 +300,19 @@ class StartViewModel(
         }
     }
 
-    fun loadImageToTemp() {
+    fun requestSettings() {
         viewModelScope.launch(Dispatchers.IO) {
-            val uri: Uri
-            try {
-                uri = imageProcessor.searchForImageFileUri()
-            } catch (e: Exception) {
-                snackbarHostState.showSnackbar("Failed to find file (invalid or no selection)")
+            Log.d("stdout", "requesting settings")
+            val device = deviceSelector.currentDevice()
+            if (device == null) {
+                // todo make this a toast or something better for the user
+                snackbarHostState.showSnackbar("no devices selected")
                 return@launch
             }
 
-            sendingMessage("loading image to temp") {
-                imageProcessor.writeUriToFile("testimage.png", uri)
-                snackbarHostState.showSnackbar("Image loaded to temp")
+            sendingMessage("Requesting settings") {
+                connection.send(device, RequestSettings())
+                snackbarHostState.showSnackbar("Requesting settings sent")
             }
         }
     }

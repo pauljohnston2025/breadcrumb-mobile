@@ -1,4 +1,4 @@
-package com.paul.infrastructure.protocol
+package com.paul.protocol.todevice
 
 import kotlin.random.Random
 
