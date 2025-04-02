@@ -7,6 +7,7 @@ import androidx.navigation.NavHostController
 import com.paul.domain.IqDevice
 import com.paul.infrastructure.connectiq.IConnection
 import com.paul.infrastructure.connectiq.IDeviceList
+import com.paul.protocol.fromdevice.Protocol
 import com.paul.ui.Screens
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -14,6 +15,7 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
@@ -24,15 +26,19 @@ class DeviceSelector(
     private val deviceList: IDeviceList) :
     ViewModel() {
     private var currentDevice: IqDevice? = null
-    private var devicesFlow: MutableSharedFlow<List<IqDevice>> = MutableSharedFlow()
+    private var devicesFlow: MutableStateFlow<List<IqDevice>> = MutableStateFlow(listOf())
     private var currentDevicePoll: Job? = null
 
     init {
         viewModelScope.launch {
+            Log.d("stdout", "launching list")
             val sub = deviceList.subscribe()
             sub.collect {
+                Log.d("stdout", "got device ${it.size} $it")
                 devicesFlow.emit(it)
             }
+        }.invokeOnCompletion {
+            Log.d("stdout", "list completed")
         }
     }
 

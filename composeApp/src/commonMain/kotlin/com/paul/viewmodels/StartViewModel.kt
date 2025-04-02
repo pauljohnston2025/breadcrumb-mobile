@@ -13,6 +13,7 @@ import com.paul.domain.GpxRoute
 import com.paul.infrastructure.connectiq.IConnection
 import com.paul.infrastructure.service.IFileHelper
 import com.paul.infrastructure.service.IGpxFileLoader
+import com.paul.protocol.fromdevice.ProtocolResponse
 import com.paul.protocol.todevice.CancelLocationRequest
 import com.paul.protocol.todevice.Colour
 import com.paul.protocol.todevice.MapTile
@@ -20,6 +21,7 @@ import com.paul.protocol.todevice.RequestLocationLoad
 import com.paul.protocol.todevice.RequestSettings
 import com.paul.protocol.todevice.Route
 import com.russhwolf.settings.Settings
+import com.paul.protocol.fromdevice.Settings as DeviceSettings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -311,7 +313,8 @@ class StartViewModel(
             }
 
             sendingMessage("Requesting settings") {
-                connection.send(device, RequestSettings())
+                val settings = connection.query<DeviceSettings>(device, RequestSettings(), ProtocolResponse.PROTOCOL_SEND_SETTINGS)
+                Log.d("stdout", "got settings $settings")
                 snackbarHostState.showSnackbar("Requesting settings sent")
             }
         }

@@ -1,22 +1,27 @@
 package com.paul.protocol.fromdevice
 
+import android.util.Log
+
 enum class ProtocolResponse(val value: UByte) {
     PROTOCOL_SEND_HELLO(0u),
     PROTOCOL_SEND_SETTINGS(1u),
     PROTOCOL_SEND_OPEN_APP(2u),
 }
 
-sealed class Protocol {
+sealed class Protocol(val type: ProtocolResponse) {
     companion object {
-        fun decode(data: List<Any>): Protocol
+        fun decode(data: List<Any>): Protocol?
         {
             val payload = data.subList(1, data.size)
             return when(data[0])
             {
-                ProtocolResponse.PROTOCOL_SEND_HELLO -> Hello.decode(payload)
-                ProtocolResponse.PROTOCOL_SEND_SETTINGS -> Settings.decode(payload)
-                ProtocolResponse.PROTOCOL_SEND_OPEN_APP -> OpenApp.decode(payload)
-                else -> throw RuntimeException("failed to deserialise")
+                ProtocolResponse.PROTOCOL_SEND_HELLO.value -> Hello.decode(payload)
+                ProtocolResponse.PROTOCOL_SEND_SETTINGS.value -> Settings.decode(payload)
+                ProtocolResponse.PROTOCOL_SEND_OPEN_APP.value -> OpenApp.decode(payload)
+                else -> {
+                    Log.d("stdout","failed to decode: $data")
+                    null
+                }
             }
         }
     }
@@ -24,7 +29,7 @@ sealed class Protocol {
 
 data class Hello(
     val version: Byte
-): Protocol()
+): Protocol(ProtocolResponse.PROTOCOL_SEND_HELLO)
 {
     companion object {
         fun decode(payload: List<Any>): Hello
@@ -36,7 +41,7 @@ data class Hello(
 
 data class Settings(
     val settings: Map<String, Any>
-): Protocol()
+): Protocol(ProtocolResponse.PROTOCOL_SEND_SETTINGS)
 {
     companion object {
         fun decode(payload: List<Any>): Settings
@@ -46,7 +51,7 @@ data class Settings(
     }
 }
 
-class OpenApp: Protocol()
+class OpenApp: Protocol(ProtocolResponse.PROTOCOL_SEND_OPEN_APP)
 {
     companion object {
         fun decode(payload: List<Any>): OpenApp

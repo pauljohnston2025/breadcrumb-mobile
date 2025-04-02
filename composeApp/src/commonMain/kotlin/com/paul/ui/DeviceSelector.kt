@@ -1,5 +1,6 @@
 package com.paul.ui
 
+import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -25,6 +26,7 @@ fun DeviceSelector(deviceSelector: DeviceSelector, navController: NavHostControl
         navController.popBackStack()
     }
 
+    Log.d("stdout", "view loaded")
     val devicesList = deviceSelector.devicesFlow().collectAsState(initial = listOf())
     MaterialTheme {
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
