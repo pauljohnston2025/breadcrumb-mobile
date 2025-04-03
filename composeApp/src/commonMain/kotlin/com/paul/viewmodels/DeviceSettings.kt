@@ -160,7 +160,6 @@ class DeviceSettings(
 
                     // --- Colors (Treated as String for editing, but typed as COLOR) ---
                     "trackColour",
-                    "routeColour",
                     "elevationColour",
                     "userColour",
                     "normalModeColour",
