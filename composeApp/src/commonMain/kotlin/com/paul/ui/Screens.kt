@@ -4,4 +4,5 @@ package com.paul.ui
 enum class Screens {
     Start,
     DeviceSelector,
+    DeviceSettings,
 }

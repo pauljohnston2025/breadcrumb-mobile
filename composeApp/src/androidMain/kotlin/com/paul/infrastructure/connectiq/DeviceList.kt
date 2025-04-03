@@ -119,16 +119,16 @@ class DeviceList(private val connection: Connection) : IDeviceList {
             // need to call getStatus()
             for (device in toAdd) {
                 connectIQ.registerForDeviceEvents(device.device, mDeviceEventListener)
-                val app = IQApp(CONNECT_IQ_APP_ID)
-                connectIQ.registerForAppEvents(device.device, app) { device, _app, messageData, status ->
-                    // First inspect the status to make sure this
-                    // was a SUCCESS. If not then the status will indicate why there
-                    // was an issue receiving the message from the Connect IQ application.
-                    Log.d(
-                        "stdout",
-                        "device message:" + device + ": " + status.name + " " + messageData
-                    )
-                }
+//                val app = IQApp(CONNECT_IQ_APP_ID)
+//                connectIQ.registerForAppEvents(device.device, app) { device, _app, messageData, status ->
+//                    // First inspect the status to make sure this
+//                    // was a SUCCESS. If not then the status will indicate why there
+//                    // was an issue receiving the message from the Connect IQ application.
+//                    Log.d(
+//                        "stdout",
+//                        "device message:" + device + ": " + status.name + " " + messageData
+//                    )
+//                }
 //                Log.d("stdout","device: ${device.friendlyName} status: ${device.status.name}")
             }
         } catch (e: InvalidStateException) {

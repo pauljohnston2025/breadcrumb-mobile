@@ -164,15 +164,6 @@ fun Start(startViewModel: StartViewModel, deviceSelector: DeviceSelector) {
 
                         Button(
                             onClick = {
-                                startViewModel.requestSettings()
-                            },
-                            modifier = Modifier.padding(10.dp)
-                        ) {
-                            Text("Req Settings")
-                        }
-
-                        Button(
-                            onClick = {
                                 startViewModel.loadLocation(startViewModel.lat.toFloat(), startViewModel.long.toFloat())
                             },
                             modifier = Modifier.padding(10.dp)
@@ -190,7 +181,7 @@ fun Start(startViewModel: StartViewModel, deviceSelector: DeviceSelector) {
                     },
                     modifier = Modifier.padding(10.dp)
                 ) {
-                    Text("Select Device")
+                    Text("Devices")
                 }
 
                 Button(

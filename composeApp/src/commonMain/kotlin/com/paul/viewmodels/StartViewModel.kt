@@ -301,22 +301,4 @@ class StartViewModel(
             }
         }
     }
-
-    fun requestSettings() {
-        viewModelScope.launch(Dispatchers.IO) {
-            Log.d("stdout", "requesting settings")
-            val device = deviceSelector.currentDevice()
-            if (device == null) {
-                // todo make this a toast or something better for the user
-                snackbarHostState.showSnackbar("no devices selected")
-                return@launch
-            }
-
-            sendingMessage("Requesting settings") {
-                val settings = connection.query<DeviceSettings>(device, RequestSettings(), ProtocolResponse.PROTOCOL_SEND_SETTINGS)
-                Log.d("stdout", "got settings $settings")
-                snackbarHostState.showSnackbar("Requesting settings sent")
-            }
-        }
-    }
 }

@@ -16,6 +16,7 @@ import com.paul.infrastructure.connectiq.IDeviceList
 import com.paul.infrastructure.service.IFileHelper
 import com.paul.infrastructure.service.IGpxFileLoader
 import com.paul.viewmodels.StartViewModel
+import com.paul.viewmodels.DeviceSettings as DeviceSettingsModel
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import com.paul.viewmodels.DeviceSelector as DeviceSelectorModel
 
@@ -31,8 +32,8 @@ fun App(
     initialErrorMessage: String?,
     navController: NavHostController = rememberNavController()
 ) {
-    val deviceSelector = viewModel { DeviceSelectorModel(navController, connection, deviceList) }
     val snackbarHostState = remember { SnackbarHostState() }
+    val deviceSelector = viewModel { DeviceSelectorModel(navController, connection, deviceList, snackbarHostState) }
 
     Scaffold(
         snackbarHost = {
@@ -65,6 +66,19 @@ fun App(
                 DeviceSelector(
                     deviceSelector = deviceSelector,
                     navController = navController
+                )
+            }
+            composable(route = Screens.DeviceSettings.name) {
+                // lastLoadedSettings dirty hack
+                val deviceSettings = viewModel { DeviceSettingsModel(
+                    deviceSelector.lastLoadedSettings!!,
+                    deviceSelector.currentDevice!!,
+                    navController,
+                    connection,
+                    snackbarHostState,
+                ) }
+                DeviceSettings(
+                    deviceSettings = deviceSettings,
                 )
             }
         }

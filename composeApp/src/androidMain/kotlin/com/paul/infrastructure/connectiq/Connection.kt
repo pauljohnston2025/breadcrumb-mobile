@@ -46,25 +46,25 @@ class Connection(private val context: Context) : IConnection {
             // we are already connected, todo handle the case where 2 callers call connect at the same time (before onSdkReady is called)
             // need to make an outstanding task that gets returned?
             continuation.resume(Unit) {
-                Log.d("stdout","cancelled whilst resuming")
+                Log.d("stdout", "cancelled whilst resuming")
             }
         } else {
             connectIQ.initialize(context, true, object : ConnectIQListener {
                 override fun onInitializeError(errStatus: IQSdkErrorStatus) {
-                    Log.d("stdout","Failed to initialise: ${errStatus.name}")
+                    Log.d("stdout", "Failed to initialise: ${errStatus.name}")
                     continuation.resumeWithException(Exception(errStatus.name))
                 }
 
                 override fun onSdkReady() {
-                    Log.d("stdout","onSdkReady()")
+                    Log.d("stdout", "onSdkReady()")
                     isConnected = true
                     continuation.resume(Unit) {
-                        Log.d("stdout","cancelled whilst resuming")
+                        Log.d("stdout", "cancelled whilst resuming")
                     }
                 }
 
                 override fun onSdkShutDown() {
-                    Log.d("stdout","onSdkShutDown()")
+                    Log.d("stdout", "onSdkShutDown()")
                     isConnected = false
                 }
             })
@@ -78,10 +78,17 @@ class Connection(private val context: Context) : IConnection {
             sendInternal(cd.device, payload)
         } catch (e: Exception) {
             // todo make this a toast or something better
-            Log.d("stdout","failed to send: $e")
+            Log.d("stdout", "failed to send: $e")
         }
     }
 
+    // this is meant to work in the simulator, but i cannot seem to get that to happen
+    // which makes this really hard to test
+    // https://forums.garmin.com/developer/connect-iq/f/discussion/357/communications
+    // apparently it did work at some point, or was meant to be released? 10 year old comment
+    // tried downgrading the sdk, updating the sdk, puring the simulator from the temp directory,
+    // also tried making it a watch app and trying different devices in the simulator
+    // nothing worked, it hin its just broken
     private fun deviceMessages(device: IqDevice): Flow<Response?> = callbackFlow {
         val connectIQ = getInstance()
         // Register to receive messages from our application
@@ -101,13 +108,15 @@ class Connection(private val context: Context) : IConnection {
             )
             try {
                 if (status == IQMessageStatus.SUCCESS) {
-                    trySendBlocking(Response.decode(messageData))
+                    // message data seems to be an array with one item, think its to future proof so
+                    // they can add the other options array.
+                    // or it's aside effect of how im sending it?
+                    // There does not seem to be any other way though
+                    trySendBlocking(Response.decode(messageData[0] as List<Any>))
                 } else {
                     cancel(CancellationException("Device Listen: $status"))
                 }
-            }
-            catch (t: Throwable)
-            {
+            } catch (t: Throwable) {
                 // exceptions from within the callback crash the app, don't do that
                 Log.d("stdout", "failed $t");
             }
@@ -116,11 +125,42 @@ class Connection(private val context: Context) : IConnection {
         awaitClose { connectIQ.unregisterForApplicationEvents(cd.device, app) }
     }
 
+    private suspend fun appInfo(device: IqDevice): IQApp = suspendCancellableCoroutine { continuation ->
+        val cd = device as CommonDeviceImpl
+        connectIQ.getApplicationInfo(
+            CONNECT_IQ_APP_ID,
+            cd.device,
+            object : ConnectIQ.IQApplicationInfoListener {
+                // workaround to avoid double call of onMessageStatus
+                var completed = false
+
+                override fun onApplicationInfoReceived(
+                    iqApp: IQApp,
+                ) {
+                    Log.d("stdout", "app info: " + iqApp.version() + " " + iqApp.displayName + " " + iqApp.status + " " + iqApp.applicationId)
+
+                    continuation.resume(iqApp) {
+                        Log.d("stdout", "cancelled whilst resuming")
+                    }
+                }
+
+                override fun onApplicationNotInstalled(var1: String) {
+                    Log.d("stdout", "app info not installed: " + var1)
+                    continuation.resumeWithException(RuntimeException(var1))
+                }
+            })
+    }
+
     // todo add correlation ids to these requests
     // think we ned to buffer any responses that come back
     // and probably have an event queue for handling unsolicited messages
-    override suspend fun <T: Response> query(device: IqDevice, payload: Protocol, type: ProtocolResponse): T
-    {
+    override suspend fun <T : Response> query(
+        device: IqDevice,
+        payload: Protocol,
+        type: ProtocolResponse
+    ): T {
+        appInfo(device)
+        send(device, payload)
         // pretty hacky impl, we should have the deviceMessages flow running all the time,
         // and then complete futures as messages come in from the device
         // they should be in order though, and this is hopefully ok for now
@@ -143,7 +183,7 @@ class Connection(private val context: Context) : IConnection {
         device: IQDevice,
         payload: Protocol,
     ): Unit = suspendCancellableCoroutine { continuation ->
-        val app = IQApp(IConnection.CONNECT_IQ_APP_ID)
+        val app = IQApp(CONNECT_IQ_APP_ID)
 
         val toSend = payload.payload().toMutableList()
         toSend.add(0, payload.type().value.toInt())
@@ -161,7 +201,10 @@ class Connection(private val context: Context) : IConnection {
                     app: IQApp,
                     status: IQMessageStatus
                 ) {
-                    Log.d("stdout","onMessageStatus device: " + device.toString() + " app: " + app.toString() + " status: " + status.name)
+                    Log.d(
+                        "stdout",
+                        "onMessageStatus device: " + device.toString() + " app: " + app.toString() + " status: " + status.name
+                    )
                     if (completed) {
                         return
                     }
@@ -172,9 +215,9 @@ class Connection(private val context: Context) : IConnection {
                     }
 
                     completed = true
-                    Log.d("stdout","onMessageStatus: reciver.send")
+                    Log.d("stdout", "onMessageStatus: reciver.send")
                     continuation.resume(Unit) {
-                        Log.d("stdout","cancelled whilst resuming")
+                        Log.d("stdout", "cancelled whilst resuming")
                     }
                 }
             })
