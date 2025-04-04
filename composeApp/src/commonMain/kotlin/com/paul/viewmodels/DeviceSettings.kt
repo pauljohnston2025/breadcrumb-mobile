@@ -3,16 +3,61 @@ package com.paul.viewmodels
 import android.util.Log
 import androidx.compose.material.SnackbarHostState
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavHostController
+import com.paul.composables.colorToHexString
+import com.paul.composables.parseColor
 import com.paul.domain.IqDevice
 import com.paul.infrastructure.connectiq.IConnection
 import com.paul.protocol.fromdevice.Settings
 import com.paul.protocol.todevice.SaveSettings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+
+@Stable
+data class RouteItem(
+    val routeId: Int,             // Read-only identifier (or generated)
+    val name: String = "",
+    val enabled: Boolean = true,
+    val colour: String = "FF0000FF" // Default to opaque Blue (AARRGGBB)
+) {
+    companion object {
+        fun fromDict(map: Map<*, *>): RouteItem {
+            return RouteItem(
+                routeId = (map["routeId"] as Number).toInt(),
+                name = map["name"] as String,
+                enabled = map["enabled"] as Boolean,
+                colour = padColorString(map["colour"] as String)
+            )
+        }
+    }
+
+    fun toDict(): Map<String, Any> {
+        return mapOf<String, Any>( // Explicit Map type for clarity
+            // Use the keys that your storage/Garmin settings expect
+            "routeId" to routeId,
+            "name" to name,
+            "enabled" to enabled,
+            "colour" to colour // Ensure this is the AARRGGBB string
+        )
+    }
+}
+
+// Helper function (adjust ID logic as needed)
+fun createNewRouteItem(idSuggestion: Int = -1): RouteItem {
+    // If IDs need to be unique and managed, implement proper generation.
+    // Using suggestion (like list size) or -1 is a placeholder.
+    return RouteItem(
+        routeId = idSuggestion,
+        name = "New Route",
+        enabled = true,
+        colour = "FF0000FF"
+    )
+}
 
 // Enum to represent property types
 enum class PropertyType {
@@ -86,14 +131,9 @@ val descriptions: Map<String, String> = mapOf(
     "tileUrl" to "Tile url should be 'http://127.0.0.1:8080' for companion app or template eg. 'https://a.tile.opentopomap.org/{z}/{x}/{y}.png'. Tile size should generally be 256 if using a template.",
 )
 
-fun padColorString(sanitized: String): String {
-    return when (sanitized.length) {
-        8 -> sanitized // AARRGGBB
-        6 -> "FF$sanitized" // RRGGBB -> FFRRGGBB
-        else -> {
-            throw IllegalArgumentException("Hex string must be 6 (RRGGBB) or 8 (AARRGGBB) characters long (excluding #)")
-        }
-    }
+fun padColorString(original: String): String {
+    val atLeast8 = original.padStart(6, '0').padStart(8, 'F')
+    return atLeast8.drop(atLeast8.length - 8)
 }
 
 class DeviceSettings(
@@ -111,7 +151,8 @@ class DeviceSettings(
         val value = entry.value
         val originalString = value.toString() // Simple string representation for the 4th param
         val description = descriptions[key] // Will be null if not found
-        val label = labelOverrides[key] ?: key.replace(Regex("([A-Z])"), " $1").replaceFirstChar { it.uppercase() }
+        val label = labelOverrides[key] ?: key.replace(Regex("([A-Z])"), " $1")
+            .replaceFirstChar { it.uppercase() }
 
         try {
             // --- Check for LIST_NUMBER properties FIRST ---
@@ -212,17 +253,34 @@ class DeviceSettings(
                         label = label
                     )
 
-                    // --- Arrays ---
-                    "routes" -> EditableProperty(
-                        key,
-                        PropertyType.ARRAY,
-                        // State can hold the raw list or Any. Adjust as needed.
-                        // If it's always List<String> or similar, cast accordingly.
-                        mutableStateOf(value), // Or mutableStateOf(value as List<*>),
-                        originalString,
-                        description = description,
-                        label = label
-                    )
+                    // --- Array: Routes ---
+                    "routes" -> {
+                        // Attempt to parse the incoming value into a list of RouteItems
+                        val initialListValue = value as? List<*> ?: emptyList<Any>()
+                        val routeItemList = initialListValue.mapIndexedNotNull { index, itemData ->
+                            val map = itemData as? Map<*, *>
+                            if (map != null) {
+                                try {
+                                    RouteItem.fromDict(map)
+                                } catch (e: Exception) {
+                                    println("Error parsing route item content at index $index: $e. Skipping.")
+                                    null // Skip items that cause errors during content parsing
+                                }
+                            } else {
+                                println("Route item at index $index is not a Map. Skipping.")
+                                null // Skip items that aren't maps
+                            }
+                        }.toMutableList() // Crucial: Convert to MutableList for state modification
+
+                        EditableProperty(
+                            key,
+                            PropertyType.ARRAY, // Specific type or keep ARRAY
+                            mutableStateOf(routeItemList), // State holds the mutable list
+                            originalString,
+                            label = label,
+                            description = description,
+                        )
+                    }
 
                     // --- Default/Unknown ---
                     // Add cases here if new properties might appear unexpectedly

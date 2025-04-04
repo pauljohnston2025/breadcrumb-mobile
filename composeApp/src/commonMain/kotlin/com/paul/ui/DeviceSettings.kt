@@ -46,6 +46,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -58,9 +59,11 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.paul.composables.ColorPickerDialog
+import com.paul.composables.RoutesArrayEditor
 import com.paul.composables.colorToHexString
 import com.paul.composables.parseColor
 import com.paul.viewmodels.DeviceSettings
+import com.paul.viewmodels.RouteItem
 import com.paul.viewmodels.EditableProperty
 import com.paul.viewmodels.PropertyType
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -278,8 +281,9 @@ fun DeviceSettings(deviceSettings: DeviceSettings) {
 
                 // --- Setting: routes (Array - Special Handling) ---
                 findProp("routes")?.let { prop ->
-                    item(key = prop.id) {
-                        PropertyEditorRow(label = prop.label, description = prop.description) { /* ... content ... */ }
+                    item(key = prop.id) { // Create an item for the routes editor
+                        // Directly call the resolver, which will choose RoutesArrayEditor
+                        PropertyEditorResolver(property = prop)
                     }
                 }
 
@@ -297,8 +301,40 @@ fun DeviceSettings(deviceSettings: DeviceSettings) {
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 Button(onClick = {
-                    val updatedValues = editableProperties
-                        .associate { prop -> prop.id to prop.state.value }
+                    val updatedValues = editableProperties.associate { prop ->
+                        val key = prop.id
+                        val currentValue = prop.state.value // Get the value from the MutableState
+
+                        // *** SPECIAL HANDLING FOR 'routes' ARRAY ***
+                        if (key == "routes" && currentValue is List<*>) { // Check key and type for safety
+                            try {
+                                // Attempt to cast to the specific list type we expect
+                                @Suppress("UNCHECKED_CAST")
+                                val routeList = currentValue as List<RouteItem>
+
+                                // Transform the List<RouteItem> back into a List of Maps
+                                val serializableRouteList = routeList.map { routeItem ->
+                                    routeItem.toDict()
+                                }
+                                // Pair the "routes" key with the transformed List<Map<String, Any>>
+                                key to serializableRouteList
+
+                            } catch (e: Exception) {
+                                // Handle potential casting errors or other issues during transformation
+                                println("Error transforming routes list for saving for key '$key': ${e.message}")
+                                // Decide how to handle the error:
+                                // Option 1: Return the original (potentially problematic) list
+                                // key to currentValue
+                                // Option 2: Return an empty list
+                                key to emptyList<Map<String, Any>>()
+                                // Option 3: Don't include the key at all (might require filtering later)
+                                // null // Requires filtering null pairs after associate if used directly
+                            }
+                        } else {
+                            // For all other properties, use the value directly (Int, String, Boolean, Float, etc.)
+                            key to currentValue
+                        }
+                    }
                     deviceSettings.onSave(updatedValues)
                 }) {
                     Text("Save")
@@ -365,6 +401,33 @@ fun SectionHeader(title: String) {
 @Suppress("UNCHECKED_CAST")
 @Composable
 fun PropertyEditorResolver(property: EditableProperty<*>) {
+    // --- Specific check for 'routes' array ---
+    if (property.id == "routes" && property.type == PropertyType.ARRAY) {
+        // Attempt safe cast based on how createEditableProperties sets it up
+        val routeListState = property.state as? MutableState<MutableList<RouteItem>> // Safer cast
+        if (routeListState != null) {
+            // Create a derived property with the correctly typed state for the editor
+            val typedProperty = remember(property.id) { // Remember to avoid recreating constantly
+                EditableProperty(
+                    id = property.id,
+                    type = property.type,
+                    state = routeListState, // Use the successfully cast state
+                    stringVal = property.stringVal,
+                    options = property.options,
+                    label = property.label,
+                    description = property.description
+                )
+            }
+            RoutesArrayEditor(property = typedProperty)
+            return // Handled this property, exit the resolver
+        } else {
+            // Fallback if casting fails - indicates issue in createEditableProperties
+            println("Error: Could not cast state for property '${property.id}' to MutableList<RouteItem>. Displaying placeholder.")
+            UnknownTypeEditor(property) // Show a generic editor
+            return
+        }
+    }
+
     // Your existing when(property.type) { ... } logic here
     when (property.type) {
         PropertyType.STRING -> StringEditor(property as EditableProperty<String>)
