@@ -9,11 +9,8 @@ import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavHostController
 import com.paul.domain.IqDevice
 import com.paul.infrastructure.connectiq.IConnection
-import com.paul.protocol.fromdevice.ProtocolResponse
 import com.paul.protocol.fromdevice.Settings
-import com.paul.protocol.todevice.RequestSettings
 import com.paul.protocol.todevice.SaveSettings
-import com.paul.ui.Screens
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
@@ -77,6 +74,16 @@ val listOptionsMapping: Map<String, List<ListOption>> = mapOf(
         ListOption(3, "No UI")
     )
 )
+
+fun padColorString(sanitized: String): String {
+    return when (sanitized.length) {
+        8 -> sanitized // AARRGGBB
+        6 -> "FF$sanitized" // RRGGBB -> FFRRGGBB
+        else -> {
+            throw IllegalArgumentException("Hex string must be 6 (RRGGBB) or 8 (AARRGGBB) characters long (excluding #)")
+        }
+    }
+}
 
 class DeviceSettings(
     settings: Settings,
@@ -167,8 +174,8 @@ class DeviceSettings(
                     "debugColour" -> EditableProperty(
                         key,
                         PropertyType.COLOR, // Use the specific COLOR type
-                        mutableStateOf(value as String), // Assumes value is correctly String (Hex)
-                        originalString
+                        mutableStateOf(padColorString((value as String))),
+                        padColorString(originalString)
                     )
 
                     // --- Arrays ---
@@ -219,9 +226,7 @@ class DeviceSettings(
                 viewModelScope.launch(Dispatchers.Main) {
                     navController.popBackStack()
                 }
-            }
-            catch (t: Throwable)
-            {
+            } catch (t: Throwable) {
                 settingsSaving.value = false
                 snackbarHostState.showSnackbar("Failed to save settings")
                 viewModelScope.launch(Dispatchers.Main) {

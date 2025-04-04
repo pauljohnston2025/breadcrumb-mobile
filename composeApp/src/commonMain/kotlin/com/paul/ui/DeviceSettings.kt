@@ -63,6 +63,7 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.paul.protocol.todevice.Colour
+import com.paul.viewmodels.padColorString
 import kotlin.math.roundToInt
 
 @Composable
@@ -111,6 +112,10 @@ fun DeviceSettings(deviceSettings: DeviceSettings) {
                 if (zoomSpeedProp != null) item(key = zoomSpeedProp.id) { PropertyEditorResolver(zoomSpeedProp) }
 
 
+                item(key = "map_settings_header") {
+                    SectionHeader("Map Settings")
+                }
+
                 // --- Group: mapSettings (Conditional) ---
                 // Render the toggle first (this is its own item)
                 mapEnabledProp?.let { toggleProp ->
@@ -119,7 +124,6 @@ fun DeviceSettings(deviceSettings: DeviceSettings) {
                 // Now, create ONE item for the rest of the map section (header + conditional content)
                 item(key = "map_settings_section") { // Add a stable key for this combined item
                     Column(modifier = Modifier.animateContentSize()) { // Column wraps header and AnimatedVisibility
-                        SectionHeader("Map Settings") // Header is inside the item's Column
                         AnimatedVisibility(
                             visible = showMapSection,
                             enter = fadeIn(),
@@ -151,6 +155,9 @@ fun DeviceSettings(deviceSettings: DeviceSettings) {
                 }
 
                 // --- Group: offTrackAlertsGroup (Conditional) ---
+                item(key = "off_track_alerts_header") {
+                    SectionHeader("Off Track Alerts")
+                }
                 // Render the toggle first
                 offTrackAlertsEnabledProp?.let { toggleProp ->
                     item(key = toggleProp.id) { PropertyEditorResolver(toggleProp) }
@@ -158,7 +165,6 @@ fun DeviceSettings(deviceSettings: DeviceSettings) {
                 // ONE item for the rest of the off-track section
                 item(key = "off_track_section") { // Stable key
                     Column(modifier = Modifier.animateContentSize()) { // Wrap in Column
-                        SectionHeader("Off Track Alerts")
                         AnimatedVisibility(
                             visible = showOffTrackSection,
                             enter = fadeIn(),
@@ -496,40 +502,47 @@ fun ColorEditor(property: EditableProperty<String>) {
 }
 
 /**
- * Parses an RRGGBB hex string (case-insensitive, optional '#' prefix) into a Compose Color.
- * Returns Color.Black if parsing fails.
+ * Parses an AARRGGBB or RRGGBB hex string (case-insensitive, optional '#' prefix)
+ * into a Compose Color. Handles 8-digit (AARRGGBB) and 6-digit (RRGGBB) inputs.
+ * For 6-digit inputs, alpha is assumed to be FF (fully opaque).
+ * Returns Color.Black if parsing fails or format is invalid.
  */
 fun parseColor(hexString: String): Color {
+    val funcName = "parseColor"
     return try {
         var sanitized = hexString.trim().removePrefix("#").uppercase()
-        if (sanitized.length != 6) {
-            // Attempt to handle shorthand like F00 -> FF0000
-            if (sanitized.length == 3) {
-                sanitized = sanitized.map { "$it$it" }.joinToString("")
-            } else {
-                throw IllegalArgumentException("Hex string must be 3 or 6 characters long (excluding #)")
-            }
-        }
-        // Use Long parsing to handle potential overflow with Int.parseint for FFFFFF
-        val colorLong = sanitized.toLong(16)
-        // Create Color object - ensure full alpha (0xFF)
-        Color(color = (0xFF000000 or colorLong))
+
+        val finalHex = padColorString(sanitized)
+
+        // Parse the final 8-digit hex string to get the AARRGGBB Int value
+        // Using Long to avoid sign issues during parsing before fitting into Int
+        val argbInt = finalHex.toLong(16).toInt()
+
+        // *** CHANGE: Use the component constructor ***
+        // Extract components directly from the ARGB integer
+        val alpha = (argbInt shr 24) and 0xFF
+        val red = (argbInt shr 16) and 0xFF
+        val green = (argbInt shr 8) and 0xFF
+        val blue = argbInt and 0xFF
+
+        // Create Color using the component constructor (Ints 0-255)
+        val resultColor = Color(red = red, green = green, blue = blue, alpha = alpha)
+        // println("$funcName: Parsed '$hexString' (ARGB: ${argbInt.toUInt().toString(16)}) to Color: $resultColor")
+        resultColor
+
     } catch (e: Exception) {
-        println("Error parsing hex color '$hexString': ${e.message}. Defaulting to Black.")
+        println("$funcName: Error parsing hex color '$hexString': ${e.message}. Defaulting to Black.")
         Color.Black // Default fallback color
     }
 }
 
-
+// colorToHexString remains the same as the previous AARRGGBB version:
 /**
- * Converts a Compose Color into an uppercase RRGGBB hex string (without '#').
+ * Converts a Compose Color into an uppercase 8-character AARRGGBB hex string (without '#').
  */
 fun colorToHexString(color: Color): String {
-    // Use toArgb() to get standard Android integer representation
-    // Mask out the alpha channel (or keep it if you need AARRGGBB)
-    val rgb = color.toArgb() and 0xFFFFFF
-    // Format as 6-digit hex string, padding with leading zeros if needed
-    return rgb.toString(16).uppercase().padStart(6, '0')
+    val argb = color.toArgb()
+    return argb.toLong().and(0xFFFFFFFF).toString(16).uppercase().padStart(8, '0')
 }
 
 @Composable
