@@ -18,7 +18,7 @@ import kotlinx.coroutines.launch
 enum class PropertyType {
     NUMBER, // Typically Int
     FLOAT,  // Typically Float or Double
-    NULLABLE_FLOAT,  // Typically Float or Double
+    ZERO_DISABLED_FLOAT,  // Typically Float or Double
     LIST_NUMBER,  // Typically Float or Double
     BOOLEAN,
     STRING,
@@ -38,12 +38,10 @@ data class EditableProperty<T>(
     val type: PropertyType,
     val state: MutableState<T>,
     val stringVal: String,
-    val options: List<ListOption>? = null // <-- Add nullable options list
+    val options: List<ListOption>? = null, // <-- Add nullable options list
+    val description: String? = null, // <-- Add nullable description field
+    val label: String,
 ) {
-    // Helper to get label from id (simple conversion)
-    val label: String
-        get() = id.replace(Regex("([A-Z])"), " $1").replaceFirstChar { it.uppercase() }
-
     fun toDef(): PropertyDefinition {
         return PropertyDefinition(id, type, stringVal)
     }
@@ -75,6 +73,19 @@ val listOptionsMapping: Map<String, List<ListOption>> = mapOf(
     )
 )
 
+val labelOverrides: Map<String, String> = mapOf(
+    "zoomAtPaceSpeedMPS" to "Zoom At Pace (mps)",
+    "offTrackAlertsDistanceM" to "Off Track Alert Distance (m)",
+    "offTrackAlertsMaxReportIntervalS" to "Max Report Interval (s)",
+    "tileSize" to "Tile Size (pixels)",
+)
+
+val descriptions: Map<String, String> = mapOf(
+    "mapEnabled" to "Choose these values wisely. Too big = crash, too small = crash or slow performance",
+    "tileSize" to "Should be a multiple of 256 for best results",
+    "tileUrl" to "Tile url should be 'http://127.0.0.1:8080' for companion app or template eg. 'https://a.tile.opentopomap.org/{z}/{x}/{y}.png'. Tile size should generally be 256 if using a template.",
+)
+
 fun padColorString(sanitized: String): String {
     return when (sanitized.length) {
         8 -> sanitized // AARRGGBB
@@ -99,6 +110,8 @@ class DeviceSettings(
         val key = entry.key
         val value = entry.value
         val originalString = value.toString() // Simple string representation for the 4th param
+        val description = descriptions[key] // Will be null if not found
+        val label = labelOverrides[key] ?: key.replace(Regex("([A-Z])"), " $1").replaceFirstChar { it.uppercase() }
 
         try {
             // --- Check for LIST_NUMBER properties FIRST ---
@@ -109,7 +122,9 @@ class DeviceSettings(
                     PropertyType.LIST_NUMBER,
                     mutableStateOf(value as Int), // State holds the Int value
                     originalString,
-                    options = options // Attach the options
+                    options = options, // Attach the options,
+                    description = description,
+                    label = label
                 )
             } else {
                 when (key) {
@@ -130,18 +145,31 @@ class DeviceSettings(
                         key,
                         PropertyType.NUMBER,
                         mutableStateOf(value as Int), // Assumes value is correctly Int
-                        originalString
+                        originalString,
+                        description = description,
+                        label = label
+                    )
+
+                    // --- Floats ---
+                    "zoomAtPaceSpeedMPS" -> EditableProperty(
+                        key,
+                        PropertyType.FLOAT,
+                        mutableStateOf(value as Float), // Assumes value is correctly Float
+                        originalString,
+                        description = description,
+                        label = label
                     )
 
                     // --- Floats ---
                     "scale",
-                    "zoomAtPaceSpeedMPS",
                     "fixedLatitude",
                     "fixedLongitude" -> EditableProperty(
                         key,
-                        PropertyType.FLOAT,
+                        PropertyType.ZERO_DISABLED_FLOAT,
                         mutableStateOf(value as Float), // Assumes value is correctly Float
-                        originalString
+                        originalString,
+                        description = description,
+                        label = label
                     )
 
                     // --- Booleans ---
@@ -154,7 +182,9 @@ class DeviceSettings(
                         key,
                         PropertyType.BOOLEAN,
                         mutableStateOf(value as Boolean), // Assumes value is correctly Boolean
-                        originalString
+                        originalString,
+                        description = description,
+                        label = label
                     )
 
                     // --- Strings ---
@@ -162,7 +192,9 @@ class DeviceSettings(
                         key,
                         PropertyType.STRING,
                         mutableStateOf(value as String), // Assumes value is correctly String
-                        originalString
+                        originalString,
+                        description = description,
+                        label = label
                     )
 
                     // --- Colors (Treated as String for editing, but typed as COLOR) ---
@@ -175,7 +207,9 @@ class DeviceSettings(
                         key,
                         PropertyType.COLOR, // Use the specific COLOR type
                         mutableStateOf(padColorString((value as String))),
-                        padColorString(originalString)
+                        padColorString(originalString),
+                        description = description,
+                        label = label
                     )
 
                     // --- Arrays ---
@@ -185,7 +219,9 @@ class DeviceSettings(
                         // State can hold the raw list or Any. Adjust as needed.
                         // If it's always List<String> or similar, cast accordingly.
                         mutableStateOf(value), // Or mutableStateOf(value as List<*>),
-                        originalString
+                        originalString,
+                        description = description,
+                        label = label
                     )
 
                     // --- Default/Unknown ---
@@ -197,7 +233,9 @@ class DeviceSettings(
                             key,
                             PropertyType.UNKNOWN, // Or PropertyType.STRING
                             mutableStateOf(value), // Store raw value
-                            originalString
+                            originalString,
+                            description = description,
+                            label = label
                         )
                         // Or return null if you want to skip unknown properties:
                         // null

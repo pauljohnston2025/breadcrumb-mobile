@@ -32,6 +32,7 @@ data class Settings(
     companion object {
         fun decode(payload: List<Any>): Settings
         {
+            @Suppress("UNCHECKED_CAST")
             return Settings(payload[0] as Map<String, Any>)
         }
     }
