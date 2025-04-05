@@ -22,20 +22,9 @@ kotlin {
         
         androidMain.dependencies {
             implementation(compose.preview)
-            implementation(libs.androidx.activity.compose)
-            implementation(libs.androidx.navigation)
             implementation(libs.gpx.parser)
             // apparently there is no way to do aar from libs.version.toml
             implementation("com.garmin.connectiq:ciq-companion-app-sdk:2.2.0@aar")
-            // for webserver
-            implementation(libs.ktor.server.netty) // Or the latest version
-            implementation(libs.ktor.server.core)
-            implementation(libs.ktor.server.resources)
-            implementation(libs.ktor.server.call.logging)
-            implementation(libs.ktor.server.status.pages)
-            implementation(libs.ktor.server.content.negotiation)
-            implementation(libs.ktor.serialization.kotlinx.json)
-            implementation(libs.logback.classic) // Required for logging in Ktor
         }
         commonMain.dependencies {
             implementation(compose.runtime)
@@ -47,6 +36,19 @@ kotlin {
             implementation(libs.multiplatform.settings)
             implementation(libs.multiplatform.settings.no.arg)
             implementation(libs.serialization.json)
+            implementation(libs.kotlinx.datetime)
+
+            implementation(libs.androidx.activity.compose)
+            implementation(libs.androidx.navigation)
+            // for webserver
+            implementation(libs.ktor.server.netty)
+            implementation(libs.ktor.server.core)
+            implementation(libs.ktor.server.resources)
+            implementation(libs.ktor.server.call.logging)
+            implementation(libs.ktor.server.status.pages)
+            implementation(libs.ktor.server.content.negotiation)
+            implementation(libs.ktor.serialization.kotlinx.json)
+            implementation(libs.logback.classic) // Required for logging in Ktor
         }
     }
 }

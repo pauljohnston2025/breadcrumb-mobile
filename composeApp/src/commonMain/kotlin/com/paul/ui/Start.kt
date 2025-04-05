@@ -1,42 +1,62 @@
 package com.paul.ui
 
-import android.util.Log
 import android.widget.TextView
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.*
+import androidx.compose.material.AlertDialog
+import androidx.compose.material.Button
+import androidx.compose.material.ButtonDefaults
+import androidx.compose.material.Card
+import androidx.compose.material.Divider
+import androidx.compose.material.ExperimentalMaterialApi
+import androidx.compose.material.Icon
+import androidx.compose.material.IconButton
+import androidx.compose.material.ListItem
+import androidx.compose.material.MaterialTheme
+import androidx.compose.material.OutlinedButton
+import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.text.HtmlCompat
 import com.paul.composables.LoadingOverlay
-import com.paul.viewmodels.DeviceSelector
 import com.paul.viewmodels.HistoryItem
 import com.paul.viewmodels.StartViewModel
+import kotlinx.datetime.format
+import kotlinx.datetime.format.DateTimeComponents
+import kotlinx.datetime.format.DateTimeFormat
 
 @Composable
-// Removed @Preview as it requires providing ViewModel instances, complex setup
 fun Start(
-    viewModel: StartViewModel,
-    deviceSelector: DeviceSelector, // Keep for navigation action if needed, or use ViewModel event
-    snackbarHostState: SnackbarHostState // For potential feedback
+    viewModel: StartViewModel
 ) {
     var showClearHistoryDialog by remember { mutableStateOf(false) }
 
@@ -51,91 +71,68 @@ fun Start(
         )
     }
 
-    Scaffold(
-        scaffoldState = rememberScaffoldState(snackbarHostState = snackbarHostState),
-        topBar = { TopAppBar(title = { Text("Breadcrumb Nav") }) } // App title
-    ) { paddingValues ->
-
-        // Box allows stacking the sending overlay
-        Box(modifier = Modifier
+    // Box allows stacking the sending overlay
+    Box(
+        modifier = Modifier
             .fillMaxSize()
-            .padding(paddingValues)) {
+    ) {
 
-            // Main content column
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    // Add vertical scroll for the *entire* content if it might overflow
-                    // Do NOT put scroll modifiers inside individual AnimatedVisibility blocks
-                    .verticalScroll(rememberScrollState())
-                    .padding(16.dp), // Padding around the content
-                horizontalAlignment = Alignment.CenterHorizontally
+        // Main content column
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                // Add vertical scroll for the *entire* content if it might overflow
+                // Do NOT put scroll modifiers inside individual AnimatedVisibility blocks
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp), // Padding around the content
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+
+            // --- Error Messages ---
+            AnimatedVisibility(
+                visible = viewModel.errorMessage.value != ""
             ) {
-
-                // --- Error Messages ---
-                AnimatedVisibility(
-                    visible = viewModel.errorMessage.value != ""
-                ) {
-                    ErrorDisplay(
-                        errorMessage = viewModel.errorMessage.value,
-                        onDismiss = { viewModel.errorMessage.value = "" }
-                    )
-                }
-                AnimatedVisibility(
-                    visible = viewModel.htmlErrorMessage.value != ""
-                ) {
-                    HtmlErrorDisplay(
-                        htmlErrorMessage = viewModel.htmlErrorMessage.value,
-                        onDismiss = { viewModel.htmlErrorMessage.value = "" }
-                    )
-                }
-
-                // --- Location Section ---
-                LocationInputSection(
-                    lat = viewModel.lat,
-                    long = viewModel.long,
-                    onLatChange = { viewModel.lat = it },
-                    onLongChange = { viewModel.long = it },
-                    onClearLocation = { viewModel.clearLocation() },
-                    onLoadLocation = {
-                        // Add validation before calling load
-                        val latFloat = viewModel.lat.toFloatOrNull()
-                        val longFloat = viewModel.long.toFloatOrNull()
-                        if (latFloat != null && longFloat != null) {
-                            viewModel.loadLocation(latFloat, longFloat)
-                        } else {
-                            // Show snackbar or some feedback about invalid input
-                            Log.w("StartScreen", "Invalid Lat/Long input for load")
-                        }
-                    }
+                ErrorDisplay(
+                    errorMessage = viewModel.errorMessage.value,
+                    onDismiss = { viewModel.errorMessage.value = "" }
                 )
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // --- Main Action Buttons ---
-                MainActions(
-                    onSelectDevice = { deviceSelector.selectDeviceUi() }, // Keep direct call for now
-                    onImportFile = { viewModel.pickRoute() }
+            }
+            AnimatedVisibility(
+                visible = viewModel.htmlErrorMessage.value != ""
+            ) {
+                HtmlErrorDisplay(
+                    htmlErrorMessage = viewModel.htmlErrorMessage.value,
+                    onDismiss = { viewModel.htmlErrorMessage.value = "" }
                 )
+            }
 
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // --- History Section ---
-                HistoryListSection(
-                    history = viewModel.history,
-                    onHistoryItemClick = { viewModel.loadFileFromHistory(it) }, // Pass item ID or URI
-                    onClearHistoryClick = { showClearHistoryDialog = true }
+            Button(onClick = { viewModel.pickRoute() }) {
+                Icon(
+                    Icons.Default.Build,
+                    contentDescription = null,
+                    modifier = Modifier.size(ButtonDefaults.IconSize)
                 )
+                Spacer(Modifier.size(ButtonDefaults.IconSpacing))
+                Text("Import GPX") // Be more specific?
+            }
 
-            } // End Main Column
+            Spacer(modifier = Modifier.height(24.dp))
 
-            // --- Sending Overlay ---
-            SendingFileOverlay(
-                sendingMessage = viewModel.sendingFile.value
+            // --- History Section ---
+            HistoryListSection(
+                history = viewModel.history,
+                onHistoryItemClick = { viewModel.loadFileFromHistory(it) }, // Pass item ID or URI
+                onClearHistoryClick = { showClearHistoryDialog = true }
             )
 
-        } // End Root Box
-    } // End Scaffold
+        } // End Main Column
+
+        // --- Sending Overlay ---
+        SendingFileOverlay(
+            sendingMessage = viewModel.sendingFile
+        )
+
+    } // End Root Box
 }
 
 // --- Extracted Composables for Sections ---
@@ -211,91 +208,6 @@ private fun HtmlErrorDisplay(htmlErrorMessage: String?, onDismiss: () -> Unit) {
     }
 }
 
-
-@Composable
-private fun LocationInputSection(
-    lat: String,
-    long: String,
-    onLatChange: (String) -> Unit,
-    onLongChange: (String) -> Unit,
-    onClearLocation: () -> Unit,
-    onLoadLocation: () -> Unit
-) {
-    Column {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp) // Spacing between inputs
-        ) {
-            FloatInput(
-                label = "Latitude", // Clearer labels
-                value = lat,
-                onValueChange = onLatChange,
-                modifier = Modifier.weight(1f) // Make inputs share space
-            )
-            FloatInput(
-                label = "Longitude",
-                value = long,
-                onValueChange = onLongChange,
-                modifier = Modifier.weight(1f)
-            )
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly // Space out buttons
-        ) {
-            OutlinedButton(onClick = onClearLocation) { // Less emphasis for Clear
-                Icon(
-                    Icons.Default.Clear,
-                    contentDescription = null,
-                    modifier = Modifier.size(ButtonDefaults.IconSize)
-                )
-                Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-                Text("Clear Location")
-            }
-            Button(onClick = onLoadLocation) {
-                Icon(
-                    Icons.Default.Star,
-                    contentDescription = null,
-                    modifier = Modifier.size(ButtonDefaults.IconSize)
-                )
-                Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-                Text("Use Location") // Clearer action text
-            }
-        }
-    }
-}
-
-@Composable
-private fun MainActions(
-    onSelectDevice: () -> Unit,
-    onImportFile: () -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceEvenly
-    ) {
-        Button(onClick = onSelectDevice) {
-            Icon(
-                Icons.Default.Star,
-                contentDescription = null,
-                modifier = Modifier.size(ButtonDefaults.IconSize)
-            )
-            Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-            Text("Devices")
-        }
-        Button(onClick = onImportFile) {
-            Icon(
-                Icons.Default.Build,
-                contentDescription = null,
-                modifier = Modifier.size(ButtonDefaults.IconSize)
-            )
-            Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-            Text("Import GPX") // Be more specific?
-        }
-    }
-}
-
 @Composable
 private fun HistoryListSection(
     history: SnapshotStateList<HistoryItem>,
@@ -340,8 +252,8 @@ private fun HistoryListSection(
             ) {
                 LazyColumn {
                     // Sort history newest first based on timestamp
-//                    items(history.sortedByDescending { it.timestamp }, key = { it.id }) { item ->
-                    itemsIndexed(history) { index, item ->
+                    val list = history.toList().sortedByDescending { it.timestamp }
+                    itemsIndexed(list, key = { index, item -> item.id }) { index, item ->
                         HistoryListItem(item = item, onClick = { onHistoryItemClick(item) })
                         Divider()
                     }
@@ -364,10 +276,10 @@ private fun HistoryListItem(item: HistoryItem, onClick: () -> Unit) {
             )
         },
         secondaryText = {
-//            Text(
-//                historyDateFormatter.format(Date(item.timestamp)), // Format date/time
-//                maxLines = 1
-//            )
+            Text(
+                item.timestamp.format(DateTimeComponents.Formats.ISO_DATE_TIME_OFFSET),
+                maxLines = 1
+            )
         }
         // Optional: Add an icon if relevant (e.g., route type)
         // icon = { Icon(...) }
@@ -394,36 +306,10 @@ private fun ClearHistoryConfirmationDialog(onConfirm: () -> Unit, onDismiss: () 
 }
 
 @Composable
-private fun SendingFileOverlay(sendingMessage: String?) {
+private fun SendingFileOverlay(sendingMessage: MutableState<String>) {
     // Use the same LoadingOverlay structure as in DeviceSelectorScreen
     LoadingOverlay(
-        isLoading = sendingMessage != null && sendingMessage != "",
-        loadingText = sendingMessage ?: "Sending..." // Default text if somehow null but visible
-    )
-}
-
-
-// FloatInput extracted and improved slightly
-@Composable
-private fun FloatInput(
-    label: String,
-    value: String,
-    onValueChange: (String) -> Unit,
-    modifier: Modifier = Modifier // Allow passing modifier
-) {
-    OutlinedTextField( // Use OutlinedTextField for consistency
-        value = value,
-        onValueChange = { newValue ->
-            // Allow empty, '-', '.', '-.' OR valid Float
-            if (newValue.isEmpty() || newValue == "-" || newValue == "." || newValue == "-." || newValue.toFloatOrNull() != null) {
-                onValueChange(newValue)
-            }
-        },
-        label = { Text(label) },
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-        modifier = modifier.fillMaxWidth(), // Take full width within its container (e.g., Row weight)
-        singleLine = true,
-        // Optional: Add error indication if needed
-        isError = value.isNotEmpty() && value != "-" && value != "." && value != "-." && value.toFloatOrNull() == null
+        isLoading = sendingMessage.value != "",
+        loadingText = sendingMessage.value
     )
 }

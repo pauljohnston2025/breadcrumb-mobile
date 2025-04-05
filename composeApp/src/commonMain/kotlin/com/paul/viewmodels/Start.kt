@@ -20,8 +20,11 @@ import com.paul.protocol.todevice.RequestLocationLoad
 import com.paul.protocol.todevice.Route
 import com.russhwolf.settings.Settings
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromJsonElement
@@ -31,9 +34,16 @@ import java.net.Proxy
 import java.net.URL
 import java.net.URLEncoder
 import java.nio.charset.Charset
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
 @Serializable
-data class HistoryItem(val name: String, val uri: String)
+data class HistoryItem(
+    val id: String,
+    val name: String,
+    val uri: String,
+    val timestamp: Instant,
+)
 
 class StartViewModel(
     private val connection: IConnection,
@@ -58,9 +68,15 @@ class StartViewModel(
     init {
         val historyJson = settings.getStringOrNull(HISTORY_KEY)
         if (historyJson != null) {
-            val json = Json.parseToJsonElement(historyJson)
-            json.jsonArray.forEach {
-                history.add(Json.decodeFromJsonElement<HistoryItem>(it))
+            try {
+                val json = Json.parseToJsonElement(historyJson)
+                json.jsonArray.forEach {
+                    history.add(Json.decodeFromJsonElement<HistoryItem>(it))
+                }
+            }
+            catch (t: Throwable)
+            {
+                Log.d("stdout", "failed to hydrate history items $t")
             }
         }
 
@@ -176,6 +192,7 @@ class StartViewModel(
         }
     }
 
+    @OptIn(ExperimentalUuidApi::class)
     private suspend fun sendRoute(file: GpxRoute, localFilePath: String) {
         val device = deviceSelector.currentDevice()
         if (device == null) {
@@ -187,7 +204,12 @@ class StartViewModel(
         var route: Route? = null
         sendingMessage("Loading Route") {
             try {
-                val historyItem = HistoryItem(file.name(), localFilePath)
+                val historyItem = HistoryItem(
+                    Uuid.random().toString(),
+                    file.name(),
+                    localFilePath,
+                    Clock.System.now(),
+                )
                 history.add(historyItem)
                 saveHistory()
                 route = file.toRoute(snackbarHostState)
@@ -202,7 +224,12 @@ class StartViewModel(
         }
 
         sendingMessage("Sending file") {
-            connection.send(device, route!!)
+            try {
+                connection.send(device, route!!)
+            }
+            catch (t: TimeoutCancellationException) {
+                snackbarHostState.showSnackbar("Timed out sending file")
+            }
             snackbarHostState.showSnackbar("Route sent")
         }
     }
@@ -213,7 +240,12 @@ class StartViewModel(
                 sendingFile.value = msg
             }
             cb()
-        } finally {
+        }
+        catch (t: Throwable)
+        {
+            Log.d("stdout", "Failed to do operation: $msg $t")
+        }
+        finally {
             viewModelScope.launch(Dispatchers.Main) {
                 sendingFile.value = ""
             }

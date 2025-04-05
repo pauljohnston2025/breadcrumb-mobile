@@ -1,8 +1,9 @@
 package com.paul.domain
 
 open class IqDevice(
-    val friendlyName: String,
-    val status: String
+    var friendlyName: String,
+    val status: String,
+    val id: Long,
 ) {
     override fun toString(): String {
         return "$friendlyName $status "

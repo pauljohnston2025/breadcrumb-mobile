@@ -34,6 +34,7 @@ class DeviceList(private val connection: Connection) : IDeviceList {
     private val mDeviceEventListener = IQDeviceEventListener { device, status ->
         Log.d("stdout", "onDeviceStatusChanged():" + device + ": " + status.name)
 
+        val oldDevice = deviceList.find { device.deviceIdentifier == it.device.deviceIdentifier }
         val list = deviceList.filter {
             device.deviceIdentifier != it.device.deviceIdentifier
         }.toMutableList()
@@ -42,7 +43,12 @@ class DeviceList(private val connection: Connection) : IDeviceList {
         // are they expecting us to update the device they give us?
         // and looks like the device looses its label too
         device.status = status
-        list.add(CommonDeviceImpl(device))
+        val toAdd = CommonDeviceImpl(device)
+        // on disconnect and reconnect it seems to loose its name
+        toAdd.friendlyName =
+            if (toAdd.friendlyName != null && toAdd.friendlyName != "") toAdd.friendlyName else oldDevice?.friendlyName
+                ?: ""
+        list.add(toAdd)
         deviceList = list
         CoroutineScope(Dispatchers.IO).launch {
             Log.d("stdout", "emitting $list")

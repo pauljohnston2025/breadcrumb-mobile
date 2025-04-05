@@ -1,6 +1,8 @@
 package com.paul.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
 import com.paul.composables.LoadingOverlay
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -13,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
@@ -25,7 +28,7 @@ fun DeviceSelector(
     // Pass the refactored ViewModel
     viewModel: DeviceSelectorViewModel,
     navController: NavHostController,
-    snackbarHostState: SnackbarHostState // Pass from Scaffold or create here
+    selectingDevice: Boolean
 ) {
     // --- Back Handler ---
     BackHandler {
@@ -36,20 +39,29 @@ fun DeviceSelector(
 
     val devicesList = viewModel.devicesFlow().collectAsState(initial = listOf())
 
-    // --- UI Layout ---
-    Scaffold(
-        scaffoldState = rememberScaffoldState(snackbarHostState = snackbarHostState),
-        topBar = {
-            TopAppBar(title = { Text("Select Device") })
-        }
-    ) { paddingValues -> // Content area with padding
-
-        // Box enables stacking the loading overlay on top
-        Box(
+    // Box enables stacking the loading overlay on top
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+    ) {
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues) // Apply padding from Scaffold
+            // Add overall padding for content if desired
+            // .padding(16.dp)
         ) {
+            AnimatedVisibility(
+                visible = selectingDevice
+            ) {
+                Text(
+                    text = "Please choose a device",
+                    style = MaterialTheme.typography.h6,
+                    // Adjust color for contrast against overlay background if needed
+                    color = MaterialTheme.colors.onSurface,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 32.dp)
+                )
+            }
 
             // --- Main Content: Device List ---
             DeviceListContent(
@@ -57,14 +69,14 @@ fun DeviceSelector(
                 onDeviceSelected = { viewModel.onDeviceSelected(it) }, // Select action
                 onSettingsClicked = { viewModel.openDeviceSettings(it) } // Settings action
             )
-
-            // --- Loading Overlay ---
-            // Draws on top when isLoadingSettings is true
-            LoadingOverlay(
-                isLoading = viewModel.settingsLoading.value,
-                loadingText = "Loading Settings From Device.\nEnsure an activity with the datafield is running or this will fail."
-            )
         }
+
+        // --- Loading Overlay ---
+        // Draws on top when isLoadingSettings is true
+        LoadingOverlay(
+            isLoading = viewModel.settingsLoading.value,
+            loadingText = "Loading Settings From Device.\nEnsure an activity with the datafield is running (or at least open) or this will fail."
+        )
     }
 }
 
@@ -85,7 +97,9 @@ private fun DeviceListContent(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(vertical = 8.dp) // Padding around the list
         ) {
-            items(devices.value, key = { it.friendlyName }) { device -> // Use deviceId as stable key
+            items(
+                devices.value,
+                key = { it.id }) { device -> // Use deviceId as stable key
                 DeviceItem(
                     device = device,
                     onClick = { onDeviceSelected(device) },
@@ -120,7 +134,11 @@ private fun DeviceItem(
             horizontalArrangement = Arrangement.SpaceBetween // Pushes settings icon to end
         ) {
             // Column for Name and Status
-            Column(modifier = Modifier.weight(1f, fill = false).padding(end = 8.dp)) { // Take available space, add padding
+            Column(
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .padding(end = 8.dp)
+            ) { // Take available space, add padding
                 Text(
                     text = device.friendlyName ?: "Unknown Device",
                     style = MaterialTheme.typography.body1,

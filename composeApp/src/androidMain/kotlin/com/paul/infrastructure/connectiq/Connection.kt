@@ -72,13 +72,16 @@ class Connection(private val context: Context) : IConnection {
     }
 
     override suspend fun send(device: CommonDevice, payload: Protocol): Unit {
-        start()
         try {
+            start()
             val cd = device as CommonDeviceImpl
-            sendInternal(cd.device, payload)
+            // large routes being sent take some time
+            withTimeout(30000) {
+                sendInternal(cd.device, payload)
+            }
         } catch (e: Exception) {
-            // todo make this a toast or something better
             Log.d("stdout", "failed to send: $e")
+            throw e
         }
     }
 
@@ -188,7 +191,7 @@ class Connection(private val context: Context) : IConnection {
         // pretty hacky impl, we should have the deviceMessages flow running all the time,
         // and then complete futures as messages come in from the device
         // they should be in order though, and this is hopefully ok for now
-        return withTimeout(10000) {
+        return withTimeout(30000) {
             val fut = CompletableDeferred<T>()
             CoroutineScope(Dispatchers.IO).launch {
                 deviceMessages(device).collect {

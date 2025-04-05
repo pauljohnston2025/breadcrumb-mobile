@@ -59,6 +59,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.paul.composables.ColorPickerDialog
+import com.paul.composables.LoadingOverlay
 import com.paul.composables.RoutesArrayEditor
 import com.paul.composables.colorToHexString
 import com.paul.composables.parseColor
@@ -88,14 +89,14 @@ fun DeviceSettings(deviceSettings: DeviceSettings) {
         { id -> editableProperties.find { it.id == id } }
     }
 
-    // --- UI Composition ---
-    Scaffold(
-        topBar = { TopAppBar(title = { Text("Edit Properties") }) }
-    ) { paddingValues ->
+    // Box enables stacking the loading overlay on top
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+    ) {
         Column(
             Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
         ) {
             LazyColumn(modifier = Modifier.weight(1f)) {
 
@@ -343,42 +344,11 @@ fun DeviceSettings(deviceSettings: DeviceSettings) {
             } // End Button Row
 
         } // End Main Column
-    } // End Scaffold
 
-    AnimatedVisibility(
-        deviceSettings.settingsSaving.value,
-        modifier = Modifier.fillMaxSize()
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.8f))
-                .clickable(enabled = false) { /* No action, just blocks clicks */ },
-        ) {
-            Column(
-                modifier = Modifier.fillMaxSize(), // Make the Column fill the available space
-                horizontalAlignment = Alignment.CenterHorizontally // Center the children horizontally
-            ) {
-                Text(
-                    text = "Settings Saving",
-                    Modifier
-                        .padding(top = 150.dp)
-                        .align(Alignment.CenterHorizontally),
-                    color = Color.White,
-                    style = MaterialTheme.typography.body1.copy(
-                        fontSize = 30.sp,
-                        lineHeight = 35.sp,
-                        textAlign = TextAlign.Center,
-                    )
-                )
-            }
-            CircularProgressIndicator(
-                modifier = Modifier
-                    .size(100.dp)
-                    .align(Alignment.Center),
-                color = Color.Blue
-            )
-        }
+        LoadingOverlay(
+            isLoading = deviceSettings.settingsSaving.value,
+            loadingText = "Settings Saving"
+        )
     }
 }
 
@@ -490,7 +460,7 @@ fun PropertyEditorRow(
 //                modifier = Modifier.width(controlContentWidth),
 //                contentAlignment = Alignment.CenterEnd
 //            ) {
-                content() // The actual editor UI (TextField, Switch, etc.)
+            content() // The actual editor UI (TextField, Switch, etc.)
 //            }
         }
         Divider(modifier = Modifier.padding(start = 16.dp, end = 16.dp)) // Indent divider slightly
@@ -524,7 +494,10 @@ fun ColorEditor(property: EditableProperty<String>) {
     // Use remember with currentHex as key to recalculate only when hex changes
     val currentColor = remember(currentHex) { parseColor(currentHex) }
 
-    PropertyEditorRow(label = property.label, description = property.description) { // Assuming you still use this layout helper
+    PropertyEditorRow(
+        label = property.label,
+        description = property.description
+    ) { // Assuming you still use this layout helper
         Row(verticalAlignment = Alignment.CenterVertically) {
             // Clickable Color Preview Box
             Box(
@@ -547,7 +520,8 @@ fun ColorEditor(property: EditableProperty<String>) {
             Text(
                 text = "#${currentHex.uppercase()}", // Display with # prefix
                 style = MaterialTheme.typography.body2, // Or caption
-                modifier = Modifier.align(Alignment.CenterVertically)
+                modifier = Modifier
+                    .align(Alignment.CenterVertically)
                     .width(90.dp)
                     .clickable { showDialog = true } // Open the dialog on click
             )
@@ -681,7 +655,10 @@ fun ZeroDisabledFloatEditor(property: EditableProperty<Float>) { // Takes Editab
         }
     }
 
-    PropertyEditorRow(label = property.label, description = property.description) { // Assuming you still use this layout helper
+    PropertyEditorRow(
+        label = property.label,
+        description = property.description
+    ) { // Assuming you still use this layout helper
         OutlinedTextField(
             value = textValue,
             onValueChange = { newValue ->
@@ -780,7 +757,10 @@ fun ListNumberEditor(property: EditableProperty<Int>) {
         options.find { it.value == selectedValue }?.display ?: "Select..." // Default/fallback text
     }
 
-    PropertyEditorRow(label = property.label, description = property.description) { // Reuse your existing row layout
+    PropertyEditorRow(
+        label = property.label,
+        description = property.description
+    ) { // Reuse your existing row layout
         ExposedDropdownMenuBox(
             expanded = expanded,
             onExpandedChange = { expanded = !expanded },

@@ -13,7 +13,7 @@ import com.paul.infrastructure.connectiq.IDeviceList
 import com.paul.protocol.fromdevice.ProtocolResponse
 import com.paul.protocol.fromdevice.Settings
 import com.paul.protocol.todevice.RequestSettings
-import com.paul.ui.Screens
+import com.paul.ui.Screen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.TimeoutCancellationException
@@ -97,7 +97,7 @@ class DeviceSelector(
 
     private fun selectDevice() {
         viewModelScope.launch(Dispatchers.Main) {
-            navController.navigate(Screens.DeviceSelector.name)
+            navController.navigate(Screen.DeviceSelection.route)
         }
     }
 
@@ -115,7 +115,7 @@ class DeviceSelector(
                 Log.d("stdout", "got settings $settings")
                 settingsLoading.value = false
                 viewModelScope.launch(Dispatchers.Main) {
-                    navController.navigate(Screens.DeviceSettings.name)
+                    navController.navigate(Screen.DeviceSettings.route)
                 }
             }
             catch (t: Throwable)
