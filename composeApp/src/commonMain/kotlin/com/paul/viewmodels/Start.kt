@@ -87,6 +87,11 @@ class StartViewModel(
         }
     }
 
+    fun loadFileFromHistory(historyItem: HistoryItem)
+    {
+        loadFile(historyItem.uri, false)
+    }
+
     fun loadFile(fileName: String, externalFile: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
             sendingMessage("Parsing gpx input stream...") {
@@ -238,11 +243,13 @@ class StartViewModel(
             if (connection.responseCode != 200) {
                 return null
             }
-            withContext(Dispatchers.IO) {
-                return@withContext Pair(
+            return withContext(Dispatchers.IO) {
+                val res =  Pair(
                     connection.contentType,
                     connection.inputStream.readAllBytes()
                 )
+
+                return@withContext res
             }
         } catch (e: Throwable) {
             Log.d("stdout", "Problem while expanding {}$address$e")

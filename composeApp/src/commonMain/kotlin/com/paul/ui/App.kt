@@ -47,7 +47,7 @@ fun App(
         ) {
             composable(route = Screens.Start.name) {
                 Start(
-                    startViewModel = viewModel {
+                    viewModel = viewModel {
                         StartViewModel(
                             connection,
                             deviceSelector,
@@ -60,12 +60,14 @@ fun App(
                         )
                     },
                     deviceSelector = deviceSelector,
+                    snackbarHostState = snackbarHostState,
                 )
             }
             composable(route = Screens.DeviceSelector.name) {
                 DeviceSelector(
-                    deviceSelector = deviceSelector,
-                    navController = navController
+                    viewModel = deviceSelector,
+                    navController = navController,
+                    snackbarHostState = snackbarHostState,
                 )
             }
             composable(route = Screens.DeviceSettings.name) {
