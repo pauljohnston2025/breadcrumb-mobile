@@ -20,4 +20,5 @@ interface ITileGetter {
     }
 
     suspend fun getTile(req: LoadTileRequest): LoadTileResponse
+    fun setTileServer(tileServer: String)
 }

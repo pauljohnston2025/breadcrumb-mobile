@@ -3,6 +3,7 @@ package com.paul.infrastructure.web
 import android.app.Service.START_STICKY
 import android.util.Log
 import com.paul.infrastructure.service.ITileGetter
+import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
 import io.ktor.server.application.createApplicationPlugin
@@ -17,6 +18,7 @@ import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.request.httpMethod
 import io.ktor.server.request.path
 import io.ktor.server.resources.Resources
+import io.ktor.server.resources.post
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondText
 import io.ktor.server.response.responseType
@@ -125,6 +127,11 @@ class WebServerService(
         routing {
             resourcesGet<LoadTileRequest>  { params ->
                 call.respond(tileGetter.getTile(params))
+            }
+
+            post<ChangeTileServer>  { params ->
+                tileGetter.setTileServer(params.tileServer)
+                call.respond(HttpStatusCode.OK)
             }
 
             get("/") {

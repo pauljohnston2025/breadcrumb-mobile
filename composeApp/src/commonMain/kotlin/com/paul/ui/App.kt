@@ -32,6 +32,7 @@ import com.paul.infrastructure.connectiq.IDeviceList
 import com.paul.infrastructure.service.IFileHelper
 import com.paul.infrastructure.service.IGpxFileLoader
 import com.paul.viewmodels.StartViewModel
+import com.paul.viewmodels.Settings as SettingsViewModel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import com.paul.viewmodels.DeviceSelector as DeviceSelectorModel
@@ -124,13 +125,18 @@ fun App(
                     )
                 }
 
-//                composable(Screen.Settings.route) {
-//                    val settingsViewModel: SettingsViewModel = viewModel() // Replace with actual name
-//                    Settings(
-//                        viewModel = settingsViewModel,
-//                        snackbarHostState = scaffoldState.snackbarHostState
-//                    )
-//                }
+                composable(Screen.Settings.route) {
+                    val settingsViewModel = viewModel {
+                        SettingsViewModel(
+                            deviceSelector,
+                            connection,
+                            scaffoldState.snackbarHostState
+                        )
+                    }
+                    Settings(
+                        viewModel = settingsViewModel,
+                    )
+                }
 
                 composable(Screen.Devices.route) {
                     DeviceSelector(

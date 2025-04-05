@@ -5,22 +5,39 @@ import android.util.Log
 import androidx.core.graphics.blue
 import androidx.core.graphics.green
 import androidx.core.graphics.red
+import com.paul.infrastructure.web.KtorClient
 import com.paul.infrastructure.web.LoadTileRequest
 import com.paul.infrastructure.web.LoadTileResponse
+import com.paul.infrastructure.web.platformInfo
 import com.paul.protocol.todevice.Colour
 import com.paul.protocol.todevice.MapTile
+import io.ktor.client.request.get
+import io.ktor.client.request.header
+import io.ktor.client.statement.bodyAsChannel
+import io.ktor.http.isSuccess
+import io.ktor.utils.io.toByteArray
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.net.HttpURLConnection
-import java.net.Proxy
-import java.net.URL
 
 // todo: move this into common code
-// only thing holding it back is the image processing and web requests
+// only thing holding it back is the image processing
 class TileGetter(
     private val imageProcessor: ImageProcessor,
     private val fileHelper: IFileHelper,
 ) : ITileGetter {
+
+    private val client = KtorClient.client // Get the singleton client instance
+
+    // todo load from storage at startup
+    private var tileServer = "https://a.tile.opentopomap.org/{z}/{x}/{y}.png"
+
+    override fun setTileServer(tileServer: String)
+    {
+        this.tileServer = tileServer
+        // todo: nuke local tile cache?
+        // maybe a tile cache per url?
+    }
+
     override suspend fun getTile(req: LoadTileRequest): LoadTileResponse
     {
         val bigTileSize = 256f
@@ -29,34 +46,38 @@ class TileGetter(
         val x = req.x / smallTilesPerBigTile
         val y = req.y / smallTilesPerBigTile
 
-        // todo cache tiles and do this way better (get tiles based on pixels)
 //        val brisbaneUrl = "https://a.tile.opentopomap.org/11/1894/1186.png"
 //        var tileUrl = brisbaneUrl;
-        val tileUrl = "https://a.tile.opentopomap.org/${req.z}/${x}/${y}.png"
+        val tileUrl = tileServer
+            .replace("{x}", "${x}")
+            .replace("{y}", "${y}")
+            .replace("{z}", "${req.z}")
         Log.d("stdout", "fetching $tileUrl")
 
-        val fileName = "tiles/${req.z}/${x}/${y}.png"
+        val fileName = "$tileServer/${req.z}/${x}/${y}.png"
 
         val bitmaps: List<Bitmap>
         try {
             var tileContents = fileHelper.readFile(fileName)
             if (tileContents == null)
             {
-                val address = URL(tileUrl)
-                val connection: HttpURLConnection
-                withContext(Dispatchers.IO) {
-                    connection = address.openConnection(Proxy.NO_PROXY) as HttpURLConnection
-                    connection.connect()
+                val response = withContext(Dispatchers.IO) {
+                    return@withContext client.get(tileUrl) {
+                        // required by openstreetmaps, not sure how to get this to work
+                        // https://operations.osmfoundation.org/policies/tiles/
+                        // https://help.openstreetmap.org/questions/29938/in-my-app-problem-downloading-maptile-000-http-response-http11-403-forbidden
+                        header("User-Agent", "Breadcrumb/1.0 ${platformInfo()}")
+                    }
                 }
-                if (connection.responseCode != 200) {
-                    Log.d("stdout", "fetching $tileUrl failed ${connection.responseCode}")
+                if (!response.status.isSuccess()) {
+                    Log.d("stdout", "fetching $tileUrl failed ${response.status}")
                     return erroredTile(req)
                 }
 
-                withContext(Dispatchers.IO) {
-                    tileContents = connection.inputStream.readAllBytes()
+                tileContents = withContext(Dispatchers.IO) {
+                    return@withContext response.bodyAsChannel().toByteArray()
                 }
-                fileHelper.writeLocalFile(fileName, tileContents!!)
+                fileHelper.writeLocalFile(fileName, tileContents)
             }
 
             val resizedBitmap = imageProcessor.parseImage(tileContents, scaleUpSize)!!

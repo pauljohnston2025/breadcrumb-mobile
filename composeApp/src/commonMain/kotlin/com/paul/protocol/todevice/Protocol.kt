@@ -7,6 +7,7 @@ enum class ProtocolType(val value: UByte) {
     PROTOCOL_CANCEL_LOCATION_REQUEST(3u),
     PROTOCOL_REQUEST_SETTINGS(4u),
     PROTOCOL_SAVE_SETTINGS(5u),
+    PROTOCOL_DROP_TILE_CACHE(6u),
 }
 
 interface Protocol {
