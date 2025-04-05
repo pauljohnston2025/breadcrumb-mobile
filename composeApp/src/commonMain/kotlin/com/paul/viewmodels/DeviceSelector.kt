@@ -122,7 +122,7 @@ class DeviceSelector(
             {
                 // most likely a timeout exception
                 settingsLoading.value = false
-                snackbarHostState.showSnackbar("Failed to load settings")
+                snackbarHostState.showSnackbar("Failed to load settings. Please ensure an activity is running on the watch.")
             }
         }
     }

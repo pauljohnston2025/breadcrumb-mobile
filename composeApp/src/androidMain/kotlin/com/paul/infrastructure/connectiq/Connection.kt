@@ -151,6 +151,27 @@ class Connection(private val context: Context) : IConnection {
             })
     }
 
+    private suspend fun openApp(device: IqDevice): Unit = suspendCancellableCoroutine { continuation ->
+        val cd = device as CommonDeviceImpl
+        val app = IQApp(CONNECT_IQ_APP_ID)
+
+        connectIQ.openApplication(
+            cd.device,
+            app,
+            object : ConnectIQ.IQOpenApplicationListener {
+                // workaround to avoid double call of onMessageStatus
+                var completed = false
+
+                override fun onOpenApplicationResponse(var1: IQDevice, var2: IQApp, var3: ConnectIQ.IQOpenApplicationStatus) {
+                    Log.d("stdout", "app open response: " + var1 + " " + var2 + " " + var3)
+
+                    continuation.resume(Unit) {
+                        Log.d("stdout", "cancelled whilst resuming")
+                    }
+                }
+            })
+    }
+
     // todo add correlation ids to these requests
     // think we ned to buffer any responses that come back
     // and probably have an event queue for handling unsolicited messages
@@ -159,6 +180,9 @@ class Connection(private val context: Context) : IConnection {
         payload: Protocol,
         type: ProtocolResponse
     ): T {
+        // we get a log saying PROMPT_SHOWN_ON_DEVICE, but i do to see anything
+        // leaving this here incase it does ever work
+        openApp(device) // we cannot run commands against the app unless it is open
         appInfo(device)
         send(device, payload)
         // pretty hacky impl, we should have the deviceMessages flow running all the time,

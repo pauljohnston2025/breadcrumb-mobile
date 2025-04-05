@@ -73,7 +73,7 @@ fun DeviceSelector(deviceSelector: DeviceSelector, navController: NavHostControl
                     horizontalAlignment = Alignment.CenterHorizontally // Center the children horizontally
                 ) {
                     Text(
-                        text = "Loading Settings From Device",
+                        text = "Loading Settings From Device (ensure an activity with the datafield is running or this will fail)",
                         Modifier
                             .padding(top = 150.dp)
                             .align(Alignment.CenterHorizontally),
