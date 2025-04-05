@@ -3,6 +3,7 @@ package com.paul.ui
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import com.paul.composables.LoadingOverlay
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -13,6 +14,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -67,7 +69,8 @@ fun DeviceSelector(
             DeviceListContent(
                 devices = devicesList,
                 onDeviceSelected = { viewModel.onDeviceSelected(it) }, // Select action
-                onSettingsClicked = { viewModel.openDeviceSettings(it) } // Settings action
+                onSettingsClicked = { viewModel.openDeviceSettings(it) }, // Settings action
+                selectingDevice,
             )
         }
 
@@ -86,7 +89,8 @@ fun DeviceSelector(
 private fun DeviceListContent(
     devices: State<List<IqDevice>>,
     onDeviceSelected: (IqDevice) -> Unit,
-    onSettingsClicked: (IqDevice) -> Unit
+    onSettingsClicked: (IqDevice) -> Unit,
+    selectingDevice: Boolean,
 ) {
     if (devices.value.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -103,7 +107,8 @@ private fun DeviceListContent(
                 DeviceItem(
                     device = device,
                     onClick = { onDeviceSelected(device) },
-                    onSettingsClick = { onSettingsClicked(device) }
+                    onSettingsClick = { onSettingsClicked(device) },
+                    selectingDevice
                 )
                 Divider(modifier = Modifier.padding(horizontal = 16.dp)) // Separator
             }
@@ -116,20 +121,33 @@ private fun DeviceListContent(
 private fun DeviceItem(
     device: IqDevice,
     onClick: () -> Unit,
-    onSettingsClick: () -> Unit
+    onSettingsClick: () -> Unit,
+    selectingDevice: Boolean
 ) {
+    // Determine if the device is connected and clickable
+    val isConnected = device.status?.equals("CONNECTED", ignoreCase = true) == true
+    // Set alpha for visual indication (slightly faded if not connected)
+    val contentAlpha =
+        if (isConnected) ContentAlpha.high else ContentAlpha.disabled // Use disabled alpha for non-interactive state
+    // Optionally reduce elevation if not connected
+    val cardElevation = if (isConnected) 2.dp else 0.5.dp // Less prominent if disabled
+
     // Use Card for elevation and visual grouping
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp), // Spacing around card
-        elevation = 2.dp,
-        onClick = onClick // Make the whole card clickable for selection
+            .padding(horizontal = 16.dp, vertical = 6.dp)  // Spacing around card
+            .then(
+                // Only add clickable modifier if connected
+                if (isConnected) Modifier.clickable(onClick = onClick) else Modifier
+            ),
+        elevation = cardElevation,
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp), // Internal padding within card
+                .padding(16.dp) // Internal padding within card
+                .alpha(contentAlpha), // Fade content if not connected
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween // Pushes settings icon to end
         ) {
@@ -159,13 +177,21 @@ private fun DeviceItem(
                 )
             }
 
-            // Settings Icon Button
-            IconButton(onClick = onSettingsClick) {
-                Icon(
-                    imageVector = Icons.Filled.Settings,
-                    contentDescription = "Device Settings",
-                    tint = MaterialTheme.colors.primary // Use theme color
-                )
+            if (!selectingDevice) {
+                // Settings Icon Button
+                IconButton(
+                    onClick = {
+                        if (isConnected) {
+                            onSettingsClick()
+                        }
+                    } // let modifier control it
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Settings,
+                        contentDescription = "Device Settings",
+                        tint = MaterialTheme.colors.primary // Use theme color
+                    )
+                }
             }
         }
     }

@@ -229,6 +229,11 @@ class StartViewModel(
             }
             catch (t: TimeoutCancellationException) {
                 snackbarHostState.showSnackbar("Timed out sending file")
+                return@sendingMessage
+            }
+            catch (t: Throwable) {
+                snackbarHostState.showSnackbar("Failed to send to selected device")
+                return@sendingMessage
             }
             snackbarHostState.showSnackbar("Route sent")
         }
