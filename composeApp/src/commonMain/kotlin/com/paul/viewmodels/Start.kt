@@ -13,15 +13,12 @@ import com.paul.domain.GpxRoute
 import com.paul.infrastructure.connectiq.IConnection
 import com.paul.infrastructure.service.IFileHelper
 import com.paul.infrastructure.service.IGpxFileLoader
-import com.paul.protocol.fromdevice.ProtocolResponse
 import com.paul.protocol.todevice.CancelLocationRequest
 import com.paul.protocol.todevice.Colour
 import com.paul.protocol.todevice.MapTile
 import com.paul.protocol.todevice.RequestLocationLoad
-import com.paul.protocol.todevice.RequestSettings
 import com.paul.protocol.todevice.Route
 import com.russhwolf.settings.Settings
-import com.paul.protocol.fromdevice.Settings as DeviceSettings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -90,18 +87,31 @@ class StartViewModel(
         }
     }
 
-    fun loadFile(fileName: String, firstTimeSeenFile: Boolean) {
+    fun loadFile(fileName: String, externalFile: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
             sendingMessage("Parsing gpx input stream...") {
                 try {
-                    val lastFileNamePart = fileHelper.getFileName(fileName)
-                        ?: fileHelper.generateRandomFilename(".gpx")
-                    val fileContents = fileHelper.readFile(fileName)!!
-                    val gpxRoute = gpxFileLoader.loadGpxFromBytes(fileContents)
-                    if (firstTimeSeenFile) {
-                        fileHelper.writeLocalFile(lastFileNamePart, gpxRoute.rawBytes())
+                    val fileContents = when (externalFile) {
+                        true -> {
+                            fileHelper.readFile(fileName)!!
+                        }
+
+                        false -> {
+                            fileHelper.readLocalFile(fileName)!!
+                        }
                     }
-                    sendRoute(gpxRoute, lastFileNamePart)
+
+                    val gpxRoute = gpxFileLoader.loadGpxFromBytes(fileContents)
+                    val historyFileName = when (externalFile) {
+                        true -> fileHelper.getFileName(fileName)
+                            ?: fileHelper.generateRandomFilename(".gpx")
+
+                        false -> fileName
+                    }
+                    if (externalFile) {
+                        fileHelper.writeLocalFile(historyFileName, gpxRoute.rawBytes())
+                    }
+                    sendRoute(gpxRoute, historyFileName)
                 } catch (e: SecurityException) {
                     snackbarHostState.showSnackbar("Failed to load gpx file (you might not have permissions, please restart app to grant)")
                     Log.d("stdout", e.toString())
