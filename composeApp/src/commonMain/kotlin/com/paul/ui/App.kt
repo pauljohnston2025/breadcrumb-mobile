@@ -46,6 +46,7 @@ fun App(
     fileHelper: IFileHelper,
     fileLoad: String?,
     shortGoogleUrl: String?,
+    komootUrl: String?,
     initialErrorMessage: String?
 ) {
     AppTheme {
@@ -128,6 +129,7 @@ fun App(
                                     scaffoldState.snackbarHostState,
                                     fileLoad,
                                     shortGoogleUrl,
+                                    komootUrl,
                                     initialErrorMessage
                                 )
                             }

@@ -68,6 +68,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         var shortGoogleUrl: String? = null
+        var komootUrl: String? = null
         var initialErrorMessage: String? = null
         val fileLoad: Uri? = intent?.let {
             when (it.action) {
@@ -77,6 +78,12 @@ class MainActivity : ComponentActivity() {
                         // see https://stackoverflow.com/a/75021893
                         val text = it.extras?.getString("android.intent.extra.TEXT")
                             ?.takeUnless { it.isBlank() }
+                        if (text != null && text.contains("komoot"))
+                        {
+                            komootUrl = text
+                            return@let null
+                        }
+
                         shortGoogleUrl = text
                             ?.split("\n")
                             ?.lastOrNull()
@@ -123,6 +130,7 @@ class MainActivity : ComponentActivity() {
                     fileHelper,
                     fileLoad?.toString(),
                     shortGoogleUrl,
+                    komootUrl,
                     initialErrorMessage
                 )
             }

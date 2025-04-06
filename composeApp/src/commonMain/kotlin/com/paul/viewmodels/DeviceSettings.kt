@@ -324,6 +324,7 @@ class DeviceSettings(
                 }
             } catch (t: Throwable) {
                 settingsSaving.value = false
+                Log.d("stdout", "Failed to save settings $t")
                 snackbarHostState.showSnackbar("Failed to save settings")
                 viewModelScope.launch(Dispatchers.Main) {
                     navController.popBackStack()

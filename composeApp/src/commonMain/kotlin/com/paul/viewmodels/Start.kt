@@ -13,12 +13,18 @@ import com.paul.domain.GpxRoute
 import com.paul.infrastructure.connectiq.IConnection
 import com.paul.infrastructure.service.IFileHelper
 import com.paul.infrastructure.service.IGpxFileLoader
+import com.paul.infrastructure.web.KtorClient
 import com.paul.protocol.todevice.CancelLocationRequest
 import com.paul.protocol.todevice.Colour
 import com.paul.protocol.todevice.MapTile
+import com.paul.protocol.todevice.Point
 import com.paul.protocol.todevice.RequestLocationLoad
 import com.paul.protocol.todevice.Route
 import com.russhwolf.settings.Settings
+import io.ktor.client.request.get
+import io.ktor.client.statement.bodyAsChannel
+import io.ktor.http.isSuccess
+import io.ktor.utils.io.toByteArray
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.launch
@@ -37,12 +43,71 @@ import java.nio.charset.Charset
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
+class KomootGpxRoute : GpxRoute {
+    var name: String = ""
+    var coordinates: List<KomootTourCoordinate> = listOf()
+
+    constructor(komootRoot: KomootSetPropsRoot) {
+        name = komootRoot.page._embedded.tour.name
+        coordinates = komootRoot.page._embedded.tour._embedded.coordinates.items
+    }
+
+    constructor(historyItem: HistoryItem) {
+        name = historyItem.name
+        coordinates = historyItem.coords
+    }
+
+    override suspend fun toRoute(snackbarHostState: SnackbarHostState): Route? {
+        return Route(name, coordinates.map { Point(it.lat, it.lng, it.alt) })
+    }
+
+    override fun name(): String {
+        return name
+    }
+
+    override fun rawBytes(): ByteArray {
+        return byteArrayOf() // not used for komoot routes - dirty hack
+    }
+
+}
+
+// there are other properties, we are just getting the ones we care about
+@Serializable
+data class KomootSetPropsRoot(val page: KomootPage)
+
+@Serializable
+data class KomootPage(val _embedded: KomootPageEmbedded)
+
+@Serializable
+data class KomootPageEmbedded(val tour: KomootTour)
+
+@Serializable
+data class KomootTour(
+    val name: String,
+    val _embedded: KomootTourEmbedded
+)
+
+@Serializable
+data class KomootTourEmbedded(val coordinates: KomootTourCoordinates)
+
+@Serializable
+data class KomootTourCoordinates(val items: List<KomootTourCoordinate>)
+
+@Serializable
+data class KomootTourCoordinate(
+    val lat: Float,
+    val lng: Float,
+    val alt: Float,
+    val t: Int,
+)
+
 @Serializable
 data class HistoryItem(
     val id: String,
     val name: String,
     val uri: String,
     val timestamp: Instant,
+    val coords: List<KomootTourCoordinate>
 )
 
 class StartViewModel(
@@ -53,6 +118,7 @@ class StartViewModel(
     private val snackbarHostState: SnackbarHostState,
     fileLoad: String?,
     shortGoogleUrl: String?,
+    komootUrl: String?,
     initialErrorMessage: String?
 ) : ViewModel() {
     val HISTORY_KEY = "HISTORY"
@@ -64,18 +130,16 @@ class StartViewModel(
     val errorMessage: MutableState<String> = mutableStateOf(initialErrorMessage ?: "")
     val htmlErrorMessage: MutableState<String> = mutableStateOf(initialErrorMessage ?: "")
     val history = mutableStateListOf<HistoryItem>()
+    private val client = KtorClient.client // Get the singleton client instance
 
     init {
         val historyJson = settings.getStringOrNull(HISTORY_KEY)
         if (historyJson != null) {
             try {
-                val json = Json.parseToJsonElement(historyJson)
-                json.jsonArray.forEach {
-                    history.add(Json.decodeFromJsonElement<HistoryItem>(it))
+                Json.decodeFromString<List<HistoryItem>>(historyJson).forEach {
+                    history.add(it)
                 }
-            }
-            catch (t: Throwable)
-            {
+            } catch (t: Throwable) {
                 Log.d("stdout", "failed to hydrate history items $t")
             }
         }
@@ -86,6 +150,10 @@ class StartViewModel(
 
         if (shortGoogleUrl != null) {
             loadFromGoogle(shortGoogleUrl)
+        }
+
+        if (komootUrl != null) {
+            loadFromKomoot(komootUrl)
         }
     }
 
@@ -103,8 +171,15 @@ class StartViewModel(
         }
     }
 
-    fun loadFileFromHistory(historyItem: HistoryItem)
-    {
+    fun loadFileFromHistory(historyItem: HistoryItem) {
+        if (historyItem.coords.size != 0) {
+            val gpxRoute = KomootGpxRoute(historyItem)
+            viewModelScope.launch(Dispatchers.IO) {
+                sendRoute(gpxRoute, "unused", historyItem.coords)
+            }
+            return
+        }
+
         loadFile(historyItem.uri, false)
     }
 
@@ -152,6 +227,54 @@ class StartViewModel(
         }
     }
 
+    private fun loadFromKomoot(komootUrl: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            sendingMessage("Loading route from komoot...") {
+                viewModelScope.launch(Dispatchers.IO) {
+                    // inspired from https://github.com/DreiDe/komootGPXport
+                    val gpxRoute = parseGpxRouteFromKomoot(komootUrl)
+                    if (gpxRoute != null) {
+                        sendRoute(gpxRoute, "unused", gpxRoute.coordinates)
+                    }
+                }
+            }
+        }
+    }
+
+    private suspend fun parseGpxRouteFromKomoot(komootUrl: String): KomootGpxRoute? {
+        return try {
+            val response = client.get(komootUrl)
+            if (response.status.isSuccess()) {
+                val htmlString = response.bodyAsChannel().toByteArray().decodeToString()
+
+                // this is incredibly flaky, but should work most of the time
+                // the html page has a script tag containing kmtBoot.setProps("json with coordinates");
+                // should parse using xml/html parser and find the whole string, but regex will work for now
+                val regex = Regex("""kmtBoot\.setProps\((.*?)\);""", RegexOption.DOT_MATCHES_ALL)
+                val matchResult = regex.find(htmlString)
+                val jsonStringEscaped = matchResult?.groupValues?.getOrNull(1)
+                if (jsonStringEscaped == null) {
+                    throw RuntimeException("could find json in komoot webpage")
+                }
+                val jsonString = Json {
+                    isLenient = true
+                }.decodeFromString<String>(jsonStringEscaped)
+
+                val root = Json { ignoreUnknownKeys = true }.decodeFromString<KomootSetPropsRoot>(
+                    jsonString
+                )
+                Log.d("stdout", "$root")
+                return KomootGpxRoute(root)
+            }
+
+            return null
+        } catch (e: Exception) {
+            Log.d("stdout", "failed to load komoot url $e")
+            snackbarHostState.showSnackbar("Failed to load komoot url")
+            return null
+        }
+    }
+
     private suspend fun loadFromGoogleInner(shortGoogleUrl: String) {
         val loaded = loadFromMapsToGpx(shortGoogleUrl)
 
@@ -193,7 +316,11 @@ class StartViewModel(
     }
 
     @OptIn(ExperimentalUuidApi::class)
-    private suspend fun sendRoute(file: GpxRoute, localFilePath: String) {
+    private suspend fun sendRoute(
+        gpxRoute: GpxRoute,
+        localFilePath: String,
+        coords: List<KomootTourCoordinate> = listOf()
+    ) {
         val device = deviceSelector.currentDevice()
         if (device == null) {
             // todo make this a toast or something better for the user
@@ -206,13 +333,14 @@ class StartViewModel(
             try {
                 val historyItem = HistoryItem(
                     Uuid.random().toString(),
-                    file.name(),
+                    gpxRoute.name(),
                     localFilePath,
                     Clock.System.now(),
+                    coords
                 )
                 history.add(historyItem)
                 saveHistory()
-                route = file.toRoute(snackbarHostState)
+                route = gpxRoute.toRoute(snackbarHostState)
             } catch (e: Exception) {
                 Log.d("stdout", "Failed to parse route: ${e.message}")
             }
@@ -226,12 +354,10 @@ class StartViewModel(
         sendingMessage("Sending file") {
             try {
                 connection.send(device, route!!)
-            }
-            catch (t: TimeoutCancellationException) {
+            } catch (t: TimeoutCancellationException) {
                 snackbarHostState.showSnackbar("Timed out sending file")
                 return@sendingMessage
-            }
-            catch (t: Throwable) {
+            } catch (t: Throwable) {
                 snackbarHostState.showSnackbar("Failed to send to selected device")
                 return@sendingMessage
             }
@@ -245,12 +371,9 @@ class StartViewModel(
                 sendingFile.value = msg
             }
             cb()
-        }
-        catch (t: Throwable)
-        {
+        } catch (t: Throwable) {
             Log.d("stdout", "Failed to do operation: $msg $t")
-        }
-        finally {
+        } finally {
             viewModelScope.launch(Dispatchers.Main) {
                 sendingFile.value = ""
             }
@@ -281,7 +404,7 @@ class StartViewModel(
                 return null
             }
             return withContext(Dispatchers.IO) {
-                val res =  Pair(
+                val res = Pair(
                     connection.contentType,
                     connection.inputStream.readAllBytes()
                 )
