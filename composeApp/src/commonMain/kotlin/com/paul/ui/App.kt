@@ -62,6 +62,13 @@ fun App(
                 scaffoldState.snackbarHostState
             )
         }
+    val settingsViewModel = viewModel {
+        SettingsViewModel(
+            deviceSelector,
+            connection,
+            scaffoldState.snackbarHostState
+        )
+    }
 
     // Get the current route to potentially change the TopAppBar title
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -126,13 +133,6 @@ fun App(
                 }
 
                 composable(Screen.Settings.route) {
-                    val settingsViewModel = viewModel {
-                        SettingsViewModel(
-                            deviceSelector,
-                            connection,
-                            scaffoldState.snackbarHostState
-                        )
-                    }
                     Settings(
                         viewModel = settingsViewModel,
                     )

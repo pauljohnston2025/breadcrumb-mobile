@@ -11,6 +11,7 @@ import com.paul.infrastructure.web.LoadTileResponse
 import com.paul.infrastructure.web.platformInfo
 import com.paul.protocol.todevice.Colour
 import com.paul.protocol.todevice.MapTile
+import com.paul.viewmodels.Settings
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.statement.bodyAsChannel
@@ -28,8 +29,7 @@ class TileGetter(
 
     private val client = KtorClient.client // Get the singleton client instance
 
-    // todo load from storage at startup
-    private var tileServer = "https://a.tile.opentopomap.org/{z}/{x}/{y}.png"
+    private var tileServer = Settings.getTileServerOnStart().url
 
     override fun setTileServer(tileServer: String)
     {

@@ -3,6 +3,7 @@ package com.paul.viewmodels
 import android.util.Log
 import androidx.compose.material.SnackbarHostState
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -10,7 +11,8 @@ import com.paul.infrastructure.connectiq.IConnection
 import com.paul.infrastructure.web.ChangeTileServer
 import com.paul.infrastructure.web.KtorClient
 import com.paul.protocol.todevice.DropTileCache
-import com.paul.protocol.todevice.Route
+import com.russhwolf.settings.Settings
+import com.russhwolf.settings.set
 import io.ktor.client.plugins.resources.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
@@ -19,20 +21,24 @@ import io.ktor.http.isSuccess
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.launch
-import kotlinx.datetime.Clock
-import kotlin.uuid.Uuid
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 
+@Serializable
 enum class ServerType {
+    CUSTOM,
     ESRI,
     GOOGLE,
     OPENTOPOMAP,
     OPENSTREETMAP,
 }
 
+@Serializable
 data class TileServerInfo(
     val serverType: ServerType,
     val title: String,
     val url: String,
+    val isCustom: Boolean = false // Flag to identify user-added servers
 )
 
 class Settings(
@@ -40,15 +46,42 @@ class Settings(
     private val connection: IConnection,
     private val snackbarHostState: SnackbarHostState
 ) : ViewModel() {
+    companion object {
+        val TILE_SERVER_KEY = "TILE_SERVER"
+        val CUSTOM_SERVERS_KEY = "CUSTOM_SERVERS_KEY"
+        val settings: Settings = Settings()
+
+        fun getTileServerOnStart(): TileServerInfo {
+            val default = TileServerInfo(
+                ServerType.OPENTOPOMAP,
+                "Open Topo Map",
+                "https://a.tile.opentopomap.org/{z}/{x}/{y}.png"
+            )
+            val tileServer = settings.getStringOrNull(TILE_SERVER_KEY)
+
+            if (tileServer == null)
+            {
+                return default
+            }
+
+            return try {
+                Json.decodeFromString<TileServerInfo>(tileServer)
+            }
+            catch (t: Throwable)
+            {
+                // bad encoding, maybe we changed it
+                return default
+            }
+        }
+    }
+
     private val client = KtorClient.client // Get the singleton client instance
 
     val sendingMessage: MutableState<String> = mutableStateOf("")
 
-    // todo load from storage at startup
     val currentTileServer: MutableState<String> = mutableStateOf("")
 
-    // todo: load user generated ones too
-    val availableServers = listOf(
+    val availableServers = mutableStateListOf(
         TileServerInfo(
             ServerType.OPENTOPOMAP,
             "Open Topo Map",
@@ -113,6 +146,20 @@ class Settings(
         ),
     )
 
+    fun getCustomServers(): List<TileServerInfo> {
+        val customServers = settings.getStringOrNull(CUSTOM_SERVERS_KEY)
+        return when (customServers) {
+            null -> listOf()
+            else -> Json.decodeFromString<List<TileServerInfo>>(customServers)
+        }
+    }
+
+    init {
+        val servers = getCustomServers()
+        servers.forEach { availableServers.add(it) }
+        currentTileServer.value = getTileServerOnStart().title
+    }
+
     fun onServerSelected(tileServer: TileServerInfo) {
         viewModelScope.launch(Dispatchers.IO) {
             val device = deviceSelector.currentDevice()
@@ -125,6 +172,7 @@ class Settings(
             sendingMessage("Setting tile server") {
                 try {
                     currentTileServer.value = tileServer.title
+                    settings.putString(TILE_SERVER_KEY, tileServer.url)
 
                     try {
                         val req = ChangeTileServer(tileServer = tileServer.url)
@@ -167,5 +215,19 @@ class Settings(
                 sendingMessage.value = ""
             }
         }
+    }
+
+    fun onAddCustomServer(tileServer: TileServerInfo) {
+        val mutableServers = getCustomServers().toMutableList()
+        mutableServers.add(tileServer)
+
+        settings.putString(CUSTOM_SERVERS_KEY, Json.encodeToString(mutableServers))
+        availableServers.add(tileServer)
+    }
+
+    fun onRemoveCustomServer(tileServer: TileServerInfo) {
+        val newServers = getCustomServers().filter { it.isCustom && it.title != tileServer.title }
+        settings.putString(CUSTOM_SERVERS_KEY, Json.encodeToString(newServers))
+        availableServers.removeIf { it.isCustom && it.title == tileServer.title }
     }
 }
