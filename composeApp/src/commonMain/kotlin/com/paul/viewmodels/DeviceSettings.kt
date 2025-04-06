@@ -107,8 +107,8 @@ val listOptionsMapping: Map<String, List<ListOption>> = mapOf(
         ListOption(3, "Debug Mode")
     ),
     "zoomAtPaceMode" to listOf(
-        ListOption(0, "Zoom based on Pace"),
-        ListOption(1, "Zoom when Stopped")
+        ListOption(0, "Zoom When Moving"),
+        ListOption(1, "Zoom When Stopped")
     ),
     "uiMode" to listOf(
         ListOption(0, "Show All UI"),
@@ -119,16 +119,17 @@ val listOptionsMapping: Map<String, List<ListOption>> = mapOf(
 )
 
 val labelOverrides: Map<String, String> = mapOf(
-    "zoomAtPaceSpeedMPS" to "Zoom At Pace (mps)",
+    "zoomAtPaceSpeedMPS" to "Speed To Zoom At (mps)",
+    "zoomAtPaceMode" to "Mode",
     "offTrackAlertsDistanceM" to "Off Track Alert Distance (m)",
     "offTrackAlertsMaxReportIntervalS" to "Max Report Interval (s)",
     "tileSize" to "Tile Size (pixels)",
 )
 
 val descriptions: Map<String, String> = mapOf(
-    "mapEnabled" to "Choose these values wisely. Too big = crash, too small = crash or slow performance",
-    "tileSize" to "Should be a multiple of 256 for best results",
-    "tileUrl" to "Tile url should be 'http://127.0.0.1:8080' for companion app or template eg. 'https://a.tile.opentopomap.org/{z}/{x}/{y}.png'. Tile size should generally be 256 if using a template.",
+    "mapEnabled" to "Choose these values wisely. Too big = crash, too small = crash or slow performance.",
+    "tileSize" to "Should be a multiple of 256 for best results.",
+    "tileUrl" to "Tile url should be 'http://127.0.0.1:8080' for companion app, it can also be a template.\neg. 'https://a.tile.opentopomap.org/{z}/{x}/{y}.png'.\nTile size should generally be 256 if using a template.",
 )
 
 fun padColorString(original: String): String {

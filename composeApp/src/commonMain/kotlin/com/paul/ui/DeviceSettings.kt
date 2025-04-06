@@ -4,13 +4,16 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -22,9 +25,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.Button
-import androidx.compose.material.CircularProgressIndicator
 import androidx.compose.material.ContentAlpha
 import androidx.compose.material.Divider
 import androidx.compose.material.DropdownMenuItem
@@ -36,37 +42,39 @@ import androidx.compose.material.IconButton
 import androidx.compose.material.LocalContentColor
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.OutlinedTextField
-import androidx.compose.material.Scaffold
 import androidx.compose.material.Switch
 import androidx.compose.material.Text
-import androidx.compose.material.TopAppBar
+import androidx.compose.material.TextFieldDefaults
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.paul.composables.ColorPickerDialog
 import com.paul.composables.LoadingOverlay
 import com.paul.composables.RoutesArrayEditor
 import com.paul.composables.colorToHexString
 import com.paul.composables.parseColor
 import com.paul.viewmodels.DeviceSettings
-import com.paul.viewmodels.RouteItem
 import com.paul.viewmodels.EditableProperty
 import com.paul.viewmodels.PropertyType
+import com.paul.viewmodels.RouteItem
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
@@ -433,44 +441,55 @@ fun PropertyEditorRow(
             // Column for Label and Description
             Column(
                 modifier = Modifier
-                    .weight(1f) // Takes available horizontal space
-                    .padding(end = 16.dp) // Padding between label/desc and controls
+//                    .weight(1f) // Takes available horizontal space
+//                    .padding(end = 16.dp) // Padding between label/desc and controls
             ) {
-                // Main Label Text
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.body1 // Or subtitle1
-                )
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Main Label Text
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.body1 // Or subtitle1
+                    )
+
+                    Spacer(Modifier.weight(1f)) // fill the gap in the iddle to push the box to the right
+
+//                    Box(
+//                        // enough room for description to render on the left, of the content gets to wide and
+//                        // the description is long the description become vertical and makes this item take
+//                        // up too much space
+//                        modifier = Modifier.widthIn(100.dp, 200.dp),
+//                        contentAlignment = Alignment.CenterEnd
+//                    ) {
+                    content()
+//                    }
+                }
+
                 // Conditional Description Text
                 if (!description.isNullOrBlank()) { // Check if description exists and isn't empty
                     Text(
                         text = description,
                         style = MaterialTheme.typography.caption, // Smaller style
                         color = LocalContentColor.current.copy(alpha = ContentAlpha.medium), // De-emphasize
-                        modifier = Modifier.padding(top = 2.dp) // Small gap
+                        modifier = Modifier
+                            .padding(top = 2.dp)
+                            .fillMaxWidth()
                     )
                 }
             }
-
-            // Spacer to push controls (removed if using weight on Label Column already handles it)
-            // Spacer(Modifier.weight(1f)) // May not be needed if Column above uses weight
-
-            // Box for Controls (fixed width, pushed right)
-//            Box(
-//                modifier = Modifier.width(controlContentWidth),
-//                contentAlignment = Alignment.CenterEnd
-//            ) {
-            content() // The actual editor UI (TextField, Switch, etc.)
-//            }
         }
         Divider(modifier = Modifier.padding(start = 16.dp, end = 16.dp)) // Indent divider slightly
     }
 }
 
 // --- Specific Editors ---
-
 @Composable
 fun StringEditor(property: EditableProperty<String>) {
+    // can't seem to get this to scroll on large text tried BringIntoViewRequester but could not get it working
+    // it does scroll when typing, or when using the spacebar as a trackpad
+    // but not when the onscreen cursor is used
     var currentValue by property.state
     PropertyEditorRow(label = property.label, description = property.description) {
         OutlinedTextField(
@@ -764,7 +783,7 @@ fun ListNumberEditor(property: EditableProperty<Int>) {
         ExposedDropdownMenuBox(
             expanded = expanded,
             onExpandedChange = { expanded = !expanded },
-            modifier = Modifier.widthIn(min = 200.dp, max = 200.dp) // Give it enough width
+//            modifier = Modifier.widthIn(min = 200.dp, max = 200.dp) // Give it enough width
         ) {
             // Text field displaying the current selection (usually read-only)
             OutlinedTextField(

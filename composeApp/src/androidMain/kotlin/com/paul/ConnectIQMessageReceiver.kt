@@ -58,7 +58,7 @@ class ConnectIQMessageReceiver : BroadcastReceiver() {
     companion object {
         private const val TAG = "ConnectIQMessageReceiver"
         private const val CHANNEL_ID = "ConnectIQMessageReceiver"
-        private const val NOTIFICATION_ID = 0
+        private const val NOTIFICATION_ID = 1
     }
 
     fun showNotification(context: Context, title: String, message: String) {

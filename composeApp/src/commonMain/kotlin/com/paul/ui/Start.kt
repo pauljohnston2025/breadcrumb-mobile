@@ -34,6 +34,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
@@ -52,7 +53,6 @@ import com.paul.viewmodels.HistoryItem
 import com.paul.viewmodels.StartViewModel
 import kotlinx.datetime.format
 import kotlinx.datetime.format.DateTimeComponents
-import kotlinx.datetime.format.DateTimeFormat
 
 @Composable
 fun Start(
@@ -106,14 +106,30 @@ fun Start(
                 )
             }
 
-            Button(onClick = { viewModel.pickRoute() }) {
-                Icon(
-                    Icons.Default.Build,
-                    contentDescription = null,
-                    modifier = Modifier.size(ButtonDefaults.IconSize)
-                )
-                Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-                Text("Import GPX") // Be more specific?
+            Row(
+                Modifier.fillMaxWidth(),
+//                .padding(vertical = 8.dp, horizontal = 16.dp)
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Button(onClick = { viewModel.openDeviceSettings() }) {
+                    Icon(
+                        Icons.Default.Settings,
+                        contentDescription = null,
+                        modifier = Modifier.size(ButtonDefaults.IconSize)
+                    )
+                    Spacer(Modifier.size(ButtonDefaults.IconSpacing))
+                    Text("Device Settings")
+                }
+
+                Button(onClick = { viewModel.pickRoute() }) {
+                    Icon(
+                        Icons.Default.Build,
+                        contentDescription = null,
+                        modifier = Modifier.size(ButtonDefaults.IconSize)
+                    )
+                    Spacer(Modifier.size(ButtonDefaults.IconSpacing))
+                    Text("Import GPX")
+                }
             }
 
             Spacer(modifier = Modifier.height(24.dp))

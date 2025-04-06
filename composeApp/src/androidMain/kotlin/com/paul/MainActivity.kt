@@ -5,7 +5,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -136,8 +138,18 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        val serviceIntent = Intent(this, WebServerService::class.java)
-        startService(serviceIntent)
+        try {
+            val serviceIntent = Intent(this, WebServerService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                ContextCompat.startForegroundService(this, serviceIntent)
+            } else {
+                this.startService(serviceIntent)
+            }
+        }
+        catch (t: Throwable)
+        {
+            Log.d("stdout", "failed to start service (lets hope its because it's already running) $t")
+        }
     }
 
     override fun onDestroy() {

@@ -105,25 +105,30 @@ class DeviceSelector(
         currentDevice = device
         settingsLoading.value = true
         viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val settings = connection.query<Settings>(
-                    device,
-                    RequestSettings(),
-                    ProtocolResponse.PROTOCOL_SEND_SETTINGS
-                )
-                lastLoadedSettings = settings
-                Log.d("stdout", "got settings $settings")
-                settingsLoading.value = false
-                viewModelScope.launch(Dispatchers.Main) {
-                    navController.navigate(Screen.DeviceSettings.route)
-                }
+            openDeviceSettingsSuspend(device)
+        }
+    }
+
+    suspend fun openDeviceSettingsSuspend(device: IqDevice)
+    {
+        try {
+            val settings = connection.query<Settings>(
+                device,
+                RequestSettings(),
+                ProtocolResponse.PROTOCOL_SEND_SETTINGS
+            )
+            lastLoadedSettings = settings
+            Log.d("stdout", "got settings $settings")
+            settingsLoading.value = false
+            viewModelScope.launch(Dispatchers.Main) {
+                navController.navigate(Screen.DeviceSettings.route)
             }
-            catch (t: Throwable)
-            {
-                // most likely a timeout exception
-                settingsLoading.value = false
-                snackbarHostState.showSnackbar("Failed to load settings. Please ensure an activity is running on the watch.")
-            }
+        }
+        catch (t: Throwable)
+        {
+            // most likely a timeout exception
+            settingsLoading.value = false
+            snackbarHostState.showSnackbar("Failed to load settings. Please ensure an activity is running on the watch.")
         }
     }
 

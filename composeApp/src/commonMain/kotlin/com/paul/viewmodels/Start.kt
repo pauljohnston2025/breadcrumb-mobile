@@ -423,58 +423,15 @@ class StartViewModel(
         saveHistory()
     }
 
-    suspend fun sendMockTileInner(x: Int, y: Int, z: Int, colour: Colour) {
-        val TILE_SIZE = 64;
-        val data = List(TILE_SIZE * TILE_SIZE) { colour };
-        // random colour tiles for now
-//        data = data.map {
-//            Colour.random()
-//        }
-        val tile = MapTile(x, y, z, data);
-
-        val device = deviceSelector.currentDevice()
-        if (device == null) {
-            // todo make this a toast or something better for the user
-            snackbarHostState.showSnackbar("no devices selected")
-            return
-        }
-
-        sendingMessage("Sending tile $x $y") {
-            connection.send(device, tile)
-            snackbarHostState.showSnackbar("Tile sent $x $y")
-        }
-    }
-
-    fun loadLocation(lat: Float, long: Float) {
+    fun openDeviceSettings() {
         viewModelScope.launch(Dispatchers.IO) {
-            Log.d("stdout", "requesting load location")
             val device = deviceSelector.currentDevice()
             if (device == null) {
-                // todo make this a toast or something better for the user
                 snackbarHostState.showSnackbar("no devices selected")
                 return@launch
             }
-
-            sendingMessage("Requesting load location") {
-                connection.send(device, RequestLocationLoad(lat, long))
-                snackbarHostState.showSnackbar("Requesting load location sent")
-            }
-        }
-    }
-
-    fun clearLocation() {
-        viewModelScope.launch(Dispatchers.IO) {
-            Log.d("stdout", "requesting clear location")
-            val device = deviceSelector.currentDevice()
-            if (device == null) {
-                // todo make this a toast or something better for the user
-                snackbarHostState.showSnackbar("no devices selected")
-                return@launch
-            }
-
-            sendingMessage("Requesting clear location") {
-                connection.send(device, CancelLocationRequest())
-                snackbarHostState.showSnackbar("Requesting clear location sent")
+            sendingMessage("Loading Settings From Device.\nEnsure an activity with the datafield is running (or at least open) or this will fail.") {
+                deviceSelector.openDeviceSettingsSuspend(device)
             }
         }
     }
