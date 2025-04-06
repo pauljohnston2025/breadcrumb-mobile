@@ -48,142 +48,151 @@ fun App(
     shortGoogleUrl: String?,
     initialErrorMessage: String?
 ) {
-    val navController = rememberNavController()
-    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
-    val scope = rememberCoroutineScope()
-    val scaffoldState =
-        rememberScaffoldState(drawerState = drawerState) // Connect scaffold and drawer states
-    val deviceSelector =
-        viewModel {
-            DeviceSelectorModel(
-                navController,
+    AppTheme {
+        val navController = rememberNavController()
+        val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+        val scope = rememberCoroutineScope()
+        val scaffoldState =
+            rememberScaffoldState(drawerState = drawerState) // Connect scaffold and drawer states
+        val deviceSelector =
+            viewModel {
+                DeviceSelectorModel(
+                    navController,
+                    connection,
+                    deviceList,
+                    scaffoldState.snackbarHostState
+                )
+            }
+        val settingsViewModel = viewModel {
+            SettingsViewModel(
+                deviceSelector,
                 connection,
-                deviceList,
                 scaffoldState.snackbarHostState
             )
         }
-    val settingsViewModel = viewModel {
-        SettingsViewModel(
-            deviceSelector,
-            connection,
-            scaffoldState.snackbarHostState
-        )
-    }
 
-    // Get the current route to potentially change the TopAppBar title
-    val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = navBackStackEntry?.destination?.route
-    val currentScreen =
-        drawerScreens.find { it.route == currentRoute } ?: Screen.Start // Default to Start title
+        // Get the current route to potentially change the TopAppBar title
+        val navBackStackEntry by navController.currentBackStackEntryAsState()
+        val currentRoute = navBackStackEntry?.destination?.route
+        val currentScreen =
+            drawerScreens.find { it.route == currentRoute }
+                ?: Screen.Start // Default to Start title
 
-    ModalDrawer(
-        drawerState = drawerState,
-        gesturesEnabled = drawerState.isOpen, // Only allow gesture open/close when open? Or always?
-        drawerContent = {
-            AppDrawerContent(
-                navController = navController,
-                drawerState = drawerState,
-                modifier = Modifier, // Pass modifier if needed for drawer content styling
-                scope = scope
-            )
-        }
-    ) {
-        // Main content area wrapped by the drawer
-        Scaffold(
-            scaffoldState = scaffoldState, // Use the state connected to drawerState
-            topBar = {
-                TopAppBar(
-                    title = { Text(currentScreen.title) }, // Dynamic title based on current screen
-                    navigationIcon = {
-                        IconButton(onClick = {
-                            scope.launch {
-                                if (drawerState.isClosed) drawerState.open() else drawerState.close()
-                            }
-                        }) {
-                            Icon(Icons.Filled.Menu, contentDescription = "Menu")
-                        }
-                    }
-                    // Add actions specific to screens here if needed, maybe conditionally
+        ModalDrawer(
+            drawerState = drawerState,
+            gesturesEnabled = drawerState.isOpen, // Only allow gesture open/close when open? Or always?
+            drawerContent = {
+                AppDrawerContent(
+                    navController = navController,
+                    drawerState = drawerState,
+                    modifier = Modifier, // Pass modifier if needed for drawer content styling
+                    scope = scope
                 )
-            },
-            // SnackbarHost defined once here
-            snackbarHost = { SnackbarHost(hostState = scaffoldState.snackbarHostState) }
-        ) { paddingValues -> // Content receives padding from Scaffold
-            NavHost(
-                navController = navController,
-                // Determine your actual start destination
-                startDestination = Screen.Start.route,
-                modifier = Modifier.padding(paddingValues) // Apply padding to NavHost content
-            ) {
-                composable(Screen.Start.route) {
-                    Start(
-                        viewModel = viewModel {
-                            StartViewModel(
-                                connection,
-                                deviceSelector,
-                                gpxFileLoader,
-                                fileHelper,
-                                scaffoldState.snackbarHostState,
-                                fileLoad,
-                                shortGoogleUrl,
-                                initialErrorMessage
-                            )
+            }
+        ) {
+            // Main content area wrapped by the drawer
+            Scaffold(
+                scaffoldState = scaffoldState, // Use the state connected to drawerState
+                topBar = {
+                    TopAppBar(
+                        title = { Text(currentScreen.title) }, // Dynamic title based on current screen
+                        navigationIcon = {
+                            IconButton(onClick = {
+                                scope.launch {
+                                    if (drawerState.isClosed) drawerState.open() else drawerState.close()
+                                }
+                            }) {
+                                Icon(Icons.Filled.Menu, contentDescription = "Menu")
+                            }
                         }
+                        // Add actions specific to screens here if needed, maybe conditionally
                     )
-                }
-
-                composable(Screen.Settings.route) {
-                    Settings(
-                        viewModel = settingsViewModel,
-                    )
-                }
-
-                composable(Screen.Devices.route) {
-                    DeviceSelector(
-                        viewModel = deviceSelector,
-                        navController = navController, // Pass NavController if event system isn't fully implemented yet
-                        false
-                    )
-                }
-
-                composable(Screen.DeviceSelection.route) {
-                    DeviceSelector(
-                        viewModel = deviceSelector,
-                        navController = navController, // Pass NavController if event system isn't fully implemented yet
-                        true
-                    )
-                }
-
-                composable(route = Screen.DeviceSettings.route) {
-                    // lastLoadedSettings dirty hack
-                    val deviceSettings = viewModel {
-                        DeviceSettingsModel(
-                            deviceSelector.lastLoadedSettings!!,
-                            deviceSelector.currentDevice!!,
-                            navController,
-                            connection,
-                            scaffoldState.snackbarHostState,
+                },
+                // SnackbarHost defined once here
+                snackbarHost = { SnackbarHost(hostState = scaffoldState.snackbarHostState) }
+            ) { paddingValues -> // Content receives padding from Scaffold
+                NavHost(
+                    navController = navController,
+                    // Determine your actual start destination
+                    startDestination = Screen.Start.route,
+                    modifier = Modifier.padding(paddingValues) // Apply padding to NavHost content
+                ) {
+                    composable(Screen.Start.route) {
+                        Start(
+                            viewModel = viewModel {
+                                StartViewModel(
+                                    connection,
+                                    deviceSelector,
+                                    gpxFileLoader,
+                                    fileHelper,
+                                    scaffoldState.snackbarHostState,
+                                    fileLoad,
+                                    shortGoogleUrl,
+                                    initialErrorMessage
+                                )
+                            }
                         )
                     }
-                    DeviceSettings(
-                        deviceSettings = deviceSettings,
-                    )
-                }
 
-                composable(Screen.Map.route) {
-                    // Placeholder for your Map Screen
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("Map Screen Placeholder")
+                    composable(Screen.Settings.route) {
+                        Settings(
+                            viewModel = settingsViewModel,
+                        )
                     }
-                }
 
-                composable(Screen.Storage.route) {
-                    // Placeholder for your Storage Screen
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("Storage Screen Placeholder")
+                    composable(Screen.Devices.route) {
+                        DeviceSelector(
+                            viewModel = deviceSelector,
+                            navController = navController, // Pass NavController if event system isn't fully implemented yet
+                            false
+                        )
                     }
-                }
-            } // End NavHost
-        } // End Scaffold
-    } // End ModalDrawer
+
+                    composable(Screen.DeviceSelection.route) {
+                        DeviceSelector(
+                            viewModel = deviceSelector,
+                            navController = navController, // Pass NavController if event system isn't fully implemented yet
+                            true
+                        )
+                    }
+
+                    composable(route = Screen.DeviceSettings.route) {
+                        // lastLoadedSettings dirty hack
+                        val deviceSettings = viewModel {
+                            DeviceSettingsModel(
+                                deviceSelector.lastLoadedSettings!!,
+                                deviceSelector.currentDevice!!,
+                                navController,
+                                connection,
+                                scaffoldState.snackbarHostState,
+                            )
+                        }
+                        DeviceSettings(
+                            deviceSettings = deviceSettings,
+                        )
+                    }
+
+                    composable(Screen.Map.route) {
+                        // Placeholder for your Map Screen
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("Map Screen Placeholder")
+                        }
+                    }
+
+                    composable(Screen.Storage.route) {
+                        // Placeholder for your Storage Screen
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("Storage Screen Placeholder")
+                        }
+                    }
+                } // End NavHost
+            } // End Scaffold
+        } // End ModalDrawer
+    }
 }
