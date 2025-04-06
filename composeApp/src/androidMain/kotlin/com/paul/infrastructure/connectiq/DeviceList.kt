@@ -48,7 +48,20 @@ class DeviceList(private val connection: Connection) : IDeviceList {
         toAdd.friendlyName =
             if (toAdd.friendlyName != null && toAdd.friendlyName != "") toAdd.friendlyName else oldDevice?.friendlyName
                 ?: ""
+
+        // dummy device for testing
+//        val dummyDevice = CommonDeviceImpl(device)
+//        val dummyId = (Math.random()*10000).toLong()
+//        dummyDevice.friendlyName = "dummy device $dummyId"
+//        dummyDevice.id = dummyId
+//        list.add(dummyDevice)
         list.add(toAdd)
+//        val dummyDevice2 = CommonDeviceImpl(device)
+//        val dummyId2 = (Math.random()*10000).toLong()
+//        dummyDevice2.status = "NOT_CONNECTED"
+//        dummyDevice2.friendlyName = "dummy device $dummyId2"
+//        dummyDevice2.id = dummyId2
+//        list.add(dummyDevice2)
         deviceList = list
         CoroutineScope(Dispatchers.IO).launch {
             Log.d("stdout", "emitting $list")

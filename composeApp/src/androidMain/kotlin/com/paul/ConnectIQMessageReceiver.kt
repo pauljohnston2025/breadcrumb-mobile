@@ -14,9 +14,21 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.garmin.android.connectiq.ConnectIQ
 import com.paul.infrastructure.connectiq.IConnection.Companion.CONNECT_IQ_APP_ID
+import com.paul.infrastructure.web.CheckStatusRequest
+import com.paul.infrastructure.web.KtorClient
+import io.ktor.client.plugins.resources.get
+import io.ktor.http.isSuccess
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 
 
 class ConnectIQMessageReceiver : BroadcastReceiver() {
+    private val client = KtorClient.client // Get the singleton client instance
+    val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     // see https://forums.garmin.com/developer/connect-iq/f/discussion/4339/start-an-android-service-from-watch/29284#29284
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action == "com.garmin.android.connectiq.INCOMING_MESSAGE") {
@@ -43,14 +55,23 @@ class ConnectIQMessageReceiver : BroadcastReceiver() {
                 // https://developer.android.com/guide/components/activities/background-starts
                 // need to send notification instead
 
-                // todo check if we are already running somehow
-                // no need to prompt for open if we are already running the tile service
-                showNotification(
-                    context,
-                    "Please open breadcrumb companion app",
-                    "The companion app needs to be launched so that we can start reading tiles for maps"
-                )
+                scope.launch(Dispatchers.IO) {
+                    try {
+                        withTimeout(2000) {
+                            val response = client.get(CheckStatusRequest())
+                            if (response.status.isSuccess()) {
+                                return@withTimeout
+                            }
 
+                            // somehow we got a bad response?
+                            showNotification(context)
+                        }
+                    } catch (t: Throwable) {
+                        // timed out - server not running
+                        // some other error - assume server not running
+                        showNotification(context)
+                    }
+                }
             }
         }
     }
@@ -59,6 +80,14 @@ class ConnectIQMessageReceiver : BroadcastReceiver() {
         private const val TAG = "ConnectIQMessageReceiver"
         private const val CHANNEL_ID = "ConnectIQMessageReceiver"
         private const val NOTIFICATION_ID = 1
+    }
+
+    fun showNotification(context: Context) {
+        showNotification(
+            context,
+            "Please open breadcrumb companion app",
+            "The companion app needs to be launched so that we can start reading tiles for maps"
+        )
     }
 
     fun showNotification(context: Context, title: String, message: String) {

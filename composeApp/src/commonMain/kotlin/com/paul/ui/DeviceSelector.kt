@@ -2,16 +2,33 @@ package com.paul.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
-import com.paul.composables.LoadingOverlay
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.*
+import androidx.compose.material.Card
+import androidx.compose.material.ContentAlpha
+import androidx.compose.material.Divider
+import androidx.compose.material.ExperimentalMaterialApi
+import androidx.compose.material.Icon
+import androidx.compose.material.IconButton
+import androidx.compose.material.MaterialTheme
+import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -21,6 +38,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import com.paul.composables.LoadingOverlay
 import com.paul.domain.IqDevice
 import com.paul.viewmodels.DeviceSelector as DeviceSelectorViewModel
 
@@ -68,9 +86,16 @@ fun DeviceSelector(
             // --- Main Content: Device List ---
             DeviceListContent(
                 devices = devicesList,
-                onDeviceSelected = { viewModel.onDeviceSelected(it) }, // Select action
+                onDeviceSelected = {
+                    viewModel.onDeviceSelected(it)
+                    if (selectingDevice)
+                    {
+                        navController.popBackStack()
+                    }
+               }, // Select action
                 onSettingsClicked = { viewModel.openDeviceSettings(it) }, // Settings action
                 selectingDevice,
+                viewModel.currentDevice.value
             )
         }
 
@@ -91,6 +116,7 @@ private fun DeviceListContent(
     onDeviceSelected: (IqDevice) -> Unit,
     onSettingsClicked: (IqDevice) -> Unit,
     selectingDevice: Boolean,
+    selectedDevice: IqDevice?
 ) {
     if (devices.value.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -108,7 +134,8 @@ private fun DeviceListContent(
                     device = device,
                     onClick = { onDeviceSelected(device) },
                     onSettingsClick = { onSettingsClicked(device) },
-                    selectingDevice
+                    selectingDevice,
+                    device.id == selectedDevice?.id
                 )
                 Divider(modifier = Modifier.padding(horizontal = 16.dp)) // Separator
             }
@@ -122,7 +149,8 @@ private fun DeviceItem(
     device: IqDevice,
     onClick: () -> Unit,
     onSettingsClick: () -> Unit,
-    selectingDevice: Boolean
+    selectingDevice: Boolean,
+    isSelected: Boolean
 ) {
     // Determine if the device is connected and clickable
     val isConnected = device.status?.equals("CONNECTED", ignoreCase = true) == true
@@ -131,6 +159,18 @@ private fun DeviceItem(
         if (isConnected) ContentAlpha.high else ContentAlpha.disabled // Use disabled alpha for non-interactive state
     // Optionally reduce elevation if not connected
     val cardElevation = if (isConnected) 2.dp else 0.5.dp // Less prominent if disabled
+
+    // Define selected appearance
+    val selectedBorder = if (isSelected) {
+        BorderStroke(2.dp, MaterialTheme.colors.primary) // Add a border when selected
+    } else {
+        null // No border otherwise
+    }
+    val selectedBackgroundColor = if (isSelected) {
+        MaterialTheme.colors.primary.copy(alpha = 0.1f) // Subtle background tint when selected
+    } else {
+        MaterialTheme.colors.surface // Default surface color
+    }
 
     // Use Card for elevation and visual grouping
     Card(
@@ -142,6 +182,8 @@ private fun DeviceItem(
                 if (isConnected) Modifier.clickable(onClick = onClick) else Modifier
             ),
         elevation = cardElevation,
+        border = selectedBorder, // Apply the border conditionally
+        backgroundColor = selectedBackgroundColor // Apply background conditionally
     ) {
         Row(
             modifier = Modifier

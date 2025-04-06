@@ -31,7 +31,7 @@ class DeviceSelector(
     private val snackbarHostState: SnackbarHostState,
 ) :
     ViewModel() {
-    var currentDevice: IqDevice? = null
+    var currentDevice: MutableState<IqDevice?> = mutableStateOf(null)
     private var devicesFlow: MutableStateFlow<List<IqDevice>> = MutableStateFlow(listOf())
     private var currentDevicePoll: Job? = null
     val settingsLoading: MutableState<Boolean> = mutableStateOf(false)
@@ -63,7 +63,7 @@ class DeviceSelector(
     }
 
     suspend fun currentDevice(): IqDevice? {
-        if (currentDevice == null) {
+        if (currentDevice.value == null) {
             selectDevice()
         }
 
@@ -73,7 +73,7 @@ class DeviceSelector(
                 // wait for the device to be selected
                 try {
                     withTimeout(10000) {
-                        while (currentDevice == null) {
+                        while (currentDevice.value == null) {
                             delay(1000);
                         }
                     }
@@ -88,7 +88,7 @@ class DeviceSelector(
 
         currentDevicePoll?.join()
 
-        return currentDevice
+        return currentDevice.value
     }
 
     fun selectDeviceUi() {
@@ -102,7 +102,7 @@ class DeviceSelector(
     }
 
     fun openDeviceSettings(device: IqDevice) {
-        currentDevice = device
+        currentDevice.value = device
         settingsLoading.value = true
         viewModelScope.launch(Dispatchers.IO) {
             openDeviceSettingsSuspend(device)
@@ -133,7 +133,6 @@ class DeviceSelector(
     }
 
     fun onDeviceSelected(device: IqDevice) {
-        currentDevice = device
-        navController.popBackStack()
+        currentDevice.value = device
     }
 }

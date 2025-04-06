@@ -163,7 +163,7 @@ fun App(
                         val deviceSettings = viewModel {
                             DeviceSettingsModel(
                                 deviceSelector.lastLoadedSettings!!,
-                                deviceSelector.currentDevice!!,
+                                deviceSelector.currentDevice.value!!,
                                 navController,
                                 connection,
                                 scaffoldState.snackbarHostState,
