@@ -90,6 +90,10 @@ fun DeviceSettings(deviceSettings: DeviceSettings) {
     val offTrackAlertsEnabledProp = remember(editableProperties) {
         editableProperties.find { it.id == "enableOffTrackAlerts" } as? EditableProperty<Boolean>
     }
+
+    val drawLineToClosestPointProp = remember(editableProperties) {
+        editableProperties.find { it.id == "drawLineToClosestPoint" } as? EditableProperty<Boolean>
+    }
     val showOffTrackSection by offTrackAlertsEnabledProp?.state
         ?: remember { mutableStateOf(false) }
 
@@ -119,10 +123,12 @@ fun DeviceSettings(deviceSettings: DeviceSettings) {
                 }
                 val scaleProp = findProp("scale")
                 if (scaleProp != null) item(key = scaleProp.id) { PropertyEditorResolver(scaleProp) }
-                val enableRotationProp = findProp("enableRotation")
-                if (enableRotationProp != null) item(key = enableRotationProp.id) {
+                val recalculateItervalSProp = findProp("recalculateItervalS")
+                if (recalculateItervalSProp != null) item(key = recalculateItervalSProp.id) { PropertyEditorResolver(recalculateItervalSProp) }
+                val renderModeProp = findProp("renderMode")
+                if (renderModeProp != null) item(key = renderModeProp.id) {
                     PropertyEditorResolver(
-                        enableRotationProp
+                        renderModeProp
                     )
                 }
 
@@ -183,6 +189,10 @@ fun DeviceSettings(deviceSettings: DeviceSettings) {
                                 if (tileCacheSizeProp != null) PropertyEditorResolver(
                                     tileCacheSizeProp
                                 )
+                                val tileCachePaddingProp = findProp("tileCachePadding")
+                                if (tileCachePaddingProp != null) PropertyEditorResolver(
+                                    tileCachePaddingProp
+                                )
                                 val maxPendingWebRequestsProp = findProp("maxPendingWebRequests")
                                 if (maxPendingWebRequestsProp != null) PropertyEditorResolver(
                                     maxPendingWebRequestsProp
@@ -205,6 +215,13 @@ fun DeviceSettings(deviceSettings: DeviceSettings) {
                     SectionHeader("Off Track Alerts")
                 }
                 // Render the toggle first
+                val distProp = findProp("offTrackAlertsDistanceM")
+                distProp?.let { distProp ->
+                    item(key = distProp.id) { PropertyEditorResolver(distProp) }
+                }
+                drawLineToClosestPointProp?.let { toggleProp ->
+                    item(key = toggleProp.id) { PropertyEditorResolver(toggleProp) }
+                }
                 offTrackAlertsEnabledProp?.let { toggleProp ->
                     item(key = toggleProp.id) { PropertyEditorResolver(toggleProp) }
                 }
@@ -218,9 +235,7 @@ fun DeviceSettings(deviceSettings: DeviceSettings) {
                         ) {
                             // Inner Column for the settings
                             Column {
-                                val distProp = findProp("offTrackAlertsDistanceM")
-                                if (distProp != null) PropertyEditorResolver(distProp)
-                                val intervalProp = findProp("offTrackAlertsMaxReportIntervalS")
+                               val intervalProp = findProp("offTrackAlertsMaxReportIntervalS")
                                 if (intervalProp != null) PropertyEditorResolver(intervalProp)
                             }
                         }

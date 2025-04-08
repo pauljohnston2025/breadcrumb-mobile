@@ -2,6 +2,7 @@ package com.paul.ui
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddCircle
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Settings
@@ -22,6 +23,7 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     object DeviceSettings : Screen("deviceSettings", "Device Settings", Icons.Default.Settings)
     object Map : Screen("map", "Map View", Icons.Default.Place)
     object Storage : Screen("storage", "Storage Info", Icons.Default.AddCircle) // Placeholder
+    object Debug : Screen("debug", "Debug Info", Icons.Default.Build) // Placeholder
 }
 
 // List of items specifically for the drawer menu

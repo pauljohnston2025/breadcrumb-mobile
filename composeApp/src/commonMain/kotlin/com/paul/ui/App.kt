@@ -193,6 +193,16 @@ fun App(
                             Text("Storage Screen Placeholder")
                         }
                     }
+
+                    composable(Screen.Debug.route) {
+                        // Placeholder for your Storage Screen
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("Debug Screen Placeholder")
+                        }
+                    }
                 } // End NavHost
             } // End Scaffold
         } // End ModalDrawer

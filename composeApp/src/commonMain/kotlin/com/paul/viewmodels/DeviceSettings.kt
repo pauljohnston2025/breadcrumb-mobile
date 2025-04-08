@@ -108,13 +108,21 @@ val listOptionsMapping: Map<String, List<ListOption>> = mapOf(
     ),
     "zoomAtPaceMode" to listOf(
         ListOption(0, "Zoom When Moving"),
-        ListOption(1, "Zoom When Stopped")
+        ListOption(1, "Zoom When Stopped"),
+        ListOption(2, "Never Zoom"),
+        ListOption(3, "Always Zoom"),
     ),
     "uiMode" to listOf(
         ListOption(0, "Show All UI"),
         ListOption(1, "Hide UI"),
         ListOption(2, "Settings Only UI"),
         ListOption(3, "No UI")
+    ),
+    "renderMode" to listOf(
+        ListOption(0, "Buffered Rotations - performance"),
+        ListOption(1, "Unbuffered Rotations - low memory"),
+        ListOption(2, "Buffered Without Rotations - performance"),
+        ListOption(3, "No Buffer No Rotations - low memory")
     )
 )
 
@@ -173,12 +181,15 @@ class DeviceSettings(
                     // --- Numbers ---
                     "mode",
                     "uiMode",
+                    "renderMode",
                     "zoomAtPaceMode",
                     "metersAroundUser",
                     "tileSize",
                     "tileLayerMax",
                     "tileLayerMin",
                     "tileCacheSize",
+                    "tileCachePadding",
+                    "recalculateItervalS",
                     "maxPendingWebRequests",
                     "offTrackAlertsDistanceM",
                     "offTrackAlertsMaxReportIntervalS",
@@ -218,6 +229,7 @@ class DeviceSettings(
                     "mapEnabled",
                     "resetDefaults",
                     "enableOffTrackAlerts",
+                    "drawLineToClosestPoint",
                     "enableRotation",
                     "displayRouteNames",
                     "routesEnabled" -> EditableProperty(
