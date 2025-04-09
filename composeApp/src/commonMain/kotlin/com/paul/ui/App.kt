@@ -87,16 +87,23 @@ fun App(
                     navController = navController,
                     drawerState = drawerState,
                     modifier = Modifier, // Pass modifier if needed for drawer content styling
-                    scope = scope
+                    scope = scope,
+                    deviceSelector = deviceSelector,
                 )
             }
         ) {
+
+            var title = currentScreen.title
+            if (deviceSelector.currentDevice.value != null) {
+                title = currentScreen.title + " (" + deviceSelector.currentDevice.value!!.friendlyName + ")"
+            }
+
             // Main content area wrapped by the drawer
             Scaffold(
                 scaffoldState = scaffoldState, // Use the state connected to drawerState
                 topBar = {
                     TopAppBar(
-                        title = { Text(currentScreen.title) }, // Dynamic title based on current screen
+                        title = { Text(title) }, // Dynamic title based on current screen
                         navigationIcon = {
                             IconButton(onClick = {
                                 scope.launch {

@@ -13,6 +13,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
+import com.paul.viewmodels.DeviceSelector
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -22,7 +23,8 @@ fun AppDrawerContent(
     navController: NavHostController,
     drawerState: DrawerState,
     scope: CoroutineScope,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    deviceSelector: DeviceSelector
 ) {
     // Get current route to highlight the selected item
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -48,6 +50,7 @@ fun AppDrawerContent(
 
         // --- Navigation Items ---
         drawerScreens.forEach { screen ->
+
             // Use ListItem for M2 drawer items
             ListItem(
                 modifier = Modifier
@@ -75,9 +78,12 @@ fun AppDrawerContent(
                     Icon(
                         imageVector = screen.icon,
                         contentDescription = screen.title,
-                        tint = if (currentRoute == screen.route) MaterialTheme.colors.primary else LocalContentColor.current.copy(alpha = ContentAlpha.medium)
+                        tint = if (currentRoute == screen.route) MaterialTheme.colors.primary else LocalContentColor.current.copy(
+                            alpha = ContentAlpha.medium
+                        )
                     )
                 },
+
                 text = {
                     Text(
                         text = screen.title,

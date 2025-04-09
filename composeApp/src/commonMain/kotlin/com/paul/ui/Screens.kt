@@ -32,5 +32,6 @@ val drawerScreens = listOf(
     Screen.Settings,
     Screen.Devices,
     Screen.Map,
-    Screen.Storage
+    Screen.Storage,
+    Screen.Debug,
 )
