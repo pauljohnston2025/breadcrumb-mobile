@@ -1,6 +1,7 @@
 package com.paul.ui
 
 import android.widget.TextView
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -48,6 +49,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.text.HtmlCompat
+import androidx.navigation.NavHostController
 import com.paul.composables.LoadingOverlay
 import com.paul.viewmodels.HistoryItem
 import com.paul.viewmodels.StartViewModel
@@ -56,8 +58,19 @@ import kotlinx.datetime.format.DateTimeComponents
 
 @Composable
 fun Start(
-    viewModel: StartViewModel
+    viewModel: StartViewModel,
+    navController: NavHostController,
 ) {
+    BackHandler {
+        if (viewModel.sendingFile.value != "")
+        {
+            // prevent back handler when we are trying to do things, todo cancel the job we are trying to do
+            return@BackHandler
+        }
+
+        navController.popBackStack()
+    }
+
     var showClearHistoryDialog by remember { mutableStateOf(false) }
 
     // --- Confirmation Dialog ---

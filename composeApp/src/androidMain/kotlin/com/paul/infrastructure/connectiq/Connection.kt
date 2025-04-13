@@ -154,6 +154,9 @@ class Connection(private val context: Context) : IConnection {
             })
     }
 
+    // does not seem to work with data fields
+    // get PROMPT_SHOWN_ON_DEVICE if we do not have an activity open (but not running), but no prompt is shown
+    // get PROMPT_NOT_SHOWN_ON_DEVICE is the activity is open (but not started/running)
     private suspend fun openApp(device: IqDevice): Unit = suspendCancellableCoroutine { continuation ->
         val cd = device as CommonDeviceImpl
         val app = IQApp(CONNECT_IQ_APP_ID)
@@ -165,12 +168,25 @@ class Connection(private val context: Context) : IConnection {
                 // workaround to avoid double call of onMessageStatus
                 var completed = false
 
-                override fun onOpenApplicationResponse(var1: IQDevice, var2: IQApp, var3: ConnectIQ.IQOpenApplicationStatus) {
-                    Log.d("stdout", "app open response: " + var1 + " " + var2 + " " + var3)
+                override fun onOpenApplicationResponse(var1: IQDevice, var2: IQApp, status: ConnectIQ.IQOpenApplicationStatus) {
+                    Log.d("stdout", "app open response: " + var1 + " " + var2 + " " + status)
 
-                    continuation.resume(Unit) {
-                        Log.d("stdout", "cancelled whilst resuming")
+                    // garmin likes to double complete things
+                    if (!completed)
+                    {
+                        // we get PROMPT_NOT_SHOWN_ON_DEVICE if the app is already open, so mark it as success
+                        if (status == ConnectIQ.IQOpenApplicationStatus.PROMPT_SHOWN_ON_DEVICE || status == ConnectIQ.IQOpenApplicationStatus.PROMPT_NOT_SHOWN_ON_DEVICE)
+                        {
+                            continuation.resume(Unit) {
+                                Log.d("stdout", "cancelled whilst resuming")
+                            }
+                        }
+                        else {
+                            continuation.resumeWithException(RuntimeException("failed to open app $status"))
+                        }
                     }
+
+                    completed = true
                 }
             })
     }

@@ -118,6 +118,10 @@ val listOptionsMapping: Map<String, List<ListOption>> = mapOf(
         ListOption(2, "Settings Only UI"),
         ListOption(3, "No UI")
     ),
+    "alertType" to listOf(
+        ListOption(0, "Toast (notification)"),
+        ListOption(1, "Alerts (requires enable in garmin settings)"),
+    ),
     "renderMode" to listOf(
         ListOption(0, "Buffered Rotations - performance"),
         ListOption(1, "Unbuffered Rotations - low memory"),
@@ -181,6 +185,7 @@ class DeviceSettings(
                     // --- Numbers ---
                     "mode",
                     "uiMode",
+                    "alertType",
                     "renderMode",
                     "zoomAtPaceMode",
                     "metersAroundUser",

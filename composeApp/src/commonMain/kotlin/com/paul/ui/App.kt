@@ -142,7 +142,8 @@ fun App(
                                     komootUrl,
                                     initialErrorMessage
                                 )
-                            }
+                            },
+                            navController = navController,
                         )
                     }
 
@@ -181,6 +182,7 @@ fun App(
                         }
                         DeviceSettings(
                             deviceSettings = deviceSettings,
+                            navController = navController,
                         )
                     }
 

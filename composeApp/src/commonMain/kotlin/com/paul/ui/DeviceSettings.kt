@@ -1,5 +1,6 @@
 package com.paul.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.fadeIn
@@ -63,6 +64,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavHostController
 import com.paul.composables.ColorPickerDialog
 import com.paul.composables.LoadingOverlay
 import com.paul.composables.RoutesArrayEditor
@@ -79,7 +81,21 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
 @Preview
-fun DeviceSettings(deviceSettings: DeviceSettings) {
+fun DeviceSettings(
+    deviceSettings: DeviceSettings,
+    navController: NavHostController,
+) {
+
+    BackHandler {
+        if (deviceSettings.settingsSaving.value)
+        {
+            // prevent back handler when we are trying to do things, todo cancel the job we are trying to do
+            return@BackHandler
+        }
+
+        navController.popBackStack()
+    }
+
     val editableProperties = deviceSettings.propertyDefinitions
     // --- State Management (remains the same) ---
     val mapEnabledProp = remember(editableProperties) {
@@ -236,7 +252,9 @@ fun DeviceSettings(deviceSettings: DeviceSettings) {
                             // Inner Column for the settings
                             Column {
                                val intervalProp = findProp("offTrackAlertsMaxReportIntervalS")
-                                if (intervalProp != null) PropertyEditorResolver(intervalProp)
+                               if (intervalProp != null) PropertyEditorResolver(intervalProp)
+                               val alertTypeProp = findProp("alertType")
+                               if (alertTypeProp != null) PropertyEditorResolver(alertTypeProp)
                             }
                         }
                     }

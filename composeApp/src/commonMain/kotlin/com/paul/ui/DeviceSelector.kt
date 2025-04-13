@@ -50,10 +50,13 @@ fun DeviceSelector(
     navController: NavHostController,
     selectingDevice: Boolean
 ) {
-    // --- Back Handler ---
     BackHandler {
-        // Decide what back means here. Just pop? Notify ViewModel?
-        // viewModel.onBackPressed() // Example if ViewModel needs to know
+        if (viewModel.settingsLoading.value)
+        {
+            // prevent back handler when we are trying to do things, todo cancel the job we are trying to do
+            return@BackHandler
+        }
+
         navController.popBackStack()
     }
 
