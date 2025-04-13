@@ -115,33 +115,26 @@ class StartViewModel(
     private val deviceSelector: DeviceSelector,
     private val gpxFileLoader: IGpxFileLoader,
     private val fileHelper: IFileHelper,
-    private val snackbarHostState: SnackbarHostState,
-    fileLoad: String?,
-    shortGoogleUrl: String?,
-    komootUrl: String?,
-    initialErrorMessage: String?
+    private val snackbarHostState: SnackbarHostState
 ) : ViewModel() {
     val HISTORY_KEY = "HISTORY"
     val settings: Settings = Settings()
 
-    var lat by mutableStateOf("-27.472077")
-    var long by mutableStateOf("153.023551")
     val sendingFile: MutableState<String> = mutableStateOf("")
-    val errorMessage: MutableState<String> = mutableStateOf(initialErrorMessage ?: "")
-    val htmlErrorMessage: MutableState<String> = mutableStateOf(initialErrorMessage ?: "")
+    val errorMessage: MutableState<String> = mutableStateOf("")
+    val htmlErrorMessage: MutableState<String> = mutableStateOf("")
     val history = mutableStateListOf<HistoryItem>()
     private val client = KtorClient.client // Get the singleton client instance
 
-    init {
-        val historyJson = settings.getStringOrNull(HISTORY_KEY)
-        if (historyJson != null) {
-            try {
-                Json.decodeFromString<List<HistoryItem>>(historyJson).forEach {
-                    history.add(it)
-                }
-            } catch (t: Throwable) {
-                Log.d("stdout", "failed to hydrate history items $t")
-            }
+    fun load(fileLoad: String?,
+             shortGoogleUrl: String?,
+             komootUrl: String?,
+             initialErrorMessage: String?)
+    {
+        if(initialErrorMessage != null)
+        {
+            errorMessage.value = initialErrorMessage
+            htmlErrorMessage.value = initialErrorMessage
         }
 
         if (fileLoad != null) {
@@ -154,6 +147,19 @@ class StartViewModel(
 
         if (komootUrl != null) {
             loadFromKomoot(komootUrl)
+        }
+    }
+
+    init {
+        val historyJson = settings.getStringOrNull(HISTORY_KEY)
+        if (historyJson != null) {
+            try {
+                Json.decodeFromString<List<HistoryItem>>(historyJson).forEach {
+                    history.add(it)
+                }
+            } catch (t: Throwable) {
+                Log.d("stdout", "failed to hydrate history items $t")
+            }
         }
     }
 

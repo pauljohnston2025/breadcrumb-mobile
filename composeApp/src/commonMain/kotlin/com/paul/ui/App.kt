@@ -9,7 +9,6 @@ import androidx.compose.material.IconButton
 import androidx.compose.material.ModalDrawer
 import androidx.compose.material.Scaffold
 import androidx.compose.material.SnackbarHost
-import androidx.compose.material.SnackbarHostState
 import androidx.compose.material.Text
 import androidx.compose.material.TopAppBar
 import androidx.compose.material.icons.Icons
@@ -18,7 +17,6 @@ import androidx.compose.material.rememberDrawerState
 import androidx.compose.material.rememberScaffoldState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,11 +29,11 @@ import com.paul.infrastructure.connectiq.IConnection
 import com.paul.infrastructure.connectiq.IDeviceList
 import com.paul.infrastructure.service.IFileHelper
 import com.paul.infrastructure.service.IGpxFileLoader
+import com.paul.infrastructure.service.IntentHandler
 import com.paul.infrastructure.web.WebServerController
 import com.paul.viewmodels.StartViewModel
 import com.paul.viewmodels.Settings as SettingsViewModel
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import com.paul.viewmodels.DeviceSelector as DeviceSelectorModel
 import com.paul.viewmodels.DeviceSettings as DeviceSettingsModel
 
@@ -45,11 +43,8 @@ fun App(
     deviceList: IDeviceList,
     gpxFileLoader: IGpxFileLoader,
     fileHelper: IFileHelper,
-    fileLoad: String?,
-    shortGoogleUrl: String?,
-    komootUrl: String?,
-    initialErrorMessage: String?,
-    webServerController: WebServerController
+    webServerController: WebServerController,
+    intentHandler: IntentHandler,
 ) {
     AppTheme {
         val navController = rememberNavController()
@@ -74,6 +69,18 @@ fun App(
                 webServerController
             )
         }
+
+        val startViewModel = viewModel {
+            StartViewModel(
+                connection,
+                deviceSelector,
+                gpxFileLoader,
+                fileHelper,
+                scaffoldState.snackbarHostState,
+            )
+        }
+
+        intentHandler.updateStartViewModel(startViewModel)
 
         // Get the current route to potentially change the TopAppBar title
         val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -130,19 +137,7 @@ fun App(
                 ) {
                     composable(Screen.Start.route) {
                         Start(
-                            viewModel = viewModel {
-                                StartViewModel(
-                                    connection,
-                                    deviceSelector,
-                                    gpxFileLoader,
-                                    fileHelper,
-                                    scaffoldState.snackbarHostState,
-                                    fileLoad,
-                                    shortGoogleUrl,
-                                    komootUrl,
-                                    initialErrorMessage
-                                )
-                            },
+                            viewModel = startViewModel,
                             navController = navController,
                         )
                     }

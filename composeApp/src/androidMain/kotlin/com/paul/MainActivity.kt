@@ -24,6 +24,7 @@ import com.paul.infrastructure.connectiq.Connection
 import com.paul.infrastructure.connectiq.DeviceList
 import com.paul.infrastructure.service.FileHelper
 import com.paul.infrastructure.service.GpxFileLoader
+import com.paul.infrastructure.service.IntentHandler
 import com.paul.ui.App
 
 
@@ -37,6 +38,7 @@ class MainActivity : ComponentActivity() {
     val deviceList = DeviceList(connection)
     val gpxFileLoader = GpxFileLoader()
     val webServerController = WebServerController(this)
+    val intentHandler = IntentHandler()
 
     // based on ActivityResultContracts.OpenDocument()
     val getFileContent =
@@ -66,11 +68,37 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        addOnNewIntentListener({
+            handleIntent(it)
+        })
 
+        setContent {
+            PermissionHandler {
+                App(
+                    connection,
+                    deviceList,
+                    gpxFileLoader,
+                    fileHelper,
+                    webServerController,
+                    intentHandler,
+                )
+            }
+        }
+
+        if (intent != null)
+        {
+            handleIntent(intent)
+        }
+
+        webServerController.onStart()
+    }
+
+    private fun handleIntent(intent: Intent)
+    {
         var shortGoogleUrl: String? = null
         var komootUrl: String? = null
         var initialErrorMessage: String? = null
-        val fileLoad: Uri? = intent?.let {
+        val fileLoad: Uri? = intent.let {
             when (it.action) {
                 Intent.ACTION_SEND -> {
                     if (it.type == "text/plain") {
@@ -121,23 +149,13 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        setContent {
-            PermissionHandler {
-                App(
-                    connection,
-                    deviceList,
-                    gpxFileLoader,
-                    fileHelper,
-                    fileLoad?.toString(),
-                    shortGoogleUrl,
-                    komootUrl,
-                    initialErrorMessage,
-                    webServerController
-                )
-            }
-        }
-
-        webServerController.onStart()
+        // todo make all these seperate methods
+        intentHandler.load(
+            fileLoad?.toString(),
+            shortGoogleUrl,
+            komootUrl,
+            initialErrorMessage,
+        )
     }
 
     override fun onDestroy() {
