@@ -5,9 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
-import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -26,7 +24,6 @@ import com.paul.infrastructure.connectiq.Connection
 import com.paul.infrastructure.connectiq.DeviceList
 import com.paul.infrastructure.service.FileHelper
 import com.paul.infrastructure.service.GpxFileLoader
-import com.paul.infrastructure.service.ImageProcessor
 import com.paul.ui.App
 
 
@@ -39,6 +36,7 @@ class MainActivity : ComponentActivity() {
     val connection = Connection(this)
     val deviceList = DeviceList(connection)
     val gpxFileLoader = GpxFileLoader()
+    val webServerController = WebServerController(this)
 
     // based on ActivityResultContracts.OpenDocument()
     val getFileContent =
@@ -133,29 +131,18 @@ class MainActivity : ComponentActivity() {
                     fileLoad?.toString(),
                     shortGoogleUrl,
                     komootUrl,
-                    initialErrorMessage
+                    initialErrorMessage,
+                    webServerController
                 )
             }
         }
 
-        try {
-            val serviceIntent = Intent(this, WebServerService::class.java)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                ContextCompat.startForegroundService(this, serviceIntent)
-            } else {
-                this.startService(serviceIntent)
-            }
-        }
-        catch (t: Throwable)
-        {
-            Log.d("stdout", "failed to start service (lets hope its because it's already running) $t")
-        }
+        webServerController.onStart()
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        val serviceIntent = Intent(this, WebServerService::class.java)
-        stopService(serviceIntent)
+        webServerController.changeTileServerEnabled(false)
     }
 }
 

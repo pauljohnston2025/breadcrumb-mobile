@@ -238,7 +238,7 @@ private fun HistoryListSection(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text("Recent Routes:", style = MaterialTheme.typography.h6)
+            Text("Route History:", style = MaterialTheme.typography.h6)
             OutlinedButton(onClick = onClearHistoryClick) { // Less emphasis
                 Icon(
                     Icons.Default.Delete,

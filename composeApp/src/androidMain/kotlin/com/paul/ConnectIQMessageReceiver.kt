@@ -16,6 +16,8 @@ import com.garmin.android.connectiq.ConnectIQ
 import com.paul.infrastructure.connectiq.IConnection.Companion.CONNECT_IQ_APP_ID
 import com.paul.infrastructure.web.CheckStatusRequest
 import com.paul.infrastructure.web.KtorClient
+import com.paul.viewmodels.Settings.Companion.TILE_SERVER_ENABLED_KEY
+import com.russhwolf.settings.Settings
 import io.ktor.client.plugins.resources.get
 import io.ktor.http.isSuccess
 import kotlinx.coroutines.CoroutineScope
@@ -26,11 +28,34 @@ import kotlinx.coroutines.withTimeout
 
 
 class ConnectIQMessageReceiver : BroadcastReceiver() {
+    companion object {
+        private const val TAG = "ConnectIQMessageReceiver"
+        private const val CHANNEL_ID = "ConnectIQMessageReceiver"
+        private const val NOTIFICATION_ID = 1
+    }
+
     private val client = KtorClient.client // Get the singleton client instance
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    val settings: Settings = Settings()
 
     // see https://forums.garmin.com/developer/connect-iq/f/discussion/4339/start-an-android-service-from-watch/29284#29284
     override fun onReceive(context: Context, intent: Intent) {
+        val enabled = settings.getBooleanOrNull(TILE_SERVER_ENABLED_KEY)
+        if (enabled != null && !enabled) // null check for anyone who has never set the setting, defaults to enabled
+        {
+            with(NotificationManagerCompat.from(context)) {
+                if (ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.POST_NOTIFICATIONS
+                    ) ==
+                    PackageManager.PERMISSION_GRANTED
+                ) {
+                    cancel(NOTIFICATION_ID)
+                }
+            }
+            return
+        }
+
         if (intent.action == "com.garmin.android.connectiq.INCOMING_MESSAGE") {
             val appId = intent.getStringExtra(ConnectIQ.EXTRA_APPLICATION_ID)
             val payload = intent.getByteArrayExtra(ConnectIQ.EXTRA_PAYLOAD)
@@ -74,12 +99,6 @@ class ConnectIQMessageReceiver : BroadcastReceiver() {
                 }
             }
         }
-    }
-
-    companion object {
-        private const val TAG = "ConnectIQMessageReceiver"
-        private const val CHANNEL_ID = "ConnectIQMessageReceiver"
-        private const val NOTIFICATION_ID = 1
     }
 
     fun showNotification(context: Context) {

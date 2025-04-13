@@ -10,6 +10,7 @@ import androidx.lifecycle.viewModelScope
 import com.paul.infrastructure.connectiq.IConnection
 import com.paul.infrastructure.web.ChangeTileServer
 import com.paul.infrastructure.web.KtorClient
+import com.paul.infrastructure.web.WebServerController
 import com.paul.protocol.todevice.DropTileCache
 import com.russhwolf.settings.Settings
 import com.russhwolf.settings.set
@@ -44,11 +45,13 @@ data class TileServerInfo(
 class Settings(
     private val deviceSelector: DeviceSelector,
     private val connection: IConnection,
-    private val snackbarHostState: SnackbarHostState
+    private val snackbarHostState: SnackbarHostState,
+    private val webServerController: WebServerController
 ) : ViewModel() {
     companion object {
         val TILE_SERVER_KEY = "TILE_SERVER"
         val CUSTOM_SERVERS_KEY = "CUSTOM_SERVERS_KEY"
+        val TILE_SERVER_ENABLED_KEY = "TILE_SERVER_ENABLED_KEY"
         val settings: Settings = Settings()
 
         fun getTileServerOnStart(): TileServerInfo {
@@ -80,6 +83,7 @@ class Settings(
     val sendingMessage: MutableState<String> = mutableStateOf("")
 
     val currentTileServer: MutableState<String> = mutableStateOf("")
+    val tileServerEnabled: MutableState<Boolean> = mutableStateOf(true)
 
     val availableServers = mutableStateListOf(
         TileServerInfo(
@@ -158,6 +162,10 @@ class Settings(
         val servers = getCustomServers()
         servers.forEach { availableServers.add(it) }
         currentTileServer.value = getTileServerOnStart().title
+
+        val enabled = settings.getBooleanOrNull(TILE_SERVER_ENABLED_KEY)
+        // null check for anyone who has never set the setting, defaults to enabled
+        tileServerEnabled.value = enabled == null || enabled
     }
 
     fun onServerSelected(tileServer: TileServerInfo) {
@@ -223,6 +231,25 @@ class Settings(
 
         settings.putString(CUSTOM_SERVERS_KEY, Json.encodeToString(mutableServers))
         availableServers.add(tileServer)
+    }
+
+    fun onTileServerEnabledChange(newVal: Boolean) {
+        val oldVal = tileServerEnabled.value
+        tileServerEnabled.value = newVal
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                settings.putBoolean(TILE_SERVER_ENABLED_KEY, newVal)
+                webServerController.changeTileServerEnabled(newVal)
+            }
+            catch (t: Throwable)
+            {
+                Log.d("stdout", "failed to update tile server enabled, reverting: $t")
+                snackbarHostState.showSnackbar("Failed to stop/start tile server")
+                launch(Dispatchers.Main) {
+                    tileServerEnabled.value = oldVal
+                }
+            }
+        }
     }
 
     fun onRemoveCustomServer(tileServer: TileServerInfo) {

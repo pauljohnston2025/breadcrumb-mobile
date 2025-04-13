@@ -25,6 +25,10 @@ import io.ktor.server.response.responseType
 import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
 import io.ktor.util.AttributeKey
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import org.slf4j.event.Level
 import io.ktor.server.resources.get as resourcesGet
@@ -73,6 +77,10 @@ val RequestLogging = createApplicationPlugin(name = "RequestLogging") {
     }
 }
 
+interface WebServerController {
+    fun changeTileServerEnabled(tileServerEnabled: Boolean)
+}
+
 class WebServerService(
     // service has its own impl of tileGetter, since it runs outside of the main activity
     private val tileGetter: ITileGetter
@@ -106,7 +114,9 @@ class WebServerService(
     }
 
     fun stop() {
-        server?.stop(1000, 5000)
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            server?.stopSuspend(1000, 5000)
+        }
     }
 
     fun Application.module() {

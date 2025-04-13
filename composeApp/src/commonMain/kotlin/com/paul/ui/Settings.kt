@@ -1,6 +1,7 @@
 package com.paul.ui
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -225,64 +226,85 @@ fun Settings(
                 horizontalArrangement = Arrangement.SpaceBetween // Align label and add button
             ) {
                 Text(
-                    text = "Add Custom Server:",
+                    text = "Tile Server Enabled:",
                     style = MaterialTheme.typography.body2,
                 )
-                // --- Add Custom Server Button ---
-                IconButton(onClick = { showAddDialog = true }) {
-                    Icon(Icons.Filled.Add, contentDescription = "Add custom tile server")
-                }
+                Switch(
+                    checked = viewModel.tileServerEnabled.value,
+                    onCheckedChange = { newValue ->
+                        viewModel.onTileServerEnabledChange(newValue)
+                    },
+                )
             }
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                ExposedDropdownMenuBox(
-                    expanded = expanded,
-                    onExpandedChange = { expanded = !expanded },
-                    modifier = Modifier.weight(1.5f)
+            if (viewModel.tileServerEnabled.value)
+            {
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween // Align label and add button
                 ) {
-                    OutlinedTextField(
-                        value = viewModel.currentTileServer.value,
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Select Server") },
-                        trailingIcon = {
-                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
-                        },
-                        colors = ExposedDropdownMenuDefaults.textFieldColors(),
-                        modifier = Modifier.fillMaxWidth() // Just standard modifiers
+                    Text(
+                        text = "Add Custom Server:",
+                        style = MaterialTheme.typography.body2,
                     )
+                    // --- Add Custom Server Button ---
+                    IconButton(onClick = { showAddDialog = true }) {
+                        Icon(Icons.Filled.Add, contentDescription = "Add custom tile server")
+                    }
+                }
 
-                    ExposedDropdownMenu(
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    ExposedDropdownMenuBox(
                         expanded = expanded,
-                        onDismissRequest = { expanded = false }
+                        onExpandedChange = { expanded = !expanded },
+                        modifier = Modifier.weight(1.5f)
                     ) {
-                        viewModel.availableServers.forEach { server ->
-                            DropdownMenuItem(
-                                onClick = {
-                                    viewModel.onServerSelected(server)
-                                    expanded = false
-                                }
-                            ) {
-                                Text(server.title)
+                        OutlinedTextField(
+                            value = viewModel.currentTileServer.value,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Select Server") },
+                            trailingIcon = {
+                                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+                            },
+                            colors = ExposedDropdownMenuDefaults.textFieldColors(),
+                            modifier = Modifier.fillMaxWidth() // Just standard modifiers
+                        )
 
-                                if (server.isCustom) {
-                                    IconButton(
-                                        onClick = {
-                                            serverToDelete = server
-                                            expanded = false // Close menu after delete
-                                        },
-                                        modifier = Modifier
-                                            .size(24.dp)
-                                            .padding(start = 8.dp)
-                                    ) {
-                                        Icon(
-                                            Icons.Filled.Clear, // Need import androidx.compose.material.icons.filled.Delete
-                                            contentDescription = "Delete custom server ${server.title}",
-                                            tint = MaterialTheme.colors.error
-                                        )
+                        ExposedDropdownMenu(
+                            expanded = expanded,
+                            onDismissRequest = { expanded = false }
+                        ) {
+                            viewModel.availableServers.forEach { server ->
+                                DropdownMenuItem(
+                                    onClick = {
+                                        viewModel.onServerSelected(server)
+                                        expanded = false
+                                    }
+                                ) {
+                                    Text(server.title)
+
+                                    if (server.isCustom) {
+                                        IconButton(
+                                            onClick = {
+                                                serverToDelete = server
+                                                expanded = false // Close menu after delete
+                                            },
+                                            modifier = Modifier
+                                                .size(24.dp)
+                                                .padding(start = 8.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Filled.Clear, // Need import androidx.compose.material.icons.filled.Delete
+                                                contentDescription = "Delete custom server ${server.title}",
+                                                tint = MaterialTheme.colors.error
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -292,8 +314,9 @@ fun Settings(
             }
         }
         // Other settings...
-        Spacer(Modifier.weight(1f))
+        Spacer(Modifier.height(10.dp))
     }
+
 
     LoadingOverlay(
         isLoading = viewModel.sendingMessage.value != "",

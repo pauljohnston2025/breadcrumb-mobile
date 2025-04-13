@@ -31,6 +31,7 @@ import com.paul.infrastructure.connectiq.IConnection
 import com.paul.infrastructure.connectiq.IDeviceList
 import com.paul.infrastructure.service.IFileHelper
 import com.paul.infrastructure.service.IGpxFileLoader
+import com.paul.infrastructure.web.WebServerController
 import com.paul.viewmodels.StartViewModel
 import com.paul.viewmodels.Settings as SettingsViewModel
 import kotlinx.coroutines.launch
@@ -47,7 +48,8 @@ fun App(
     fileLoad: String?,
     shortGoogleUrl: String?,
     komootUrl: String?,
-    initialErrorMessage: String?
+    initialErrorMessage: String?,
+    webServerController: WebServerController
 ) {
     AppTheme {
         val navController = rememberNavController()
@@ -68,7 +70,8 @@ fun App(
             SettingsViewModel(
                 deviceSelector,
                 connection,
-                scaffoldState.snackbarHostState
+                scaffoldState.snackbarHostState,
+                webServerController
             )
         }
 

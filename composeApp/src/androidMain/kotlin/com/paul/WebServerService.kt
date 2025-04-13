@@ -1,5 +1,6 @@
 package com.paul
 
+import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -7,16 +8,73 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import com.paul.WebServerService.Companion.NOTIFICATION_ID
 import com.paul.infrastructure.service.FileHelper
 import com.paul.infrastructure.service.ImageProcessor
 import com.paul.infrastructure.service.TileGetter
+import com.paul.viewmodels.Settings.Companion.TILE_SERVER_ENABLED_KEY
+import com.russhwolf.settings.Settings
+import com.paul.infrastructure.web.WebServerController as CommonWebServerController
 import com.paul.infrastructure.web.WebServerService as CommonWebServerService
+
+class WebServerController(private val context: Context): CommonWebServerController
+{
+    val settings: Settings = Settings()
+
+    fun onStart()
+    {
+        val enabled = settings.getBooleanOrNull(TILE_SERVER_ENABLED_KEY)
+        if (enabled == null || enabled) // null check for anyone who has never set the setting, defaults to enabled
+        {
+            startWebServer()
+        }
+    }
+
+    override fun changeTileServerEnabled(tileServerEnabled: Boolean) {
+        if (tileServerEnabled)
+        {
+            startWebServer()
+            return
+        }
+
+        val serviceIntent = Intent(context, WebServerService::class.java)
+        context.stopService(serviceIntent)
+        with(NotificationManagerCompat.from(context)) {
+            if (ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) ==
+                PackageManager.PERMISSION_GRANTED
+            ) {
+                cancel(NOTIFICATION_ID)
+            }
+        }
+    }
+
+    private fun startWebServer()
+    {
+        try {
+            val serviceIntent = Intent(context, WebServerService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                ContextCompat.startForegroundService(context, serviceIntent)
+            } else {
+                context.startService(serviceIntent)
+            }
+        }
+        catch (t: Throwable)
+        {
+            Log.d("stdout", "failed to start service (lets hope its because it's already running) $t")
+        }
+    }
+}
 
 class WebServerService : Service() {
     companion object {
