@@ -113,10 +113,9 @@ val listOptionsMapping: Map<String, List<ListOption>> = mapOf(
         ListOption(3, "Always Zoom"),
     ),
     "uiMode" to listOf(
-        ListOption(0, "Show All UI"),
-        ListOption(1, "Hide UI"),
-        ListOption(2, "Settings Only UI"),
-        ListOption(3, "No UI")
+        ListOption(0, "Show On Top"),
+        ListOption(1, "Hidden"),
+        ListOption(2, "Disabled")
     ),
     "alertType" to listOf(
         ListOption(0, "Toast (notification)"),
