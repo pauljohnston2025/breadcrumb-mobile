@@ -5,13 +5,11 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import android.util.Log
 import androidx.activity.result.ActivityResultLauncher
-import androidx.core.net.toFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
 import kotlin.coroutines.resumeWithException
@@ -41,7 +39,7 @@ class FileHelper(
         return try {
             withContext(Dispatchers.IO) {
                 val fileInputStream = context.contentResolver.openInputStream(uri)!!
-                val res = fileInputStream.readAllBytes()
+                val res = InputStreamHelpers.readAllBytes(fileInputStream)
                 fileInputStream.close()
                 return@withContext res
             }

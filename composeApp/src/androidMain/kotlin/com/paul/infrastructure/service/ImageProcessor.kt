@@ -5,17 +5,10 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Log
-import androidx.activity.result.ActivityResultLauncher
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayInputStream
-import java.io.File
-import java.io.FileOutputStream
-import java.io.IOException
 import java.io.InputStream
-import kotlin.coroutines.resumeWithException
 import kotlin.math.ceil
 
 class ImageProcessor(private val context: Context) {
@@ -28,7 +21,7 @@ class ImageProcessor(private val context: Context) {
         var imageData: ByteArray = byteArrayOf()
         withContext(Dispatchers.IO) {
             try {
-                imageData = stream.readAllBytes()
+                imageData = InputStreamHelpers.readAllBytes(stream)
                 stream.close()
             }
             catch(t: Throwable)

@@ -3,22 +3,17 @@ package com.paul.viewmodels
 import android.util.Log
 import androidx.compose.material.SnackbarHostState
 import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.paul.domain.GpxRoute
 import com.paul.infrastructure.connectiq.IConnection
 import com.paul.infrastructure.service.IFileHelper
 import com.paul.infrastructure.service.IGpxFileLoader
+import com.paul.infrastructure.service.InputStreamHelpers
 import com.paul.infrastructure.web.KtorClient
-import com.paul.protocol.todevice.CancelLocationRequest
-import com.paul.protocol.todevice.Colour
-import com.paul.protocol.todevice.MapTile
 import com.paul.protocol.todevice.Point
-import com.paul.protocol.todevice.RequestLocationLoad
 import com.paul.protocol.todevice.Route
 import com.russhwolf.settings.Settings
 import io.ktor.client.request.get
@@ -33,8 +28,6 @@ import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.decodeFromJsonElement
-import kotlinx.serialization.json.jsonArray
 import java.net.HttpURLConnection
 import java.net.Proxy
 import java.net.URL
@@ -412,7 +405,7 @@ class StartViewModel(
             return withContext(Dispatchers.IO) {
                 val res = Pair(
                     connection.contentType,
-                    connection.inputStream.readAllBytes()
+                    InputStreamHelpers.readAllBytes(connection.inputStream)
                 )
 
                 return@withContext res
