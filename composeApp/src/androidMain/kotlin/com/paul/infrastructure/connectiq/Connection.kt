@@ -90,6 +90,8 @@ class Connection(private val context: Context) : IConnection {
             // even calls to connectIQ.getApplicationInfo returned nothing
             // oh well, it works now (somehow). possibly I had not enabled location access all the time and just had it 'when using the app'?
             // might have just been a first time setup thing? removed all permissions (including location) and somehow it still works every time now.
+            // I did temporarily disable the ConnectIQMessageReceiver, but everything works with it re-enabled
+            // might have been install order? going to chalk it up to bad luck - no other user will ever experience this rando issue right? right?
             withTimeout(30000) {
                 start()
                 val cd = device as CommonDeviceImpl
