@@ -8,6 +8,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavHostController
 import com.paul.domain.IqDevice
+import com.paul.infrastructure.connectiq.ConnectIqNeedsInstall
+import com.paul.infrastructure.connectiq.ConnectIqNeedsUpdate
 import com.paul.infrastructure.connectiq.IConnection
 import com.paul.infrastructure.connectiq.IDeviceList
 import com.paul.protocol.fromdevice.ProtocolResponse
@@ -35,15 +37,32 @@ class DeviceSelector(
     private var devicesFlow: MutableStateFlow<List<IqDevice>> = MutableStateFlow(listOf())
     private var currentDevicePoll: Job? = null
     val settingsLoading: MutableState<Boolean> = mutableStateOf(false)
+    val errorMessage: MutableState<String> = mutableStateOf("")
     var lastLoadedSettings: Settings? = null
 
     init {
         viewModelScope.launch {
-            Log.d("stdout", "launching list")
-            val sub = deviceList.subscribe()
-            sub.collect {
-                Log.d("stdout", "got device ${it.size} $it")
-                devicesFlow.emit(it)
+            try {
+                Log.d("stdout", "launching list")
+                val sub = deviceList.subscribe()
+                sub.collect {
+                    Log.d("stdout", "got device ${it.size} $it")
+                    devicesFlow.emit(it)
+                }
+            }
+            catch (t: ConnectIqNeedsUpdate)
+            {
+                errorMessage.value = "Please update the garmin connect app"
+                Log.d("stdout", "failed to subscribe to device list $t")
+            }
+            catch (t: ConnectIqNeedsInstall)
+            {
+                errorMessage.value = "Please install the garmin connect app"
+                Log.d("stdout", "failed to subscribe to device list $t")
+            }
+            catch (t: Throwable)
+            {
+                Log.d("stdout", "failed to subscribe to device list $t")
             }
         }.invokeOnCompletion {
             Log.d("stdout", "list completed")

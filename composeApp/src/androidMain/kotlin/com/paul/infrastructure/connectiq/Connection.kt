@@ -52,6 +52,13 @@ class Connection(private val context: Context) : IConnection {
             connectIQ.initialize(context, true, object : ConnectIQListener {
                 override fun onInitializeError(errStatus: IQSdkErrorStatus) {
                     Log.d("stdout", "Failed to initialise: ${errStatus.name}")
+                    if (errStatus == IQSdkErrorStatus.GCM_NOT_INSTALLED) {
+                        continuation.resumeWithException(ConnectIqNeedsInstall())
+                        return
+                    } else if (errStatus == IQSdkErrorStatus.GCM_UPGRADE_NEEDED) {
+                        continuation.resumeWithException(ConnectIqNeedsUpdate())
+                        return
+                    }
                     continuation.resumeWithException(Exception(errStatus.name))
                 }
 
@@ -73,10 +80,19 @@ class Connection(private val context: Context) : IConnection {
 
     override suspend fun send(device: CommonDevice, payload: Protocol): Unit {
         try {
-            start()
-            val cd = device as CommonDeviceImpl
             // large routes being sent take some time
+            // On my samsung galaxy tab a I could not get this to ever send, then it started working fine.
+            // I still have no idea why, i added and removed all permissions (for connectiq app) but could not rerpoduce
+            // maybe related to android 11 issue?
+            // https://forums.garmin.com/developer/connect-iq/i/bug-reports/android-mobile-sdk-fails-to-initialize-connect-iq-if-compiling-using-android-sdk-30-and-running-on-android-11-devices
+            // https://forums.garmin.com/developer/connect-iq/f/discussion/262512/android-sdk-won-t-work-with-android-11
+            // It could list devices, and gets device status updates, just sends would never work
+            // even calls to connectIQ.getApplicationInfo returned nothing
+            // oh well, it works now (somehow). possibly I had not enabled location access all the time and just had it 'when using the app'?
+            // might have just been a first time setup thing? removed all permissions (including location) and somehow it still works every time now.
             withTimeout(30000) {
+                start()
+                val cd = device as CommonDeviceImpl
                 sendInternal(cd.device, payload)
             }
         } catch (e: Exception) {
@@ -128,68 +144,74 @@ class Connection(private val context: Context) : IConnection {
         awaitClose { connectIQ.unregisterForApplicationEvents(cd.device, app) }
     }
 
-    private suspend fun appInfo(device: IqDevice): IQApp = suspendCancellableCoroutine { continuation ->
-        val cd = device as CommonDeviceImpl
-        connectIQ.getApplicationInfo(
-            CONNECT_IQ_APP_ID,
-            cd.device,
-            object : ConnectIQ.IQApplicationInfoListener {
-                // workaround to avoid double call of onMessageStatus
-                var completed = false
+    private suspend fun appInfo(device: IqDevice): IQApp =
+        suspendCancellableCoroutine { continuation ->
+            val cd = device as CommonDeviceImpl
+            connectIQ.getApplicationInfo(
+                CONNECT_IQ_APP_ID,
+                cd.device,
+                object : ConnectIQ.IQApplicationInfoListener {
+                    // workaround to avoid double call of onMessageStatus
+                    var completed = false
 
-                override fun onApplicationInfoReceived(
-                    iqApp: IQApp,
-                ) {
-                    Log.d("stdout", "app info: " + iqApp.version() + " " + iqApp.displayName + " " + iqApp.status + " " + iqApp.applicationId)
+                    override fun onApplicationInfoReceived(
+                        iqApp: IQApp,
+                    ) {
+                        Log.d(
+                            "stdout",
+                            "app info: " + iqApp.version() + " " + iqApp.displayName + " " + iqApp.status + " " + iqApp.applicationId
+                        )
 
-                    continuation.resume(iqApp) {
-                        Log.d("stdout", "cancelled whilst resuming")
+                        continuation.resume(iqApp) {
+                            Log.d("stdout", "cancelled whilst resuming")
+                        }
                     }
-                }
 
-                override fun onApplicationNotInstalled(var1: String) {
-                    Log.d("stdout", "app info not installed: " + var1)
-                    continuation.resumeWithException(RuntimeException(var1))
-                }
-            })
-    }
+                    override fun onApplicationNotInstalled(var1: String) {
+                        Log.d("stdout", "app info not installed: " + var1)
+                        continuation.resumeWithException(RuntimeException(var1))
+                    }
+                })
+        }
 
     // does not seem to work with data fields
     // get PROMPT_SHOWN_ON_DEVICE if we do not have an activity open (but not running), but no prompt is shown
     // get PROMPT_NOT_SHOWN_ON_DEVICE is the activity is open (but not started/running)
-    private suspend fun openApp(device: IqDevice): Unit = suspendCancellableCoroutine { continuation ->
-        val cd = device as CommonDeviceImpl
-        val app = IQApp(CONNECT_IQ_APP_ID)
+    private suspend fun openApp(device: IqDevice): Unit =
+        suspendCancellableCoroutine { continuation ->
+            val cd = device as CommonDeviceImpl
+            val app = IQApp(CONNECT_IQ_APP_ID)
 
-        connectIQ.openApplication(
-            cd.device,
-            app,
-            object : ConnectIQ.IQOpenApplicationListener {
-                // workaround to avoid double call of onMessageStatus
-                var completed = false
+            connectIQ.openApplication(
+                cd.device,
+                app,
+                object : ConnectIQ.IQOpenApplicationListener {
+                    // workaround to avoid double call of onMessageStatus
+                    var completed = false
 
-                override fun onOpenApplicationResponse(var1: IQDevice, var2: IQApp, status: ConnectIQ.IQOpenApplicationStatus) {
-                    Log.d("stdout", "app open response: " + var1 + " " + var2 + " " + status)
+                    override fun onOpenApplicationResponse(
+                        var1: IQDevice,
+                        var2: IQApp,
+                        status: ConnectIQ.IQOpenApplicationStatus
+                    ) {
+                        Log.d("stdout", "app open response: " + var1 + " " + var2 + " " + status)
 
-                    // garmin likes to double complete things
-                    if (!completed)
-                    {
-                        // we get PROMPT_NOT_SHOWN_ON_DEVICE if the app is already open, so mark it as success
-                        if (status == ConnectIQ.IQOpenApplicationStatus.PROMPT_SHOWN_ON_DEVICE || status == ConnectIQ.IQOpenApplicationStatus.PROMPT_NOT_SHOWN_ON_DEVICE)
-                        {
-                            continuation.resume(Unit) {
-                                Log.d("stdout", "cancelled whilst resuming")
+                        // garmin likes to double complete things
+                        if (!completed) {
+                            // we get PROMPT_NOT_SHOWN_ON_DEVICE if the app is already open, so mark it as success
+                            if (status == ConnectIQ.IQOpenApplicationStatus.PROMPT_SHOWN_ON_DEVICE || status == ConnectIQ.IQOpenApplicationStatus.PROMPT_NOT_SHOWN_ON_DEVICE) {
+                                continuation.resume(Unit) {
+                                    Log.d("stdout", "cancelled whilst resuming")
+                                }
+                            } else {
+                                continuation.resumeWithException(RuntimeException("failed to open app $status"))
                             }
                         }
-                        else {
-                            continuation.resumeWithException(RuntimeException("failed to open app $status"))
-                        }
-                    }
 
-                    completed = true
-                }
-            })
-    }
+                        completed = true
+                    }
+                })
+        }
 
     // todo add correlation ids to these requests
     // think we ned to buffer any responses that come back
@@ -199,15 +221,18 @@ class Connection(private val context: Context) : IConnection {
         payload: Protocol,
         type: ProtocolResponse
     ): T {
-        // we get a log saying PROMPT_SHOWN_ON_DEVICE, but i do to see anything
-        // leaving this here incase it does ever work
-        openApp(device) // we cannot run commands against the app unless it is open
-        appInfo(device)
-        send(device, payload)
-        // pretty hacky impl, we should have the deviceMessages flow running all the time,
-        // and then complete futures as messages come in from the device
-        // they should be in order though, and this is hopefully ok for now
+
         return withTimeout(30000) {
+            start()
+            appInfo(device)
+            // we get a log saying PROMPT_SHOWN_ON_DEVICE, but i do to see anything
+            // leaving this here incase it does ever work
+            openApp(device) // we cannot run commands against the app unless it is open
+            send(device, payload)
+            // pretty hacky impl, we should have the deviceMessages flow running all the time,
+            // and then complete futures as messages come in from the device
+            // they should be in order though, and this is hopefully ok for now
+
             val fut = CompletableDeferred<T>()
             CoroutineScope(Dispatchers.IO).launch {
                 deviceMessages(device).collect {

@@ -5,6 +5,16 @@ import com.paul.protocol.fromdevice.ProtocolResponse
 import com.paul.protocol.todevice.Protocol
 import com.paul.protocol.fromdevice.Protocol as Response
 
+class ConnectIqNeedsInstall : Exception() {
+    override val message: String
+        get() = "Connect Iq App needs to be installed"
+}
+
+class ConnectIqNeedsUpdate : Exception() {
+    override val message: String
+        get() = "Connect Iq App needs to be updated"
+}
+
 interface IConnection {
 
     companion object {

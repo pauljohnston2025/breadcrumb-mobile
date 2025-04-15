@@ -51,8 +51,7 @@ fun DeviceSelector(
     selectingDevice: Boolean
 ) {
     BackHandler {
-        if (viewModel.settingsLoading.value)
-        {
+        if (viewModel.settingsLoading.value) {
             // prevent back handler when we are trying to do things, todo cancel the job we are trying to do
             return@BackHandler
         }
@@ -62,52 +61,70 @@ fun DeviceSelector(
 
     val devicesList = viewModel.devicesFlow().collectAsState(initial = listOf())
 
-    // Box enables stacking the loading overlay on top
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-            // Add overall padding for content if desired
-            // .padding(16.dp)
+    if (viewModel.errorMessage.value != "") {
+        Row(
+            modifier = Modifier.fillMaxSize(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
         ) {
-            AnimatedVisibility(
-                visible = selectingDevice
+
+            Text(
+                text = viewModel.errorMessage.value,
+                style = MaterialTheme.typography.h6,
+                // Adjust color for contrast against overlay background if needed
+                color = MaterialTheme.colors.onSurface,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+
+    if (viewModel.errorMessage.value == "") {
+
+        // Box enables stacking the loading overlay on top
+        Box(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                // Add overall padding for content if desired
+                // .padding(16.dp)
             ) {
-                Text(
-                    text = "Please choose a device",
-                    style = MaterialTheme.typography.h6,
-                    // Adjust color for contrast against overlay background if needed
-                    color = MaterialTheme.colors.onSurface,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(horizontal = 32.dp)
+                AnimatedVisibility(
+                    visible = selectingDevice
+                ) {
+                    Text(
+                        text = "Please choose a device",
+                        style = MaterialTheme.typography.h6,
+                        // Adjust color for contrast against overlay background if needed
+                        color = MaterialTheme.colors.onSurface,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(horizontal = 32.dp)
+                    )
+                }
+
+                // --- Main Content: Device List ---
+                DeviceListContent(
+                    devices = devicesList,
+                    onDeviceSelected = {
+                        viewModel.onDeviceSelected(it)
+                        if (selectingDevice) {
+                            navController.popBackStack()
+                        }
+                    }, // Select action
+                    onSettingsClicked = { viewModel.openDeviceSettings(it) }, // Settings action
+                    selectingDevice,
+                    viewModel.currentDevice.value
                 )
             }
 
-            // --- Main Content: Device List ---
-            DeviceListContent(
-                devices = devicesList,
-                onDeviceSelected = {
-                    viewModel.onDeviceSelected(it)
-                    if (selectingDevice)
-                    {
-                        navController.popBackStack()
-                    }
-               }, // Select action
-                onSettingsClicked = { viewModel.openDeviceSettings(it) }, // Settings action
-                selectingDevice,
-                viewModel.currentDevice.value
+            // --- Loading Overlay ---
+            // Draws on top when isLoadingSettings is true
+            LoadingOverlay(
+                isLoading = viewModel.settingsLoading.value,
+                loadingText = "Loading Settings From Device.\nEnsure an activity with the datafield is running (or at least open) or this will fail."
             )
         }
-
-        // --- Loading Overlay ---
-        // Draws on top when isLoadingSettings is true
-        LoadingOverlay(
-            isLoading = viewModel.settingsLoading.value,
-            loadingText = "Loading Settings From Device.\nEnsure an activity with the datafield is running (or at least open) or this will fail."
-        )
     }
 }
 
