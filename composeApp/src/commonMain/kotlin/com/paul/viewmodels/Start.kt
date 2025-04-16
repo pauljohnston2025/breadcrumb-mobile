@@ -11,13 +11,14 @@ import com.paul.domain.GpxRoute
 import com.paul.infrastructure.connectiq.IConnection
 import com.paul.infrastructure.service.IFileHelper
 import com.paul.infrastructure.service.IGpxFileLoader
-import com.paul.infrastructure.service.InputStreamHelpers
 import com.paul.infrastructure.web.KtorClient
 import com.paul.protocol.todevice.Point
 import com.paul.protocol.todevice.Route
 import com.russhwolf.settings.Settings
 import io.ktor.client.request.get
+import io.ktor.client.request.header
 import io.ktor.client.statement.bodyAsChannel
+import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.utils.io.toByteArray
 import kotlinx.coroutines.Dispatchers
@@ -28,11 +29,7 @@ import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import java.net.HttpURLConnection
-import java.net.Proxy
-import java.net.URL
 import java.net.URLEncoder
-import java.nio.charset.Charset
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -393,30 +390,25 @@ class StartViewModel(
         val url =
             "https://mapstogpx.com/load.php?d=default&lang=en&elev=off&tmode=off&pttype=fixed&o=gpx&cmt=off&desc=off&descasname=off&w=on&dtstr=20240804_092634&gdata=" + URLEncoder.encode(
                 googleShortUrl.replace("https://", ""),
-                Charset.defaultCharset()
+                "UTF-8"
             )
-        // todo switch out the url call to kmp compatible
-        val address = URL(url)
-
-        //Connect & check for the location field
         try {
-            val connection = address.openConnection(Proxy.NO_PROXY) as HttpURLConnection
-            connection.setRequestProperty("Referer", "https://mapstogpx.com/")
-            connection.instanceFollowRedirects = false
-            connection.connect()
-            if (connection.responseCode != 200) {
+            val response = client.get(url) {
+                header("Referer", "https://mapstogpx.com/")
+            }
+            if (!response.status.isSuccess()) {
                 return null
             }
             return withContext(Dispatchers.IO) {
                 val res = Pair(
-                    connection.contentType,
-                    InputStreamHelpers.readAllBytes(connection.inputStream)
+                    response.contentType().toString(),
+                    response.bodyAsChannel().toByteArray()
                 )
 
                 return@withContext res
             }
         } catch (e: Throwable) {
-            Log.d("stdout", "Problem while expanding {}$address$e")
+            Log.d("stdout", "Problem while loading maps from mapstogpx $e")
         }
 
         return null

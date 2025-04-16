@@ -149,7 +149,7 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        // todo make all these seperate methods
+        // todo make all these separate methods
         intentHandler.load(
             fileLoad?.toString(),
             shortGoogleUrl,
