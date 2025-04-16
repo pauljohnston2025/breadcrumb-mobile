@@ -15,6 +15,8 @@ class ConnectIqNeedsUpdate : Exception() {
         get() = "Connect Iq App needs to be updated"
 }
 
+data class AppInfo(val version: Int)
+
 interface IConnection {
 
     companion object {
@@ -23,6 +25,7 @@ interface IConnection {
 
     suspend fun start()
 
+    suspend fun appInfo(device: IqDevice): AppInfo
     suspend fun send(device: IqDevice, payload: Protocol)
     suspend fun <T: Response> query(device: IqDevice, payload: Protocol, type: ProtocolResponse): T
 }

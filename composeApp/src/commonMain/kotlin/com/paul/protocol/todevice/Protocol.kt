@@ -8,6 +8,7 @@ enum class ProtocolType(val value: UByte) {
     PROTOCOL_REQUEST_SETTINGS(4u),
     PROTOCOL_SAVE_SETTINGS(5u),
     PROTOCOL_DROP_TILE_CACHE(6u),
+    PROTOCOL_ROUTE_DATA2(7u),
 }
 
 interface Protocol {

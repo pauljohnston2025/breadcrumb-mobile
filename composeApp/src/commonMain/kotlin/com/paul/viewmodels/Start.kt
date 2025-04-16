@@ -119,13 +119,13 @@ class StartViewModel(
     val history = mutableStateListOf<HistoryItem>()
     private val client = KtorClient.client // Get the singleton client instance
 
-    fun load(fileLoad: String?,
-             shortGoogleUrl: String?,
-             komootUrl: String?,
-             initialErrorMessage: String?)
-    {
-        if(initialErrorMessage != null)
-        {
+    fun load(
+        fileLoad: String?,
+        shortGoogleUrl: String?,
+        komootUrl: String?,
+        initialErrorMessage: String?
+    ) {
+        if (initialErrorMessage != null) {
             errorMessage.value = initialErrorMessage
             htmlErrorMessage.value = initialErrorMessage
         }
@@ -352,7 +352,12 @@ class StartViewModel(
 
         sendingMessage("Sending file") {
             try {
-                connection.send(device, route!!)
+                val version = connection.appInfo(device).version
+                if (version > 9 || version == 0 /** simulator */) {
+                    connection.send(device, route!!.toV2())
+                } else {
+                    connection.send(device, route!!)
+                }
             } catch (t: TimeoutCancellationException) {
                 snackbarHostState.showSnackbar("Timed out sending file")
                 return@sendingMessage

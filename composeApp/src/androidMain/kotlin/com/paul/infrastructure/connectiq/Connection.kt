@@ -146,7 +146,7 @@ class Connection(private val context: Context) : IConnection {
         awaitClose { connectIQ.unregisterForApplicationEvents(cd.device, app) }
     }
 
-    private suspend fun appInfo(device: IqDevice): IQApp =
+    override suspend fun appInfo(device: IqDevice): AppInfo =
         suspendCancellableCoroutine { continuation ->
             val cd = device as CommonDeviceImpl
             connectIQ.getApplicationInfo(
@@ -164,7 +164,7 @@ class Connection(private val context: Context) : IConnection {
                             "app info: " + iqApp.version() + " " + iqApp.displayName + " " + iqApp.status + " " + iqApp.applicationId
                         )
 
-                        continuation.resume(iqApp) {
+                        continuation.resume(AppInfo(iqApp.version())) {
                             Log.d("stdout", "cancelled whilst resuming")
                         }
                     }
