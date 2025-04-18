@@ -14,9 +14,9 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.garmin.android.connectiq.ConnectIQ
 import com.paul.infrastructure.connectiq.IConnection.Companion.CONNECT_IQ_APP_ID
+import com.paul.infrastructure.repositories.TileServerRepo.Companion.TILE_SERVER_ENABLED_KEY
 import com.paul.infrastructure.web.CheckStatusRequest
 import com.paul.infrastructure.web.KtorClient
-import com.paul.viewmodels.Settings.Companion.TILE_SERVER_ENABLED_KEY
 import com.russhwolf.settings.Settings
 import io.ktor.client.plugins.resources.get
 import io.ktor.http.isSuccess

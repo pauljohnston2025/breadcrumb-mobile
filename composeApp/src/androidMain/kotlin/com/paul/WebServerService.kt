@@ -17,10 +17,10 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.paul.WebServerService.Companion.NOTIFICATION_ID
+import com.paul.infrastructure.repositories.TileServerRepo.Companion.TILE_SERVER_ENABLED_KEY
 import com.paul.infrastructure.service.FileHelper
 import com.paul.infrastructure.service.ImageProcessor
 import com.paul.infrastructure.service.TileGetter
-import com.paul.viewmodels.Settings.Companion.TILE_SERVER_ENABLED_KEY
 import com.russhwolf.settings.Settings
 import com.paul.infrastructure.web.WebServerController as CommonWebServerController
 import com.paul.infrastructure.web.WebServerService as CommonWebServerService

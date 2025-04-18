@@ -2,6 +2,7 @@ package com.paul.ui
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -9,10 +10,12 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.paul.composables.LoadingOverlay
-import com.paul.viewmodels.ServerType
-import com.paul.viewmodels.TileServerInfo
+import com.paul.domain.ServerType
+import com.paul.domain.TileServerInfo
+import com.paul.infrastructure.repositories.TileServerRepo
 import com.paul.viewmodels.Settings as SettingsViewModel
 
 // Function to validate template (basic example)
@@ -25,10 +28,20 @@ fun isValidTileUrlTemplate(url: String): Boolean {
 fun AddCustomServerDialog(
     showDialog: Boolean,
     onDismissRequest: () -> Unit,
-    onSave: (name: String, url: String) -> Unit // Callback with validated data
+    onSave: (name: String, url: String, tileLayerMin: Int, tileLayerMax: Int) -> Unit // Callback with validated data
 ) {
     var name by remember { mutableStateOf("") }
     var url by remember { mutableStateOf("") }
+    // --- State for Tile Layer Min ---
+    var tileLayerMin by remember { mutableStateOf(0) } // Your actual Int state
+    var tileLayerMinString by remember { mutableStateOf(tileLayerMin.toString()) } // String state for TextField
+    var tileLayerMinError by remember { mutableStateOf<String?>(null) } // Error message state
+
+    // --- State for Tile Layer Max ---
+    var tileLayerMax by remember { mutableStateOf(15) } // Your actual Int state
+    var tileLayerMaxString by remember { mutableStateOf(tileLayerMax.toString()) } // String state for TextField
+    var tileLayerMaxError by remember { mutableStateOf<String?>(null) } // Error message state
+
     var nameError by remember { mutableStateOf<String?>(null) }
     var urlError by remember { mutableStateOf<String?>(null) }
 
@@ -48,6 +61,8 @@ fun AddCustomServerDialog(
         if (showDialog) {
             name = ""
             url = ""
+            tileLayerMin = 0
+            tileLayerMax = 15
             nameError = null
             urlError = null
         }
@@ -108,14 +123,99 @@ fun AddCustomServerDialog(
                         style = MaterialTheme.typography.body1,
                         modifier = Modifier.padding(start = 4.dp)
                     )
+
+                    Spacer(modifier = Modifier.height(8.dp)) // Add space between fields
+
+                    // --- TextField for Tile Layer Min ---
+                    OutlinedTextField(
+                        value = tileLayerMinString,
+                        onValueChange = { newValue: String ->
+                            tileLayerMinString = newValue // Update the string state immediately
+                            tileLayerMinError = null // Clear error on change
+
+                            // Try to parse the string to an Int
+                            val parsedInt = newValue.toIntOrNull()
+
+                            if (newValue.isEmpty()) {
+                                // Option 1: Handle empty input (e.g., reset to default or allow temporary empty state)
+                                // tileLayerMin = 0 // Or some other default
+                                // Or maybe set an error if empty is not allowed:
+                                // tileLayerMinError = "Value cannot be empty"
+                            } else if (parsedInt != null) {
+                                // Successfully parsed to an Int
+                                tileLayerMin = parsedInt // Update the actual Int state
+                                // Optional: Add range validation
+                                // if (parsedInt < 0) {
+                                //     tileLayerMinError = "Min cannot be negative"
+                                // }
+                            } else {
+                                // Failed to parse (not a valid integer)
+                                tileLayerMinError = "Enter a valid number"
+                            }
+                        },
+                        label = { Text("Tile Layer Min") },
+                        placeholder = { Text("e.g., 0") },
+                        singleLine = true,
+                        isError = tileLayerMinError != null,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), // Use number keyboard
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (tileLayerMinError != null) {
+                        Text(
+                            tileLayerMinError!!,
+                            color = MaterialTheme.colors.error,
+                            style = MaterialTheme.typography.body1
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp)) // Add space between fields
+
+                    // --- TextField for Tile Layer Max ---
+                    OutlinedTextField(
+                        value = tileLayerMaxString,
+                        onValueChange = { newValue: String ->
+                            tileLayerMaxString = newValue // Update the string state
+                            tileLayerMaxError = null // Clear error
+
+                            val parsedInt = newValue.toIntOrNull()
+
+                            if (newValue.isEmpty()) {
+                                // Handle empty (similar options as above)
+                                // tileLayerMax = 18 // Default
+                                // tileLayerMaxError = "Value cannot be empty"
+                            } else if (parsedInt != null) {
+                                tileLayerMax = parsedInt // Update the actual Int state
+                                // Optional: Add range validation (e.g., max >= min)
+                                // if (parsedInt < tileLayerMin) {
+                                //     tileLayerMaxError = "Max must be >= Min ($tileLayerMin)"
+                                // } else if (parsedInt > 22) { // Example upper limit
+                                //     tileLayerMaxError = "Max zoom typically <= 22"
+                                // }
+                            } else {
+                                tileLayerMaxError = "Enter a valid number"
+                            }
+                        },
+                        label = { Text("Tile Layer Max") },
+                        placeholder = { Text("e.g., 18") },
+                        singleLine = true,
+                        isError = tileLayerMaxError != null,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), // Use number keyboard
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (tileLayerMaxError != null) {
+                        Text(
+                            tileLayerMaxError!!,
+                            color = MaterialTheme.colors.error,
+                            style = MaterialTheme.typography.body1
+                        )
+                    }
                 }
             },
             confirmButton = {
                 Button(
                     onClick = {
                         if (validate()) {
-                            onSave(name, url)
-                            // Dialog will be dismissed by the caller changing showDialog state
+                            onSave(name, url, tileLayerMin, tileLayerMax)
                         }
                     }
                 ) {
@@ -141,17 +241,22 @@ fun Settings(
     var showAddDialog by remember { mutableStateOf(false) }
     var serverToDelete by remember { mutableStateOf<TileServerInfo?>(null) }
     val showDeleteConfirmDialog = serverToDelete != null
+    val currentTileServer = viewModel.tileServerRepo.currentServerFlow().collectAsState(TileServerRepo.defaultTileServer)
+    val availableServers = viewModel.tileServerRepo.availableServersFlow().collectAsState(listOf(TileServerRepo.defaultTileServer))
+    val tileServerEnabled = viewModel.tileServerRepo.tileServerEnabledFlow().collectAsState(true)
 
     // --- Call the Add Custom Server Dialog ---
     AddCustomServerDialog(
         showDialog = showAddDialog,
         onDismissRequest = { showAddDialog = false },
-        onSave = { name, url ->
+        onSave = { name, url, tileLayerMin, tileLayerMax->
             // Create the new TileServer object
             val newServer = TileServerInfo(
                 serverType = ServerType.CUSTOM,
                 title = name,
                 url = url,
+                tileLayerMin = tileLayerMin,
+                tileLayerMax = tileLayerMax,
                 isCustom = true
             )
             viewModel.onAddCustomServer(newServer) // Pass it up to be saved and added to the list
@@ -230,14 +335,14 @@ fun Settings(
                     style = MaterialTheme.typography.body2,
                 )
                 Switch(
-                    checked = viewModel.tileServerEnabled.value,
+                    checked = tileServerEnabled.value,
                     onCheckedChange = { newValue ->
                         viewModel.onTileServerEnabledChange(newValue)
                     },
                 )
             }
 
-            if (viewModel.tileServerEnabled.value)
+            if (tileServerEnabled.value)
             {
 
                 Row(
@@ -265,7 +370,7 @@ fun Settings(
                         modifier = Modifier.weight(1.5f)
                     ) {
                         OutlinedTextField(
-                            value = viewModel.currentTileServer.value,
+                            value = currentTileServer.value.title,
                             onValueChange = {},
                             readOnly = true,
                             label = { Text("Select Server") },
@@ -280,7 +385,7 @@ fun Settings(
                             expanded = expanded,
                             onDismissRequest = { expanded = false }
                         ) {
-                            viewModel.availableServers.forEach { server ->
+                            availableServers.value.forEach { server ->
                                 DropdownMenuItem(
                                     onClick = {
                                         viewModel.onServerSelected(server)

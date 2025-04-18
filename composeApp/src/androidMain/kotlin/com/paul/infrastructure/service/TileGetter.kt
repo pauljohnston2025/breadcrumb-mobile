@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.core.graphics.blue
 import androidx.core.graphics.green
 import androidx.core.graphics.red
+import com.paul.infrastructure.repositories.TileServerRepo.Companion.getTileServerOnStart
 import com.paul.infrastructure.web.KtorClient
 import com.paul.infrastructure.web.LoadTileRequest
 import com.paul.infrastructure.web.LoadTileResponse
@@ -29,7 +30,7 @@ class TileGetter(
 
     private val client = KtorClient.client // Get the singleton client instance
 
-    private var tileServer = Settings.getTileServerOnStart().url
+    private var tileServer = getTileServerOnStart().url
 
     override fun setTileServer(tileServer: String)
     {
