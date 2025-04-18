@@ -126,6 +126,33 @@ val listOptionsMapping: Map<String, List<ListOption>> = mapOf(
         ListOption(1, "Unbuffered Rotations - low memory"),
         ListOption(2, "Buffered Without Rotations - performance"),
         ListOption(3, "No Buffer No Rotations - low memory")
+    ),
+    "mapChoice" to listOf(
+        ListOption(0, "Custom"),
+        ListOption(1, "Companion App"),
+        ListOption(2, "Open Topo Map"),
+        ListOption(3, "Google - Hybrid"),
+        ListOption(4, "Google - Satellite"),
+        ListOption(5, "Google - Road"),
+        ListOption(6, "Google - Terain"),
+        ListOption(7, "Esri - Nat Geo World Map"),
+        ListOption(8, "Esri - USA Topo Maps"),
+        ListOption(9, "Esri - World Boundaries and Places"),
+        ListOption(10, "Esri - World Boundaries and Places Alternate"),
+        ListOption(11, "Esri - World Dark Gray Base"),
+        ListOption(12, "Esri - World Hillshade"),
+        ListOption(13, "Esri - World Hillshade Dark"),
+        ListOption(14, "Esri - World Imagery"),
+        ListOption(15, "Esri - World Light Gray Base"),
+        ListOption(16, "Esri - World Navigation Charts"),
+        ListOption(17, "Esri - World Ocean Base"),
+        ListOption(18, "Esri - World Physical Map"),
+        ListOption(19, "Esri - World Shaded Relief"),
+        ListOption(20, "Esri - World Street Map"),
+        ListOption(21, "Esri - World Topo Map"),
+        ListOption(22, "Esri - World Transportation"),
+        ListOption(23, "Open Street Map - Cyclosm"),
+
     )
 )
 
@@ -231,6 +258,8 @@ class DeviceSettings(
 
                     // --- Booleans ---
                     "mapEnabled",
+                    "displayLatLong",
+                    "scaleRestrictedToTileLayers",
                     "resetDefaults",
                     "enableOffTrackAlerts",
                     "drawLineToClosestPoint",

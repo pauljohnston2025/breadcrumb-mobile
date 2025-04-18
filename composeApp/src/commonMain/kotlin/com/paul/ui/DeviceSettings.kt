@@ -110,6 +110,9 @@ fun DeviceSettings(
     val drawLineToClosestPointProp = remember(editableProperties) {
         editableProperties.find { it.id == "drawLineToClosestPoint" } as? EditableProperty<Boolean>
     }
+    val displayLatLongProp = remember(editableProperties) {
+        editableProperties.find { it.id == "displayLatLong" } as? EditableProperty<Boolean>
+    }
     val showOffTrackSection by offTrackAlertsEnabledProp?.state
         ?: remember { mutableStateOf(false) }
 
@@ -146,6 +149,9 @@ fun DeviceSettings(
                     PropertyEditorResolver(
                         renderModeProp
                     )
+                }
+                displayLatLongProp?.let { toggleProp ->
+                    item(key = toggleProp.id) { PropertyEditorResolver(toggleProp) }
                 }
 
                 // --- Group: zoomAtPace ---
@@ -189,6 +195,12 @@ fun DeviceSettings(
                         ) {
                             // This inner Column holds the actual settings
                             Column {
+                                val mapChoiceProp = findProp("mapChoice")
+                                if (mapChoiceProp != null) {
+                                    PropertyEditorResolver(
+                                        mapChoiceProp
+                                    )
+                                }
                                 val tileUrlProp = findProp("tileUrl")
                                 if (tileUrlProp != null) PropertyEditorResolver(tileUrlProp)
                                 val tileSizeProp = findProp("tileSize")
@@ -221,6 +233,8 @@ fun DeviceSettings(
                                 if (fixedLatProp != null) PropertyEditorResolver(fixedLatProp)
                                 val fixedLonProp = findProp("fixedLongitude")
                                 if (fixedLonProp != null) PropertyEditorResolver(fixedLonProp)
+                                val scaleRestrictedToTileLayersProp = findProp("scaleRestrictedToTileLayers")
+                                if (scaleRestrictedToTileLayersProp != null) PropertyEditorResolver(scaleRestrictedToTileLayersProp)
                             }
                         }
                     }
