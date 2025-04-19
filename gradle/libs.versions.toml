@@ -54,6 +54,7 @@ ktor-client-resources = { module = "io.ktor:ktor-client-resources", version.ref 
 ktor-client-cio-jvm = { module = "io.ktor:ktor-client-cio-jvm", version.ref = "ktorServer" }
 ktor-client-okhttp =  { module = "io.ktor:ktor-client-okhttp", version.ref = "ktorServer" }
 napier =  { module = "io.github.aakira:napier", version.ref = "napier" }
+uuid =  { module = "com.benasher44:uuid", version = "0.8.4"}
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }

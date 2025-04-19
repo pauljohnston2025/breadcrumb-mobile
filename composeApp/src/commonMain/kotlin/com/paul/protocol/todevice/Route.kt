@@ -1,5 +1,6 @@
 package com.paul.protocol.todevice
 
+import kotlinx.serialization.Serializable
 import kotlin.Float.Companion.NaN
 import kotlin.math.PI
 import kotlin.math.ln
@@ -13,6 +14,7 @@ data class RectPoint(val x: Float, val y: Float, val altitude: Float)
     }
 }
 
+@Serializable
 data class Point(val latitude: Float, val longitude: Float, val altitude: Float) {
     val _pi360 = PI / 360.0f
     val _lonConversion = 20037508.34f / 180.0f

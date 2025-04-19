@@ -51,7 +51,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.text.HtmlCompat
 import androidx.navigation.NavHostController
 import com.paul.composables.LoadingOverlay
-import com.paul.viewmodels.HistoryItem
+import com.paul.domain.HistoryItem
+import com.paul.domain.RouteEntry
 import com.paul.viewmodels.StartViewModel
 import kotlinx.datetime.format
 import kotlinx.datetime.format.DateTimeComponents
@@ -62,8 +63,7 @@ fun Start(
     navController: NavHostController,
 ) {
     BackHandler {
-        if (viewModel.sendingFile.value != "")
-        {
+        if (viewModel.sendingFile.value != "") {
             // prevent back handler when we are trying to do things, todo cancel the job we are trying to do
             return@BackHandler
         }
@@ -72,6 +72,7 @@ fun Start(
     }
 
     var showClearHistoryDialog by remember { mutableStateOf(false) }
+    var routes = viewModel.routeRepo.routes
 
     // --- Confirmation Dialog ---
     if (showClearHistoryDialog) {
@@ -149,7 +150,8 @@ fun Start(
 
             // --- History Section ---
             HistoryListSection(
-                history = viewModel.history,
+                routes = routes,
+                history = viewModel.historyRepo.history,
                 onHistoryItemClick = { viewModel.loadFileFromHistory(it) }, // Pass item ID or URI
                 onClearHistoryClick = { showClearHistoryDialog = true }
             )
@@ -239,6 +241,7 @@ private fun HtmlErrorDisplay(htmlErrorMessage: String?, onDismiss: () -> Unit) {
 
 @Composable
 private fun HistoryListSection(
+    routes: SnapshotStateList<RouteEntry>,
     history: SnapshotStateList<HistoryItem>,
     onHistoryItemClick: (HistoryItem) -> Unit,
     onClearHistoryClick: () -> Unit
@@ -283,7 +286,10 @@ private fun HistoryListSection(
                     // Sort history newest first based on timestamp
                     val list = history.toList().sortedByDescending { it.timestamp }
                     itemsIndexed(list, key = { index, item -> item.id }) { index, item ->
-                        HistoryListItem(item = item, onClick = { onHistoryItemClick(item) })
+                        HistoryListItem(
+                            routes = routes,
+                            item = item,
+                            onClick = { onHistoryItemClick(item) })
                         Divider()
                     }
                 }
@@ -294,12 +300,18 @@ private fun HistoryListSection(
 
 @OptIn(ExperimentalMaterialApi::class) // For ListItem onClick
 @Composable
-private fun HistoryListItem(item: HistoryItem, onClick: () -> Unit) {
+private fun HistoryListItem(
+    routes: SnapshotStateList<RouteEntry>,
+    item: HistoryItem,
+    onClick: () -> Unit
+) {
+    val route = routes.find { it.id == item.routeId }
+    var name = if (route == null || route.name.isEmpty()) "<unknown>" else route.name
     ListItem( // Use standard ListItem composable
         modifier = Modifier.clickable(onClick = onClick),
         text = {
             Text(
-                item.name.ifBlank { "(Untitled Route)" },
+                name,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )

@@ -6,13 +6,15 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import com.benasher44.uuid.uuid4
 
 // Simple Log Entry structure (can be enhanced)
 data class LogEntry(
     val timestamp: Long, // Consider using kotlinx-datetime for multiplatform time
     val level: String,
     val tag: String?,
-    val message: String
+    val message: String,
+    val id: String = uuid4().toString()
 ) {
     // Basic formatter for display
     override fun toString(): String {

@@ -16,7 +16,7 @@ import io.ticofab.androidgpxparser.parser.domain.Point as GpxPoint
 data class GpxFile(
     val gpx: Gpx,
     val _rawBytes: ByteArray,
-) : GpxRoute {
+) : GpxRoute() {
     override suspend fun toRoute(snackbarHostState: SnackbarHostState): Route? {
         // prefer track, then routes (world topo app creation is a route, most other gpx's i've seen are a single track)
         var points = emptyList<GpxPoint>()

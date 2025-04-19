@@ -46,7 +46,7 @@ fun DebugScreen(viewModel: DebugViewModel) {
     ) {
         items(
             items = logs,
-            key = { it.timestamp + it.hashCode() }) { logEntry -> // Use a stable key
+            key = { it.id }) { logEntry -> // Use a stable key
             LogItem(logEntry)
             Divider(color = Color.Gray.copy(alpha = 0.2f)) // Optional divider
         }

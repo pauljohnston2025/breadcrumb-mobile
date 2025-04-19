@@ -56,6 +56,7 @@ kotlin {
             implementation(libs.ktor.client.resources)
             implementation(libs.logback.classic) // Required for logging in Ktor
             implementation(libs.napier)
+            implementation(libs.uuid)
         }
     }
 }
