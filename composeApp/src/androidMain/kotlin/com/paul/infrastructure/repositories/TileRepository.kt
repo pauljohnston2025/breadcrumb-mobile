@@ -1,10 +1,13 @@
-package com.paul.infrastructure.service
+package com.paul.infrastructure.repositories
 
 import android.graphics.Bitmap
 import androidx.core.graphics.blue
 import androidx.core.graphics.green
 import androidx.core.graphics.red
+import com.paul.infrastructure.repositories.ITileRepository
 import com.paul.infrastructure.repositories.TileServerRepo.Companion.getTileServerOnStart
+import com.paul.infrastructure.service.IFileHelper
+import com.paul.infrastructure.service.ImageProcessor
 import com.paul.infrastructure.web.KtorClient
 import com.paul.infrastructure.web.LoadTileRequest
 import com.paul.infrastructure.web.LoadTileResponse
@@ -22,10 +25,10 @@ import kotlinx.coroutines.withContext
 
 // todo: move this into common code
 // only thing holding it back is the image processing
-class TileGetter(
+class TileRepository(
     private val imageProcessor: ImageProcessor,
     private val fileHelper: IFileHelper,
-) : ITileGetter {
+) : ITileRepository {
 
     private val client = KtorClient.client // Get the singleton client instance
 
@@ -54,7 +57,7 @@ class TileGetter(
             .replace("{z}", "${req.z}")
         Napier.d("Loading tile $tileUrl")
 
-        val fileName = "$tileServer/${req.z}/${x}/${y}.png"
+        val fileName = "tiles/$tileServer/${req.z}/${x}/${y}.png"
 
         val bitmaps: List<Bitmap>
         try {

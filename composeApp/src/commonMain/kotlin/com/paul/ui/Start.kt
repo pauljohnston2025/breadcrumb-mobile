@@ -347,7 +347,7 @@ private fun ClearHistoryConfirmationDialog(onConfirm: () -> Unit, onDismiss: () 
 }
 
 @Composable
-private fun SendingFileOverlay(sendingMessage: MutableState<String>) {
+fun SendingFileOverlay(sendingMessage: MutableState<String>) {
     // Use the same LoadingOverlay structure as in DeviceSelectorScreen
     LoadingOverlay(
         isLoading = sendingMessage.value != "",

@@ -4,24 +4,25 @@ import androidx.compose.material.SnackbarHostState
 import com.benasher44.uuid.uuid4
 import com.paul.protocol.todevice.Point
 import com.paul.protocol.todevice.Route
+import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 @Serializable
-abstract class IRoute(val id: String = uuid4().toString()) {
+abstract class IRoute(var id: String = uuid4().toString()) {
     abstract suspend fun toRoute(snackbarHostState: SnackbarHostState): Route?
     abstract fun name(): String
     abstract fun rawBytes(): ByteArray
+    abstract fun setName(name: String)
 }
 
-abstract class GpxRoute : IRoute() {
-}
+abstract class GpxRoute : IRoute()
 
 @Serializable
-data class CoordinatesRoute(private val _name: String, private val _coordinates: List<Point>) : IRoute() {
+data class CoordinatesRoute(private var _name: String, private val _coordinates: List<Point>) :
+    IRoute() {
     companion object {
-        fun fromBytes(bytes: ByteArray): CoordinatesRoute
-        {
+        fun fromBytes(bytes: ByteArray): CoordinatesRoute {
             return Json.decodeFromString<CoordinatesRoute>(bytes.decodeToString())
         }
     }
@@ -30,8 +31,7 @@ data class CoordinatesRoute(private val _name: String, private val _coordinates:
         return Route(_name, _coordinates)
     }
 
-    override fun rawBytes(): ByteArray
-    {
+    override fun rawBytes(): ByteArray {
         // easiest way is to write json to the file
         var string = Json.encodeToString(this)
         return string.toByteArray()
@@ -39,6 +39,10 @@ data class CoordinatesRoute(private val _name: String, private val _coordinates:
 
     override fun name(): String {
         return _name
+    }
+
+    override fun setName(name: String) {
+        _name = name
     }
 
     fun coordinates(): List<Point> {
@@ -57,4 +61,5 @@ data class RouteEntry(
     val id: String,
     val name: String,
     val type: RouteType,
+    val createdAt: Instant,
 )

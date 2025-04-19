@@ -1,5 +1,7 @@
 package com.paul.viewmodels
 
+import com.paul.infrastructure.service.SendMessageHelper
+import com.paul.infrastructure.service.SendRoute
 import androidx.compose.material.SnackbarHostState
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
@@ -90,7 +92,7 @@ class StartViewModel(
     }
 
     fun loadFileFromHistory(historyItem: HistoryItem) {
-        val routeEntry = routeRepo.getRoute(historyItem.routeId)
+        val routeEntry = routeRepo.getRouteEntry(historyItem.routeId)
         if (routeEntry == null) {
             viewModelScope.launch(Dispatchers.Main) {
                 snackbarHostState.showSnackbar("Failed to find route for history item")
@@ -101,10 +103,7 @@ class StartViewModel(
 
         viewModelScope.launch(Dispatchers.IO) {
             sendingMessage("Loading route from history...") {
-                val route = when (routeEntry.type) {
-                    RouteType.GPX -> routeRepo.getGpxRoute(historyItem.routeId)
-                    RouteType.COORDINATES -> routeRepo.getCoordinatesRoute(historyItem.routeId)
-                }
+                val route = routeRepo.getRouteI(historyItem.routeId)
                 if (route == null) {
                     snackbarHostState.showSnackbar("Failed to find route for history item")
                     Napier.d("route file not found")
@@ -200,72 +199,24 @@ class StartViewModel(
         }
     }
 
-    @OptIn(ExperimentalUuidApi::class)
     private suspend fun sendRoute(
         gpxRoute: IRoute
     ) {
-        val device = deviceSelector.currentDevice()
-        if (device == null) {
-            // todo make this a toast or something better for the user
-            snackbarHostState.showSnackbar("no devices selected")
-            return
-        }
-
-        var route: Route? = null
-        sendingMessage("Loading Route") {
-            try {
-                routeRepo.saveRoute(gpxRoute)
-                val historyItem = HistoryItem(
-                    uuid4().toString(),
-                    gpxRoute.id,
-                    Clock.System.now()
-                )
-                historyRepo.add(historyItem)
-                route = gpxRoute.toRoute(snackbarHostState)
-            } catch (e: Exception) {
-                Napier.d("Failed to parse route: ${e.message}")
-            }
-        }
-
-        if (route == null) {
-            snackbarHostState.showSnackbar("Failed to convert to route")
-            return
-        }
-
-        sendingMessage("Sending file") {
-            try {
-                val version = connection.appInfo(device).version
-                if (version > 9 || version == 0
-                /** simulator */
-                ) {
-                    connection.send(device, route!!.toV2())
-                } else {
-                    connection.send(device, route!!)
-                }
-            } catch (t: TimeoutCancellationException) {
-                snackbarHostState.showSnackbar("Timed out sending file")
-                return@sendingMessage
-            } catch (t: Throwable) {
-                snackbarHostState.showSnackbar("Failed to send to selected device")
-                return@sendingMessage
-            }
-            snackbarHostState.showSnackbar("Route sent")
+        SendRoute.sendRoute(
+            gpxRoute,
+            deviceSelector,
+            snackbarHostState,
+            connection,
+            routeRepo,
+            historyRepo
+        )
+        { msg, cb ->
+            this.sendingMessage(msg, cb)
         }
     }
 
     private suspend fun sendingMessage(msg: String, cb: suspend () -> Unit) {
-        try {
-            viewModelScope.launch(Dispatchers.Main) {
-                sendingFile.value = msg
-            }
-            cb()
-        } catch (t: Throwable) {
-            Napier.d("Failed to do operation: $msg $t")
-        } finally {
-            viewModelScope.launch(Dispatchers.Main) {
-                sendingFile.value = ""
-            }
-        }
+        SendMessageHelper.sendingMessage(viewModelScope, sendingFile, msg, cb)
     }
 
     private suspend fun loadFromMapsToGpx(googleShortUrl: String): Pair<String, ByteArray>? {

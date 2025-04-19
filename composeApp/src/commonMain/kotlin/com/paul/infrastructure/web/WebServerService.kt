@@ -1,7 +1,7 @@
 package com.paul.infrastructure.web
 
 import android.app.Service.START_STICKY
-import com.paul.infrastructure.service.ITileGetter
+import com.paul.infrastructure.repositories.ITileRepository
 import io.github.aakira.napier.Napier
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
@@ -87,7 +87,7 @@ interface WebServerController {
 
 class WebServerService(
     // service has its own impl of tileGetter, since it runs outside of the main activity
-    private val tileGetter: ITileGetter
+    private val tileGetter: ITileRepository
 ) {
     private val serverPort = 8080
     private var server: EmbeddedServer<NettyApplicationEngine, NettyApplicationEngine.Configuration>? = null

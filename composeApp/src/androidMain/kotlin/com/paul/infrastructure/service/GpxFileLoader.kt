@@ -17,6 +17,8 @@ data class GpxFile(
     val gpx: Gpx,
     val _rawBytes: ByteArray,
 ) : GpxRoute() {
+    private var _name: String? = null
+
     override suspend fun toRoute(snackbarHostState: SnackbarHostState): Route? {
         // prefer track, then routes (world topo app creation is a route, most other gpx's i've seen are a single track)
         var points = emptyList<GpxPoint>()
@@ -67,6 +69,9 @@ data class GpxFile(
     }
 
     override fun name(): String {
+        if (_name != null) {
+            return _name!!
+        }
         if (gpx.tracks.size != 0) {
             val track = gpx.tracks[0]
             if (track.trackName != null && track.trackName != "") {
@@ -80,6 +85,10 @@ data class GpxFile(
         }
 
         return "<unknown>"
+    }
+
+    override fun setName(name: String) {
+        _name = name
     }
 
     override fun rawBytes(): ByteArray {

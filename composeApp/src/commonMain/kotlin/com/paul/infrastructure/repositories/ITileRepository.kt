@@ -1,11 +1,11 @@
-package com.paul.infrastructure.service
+package com.paul.infrastructure.repositories
 
 import com.paul.infrastructure.web.LoadTileRequest
 import com.paul.infrastructure.web.LoadTileResponse
 import com.paul.protocol.todevice.Colour
 import com.paul.protocol.todevice.MapTile
 
-interface ITileGetter {
+interface ITileRepository {
     suspend fun erroredTile(req: LoadTileRequest): LoadTileResponse
     {
         val colourData = List(req.tileSize * req.tileSize) {

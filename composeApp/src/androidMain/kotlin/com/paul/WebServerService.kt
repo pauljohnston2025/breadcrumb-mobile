@@ -20,7 +20,7 @@ import com.paul.WebServerService.Companion.NOTIFICATION_ID
 import com.paul.infrastructure.repositories.TileServerRepo.Companion.TILE_SERVER_ENABLED_KEY
 import com.paul.infrastructure.service.FileHelper
 import com.paul.infrastructure.service.ImageProcessor
-import com.paul.infrastructure.service.TileGetter
+import com.paul.infrastructure.repositories.TileRepository
 import com.russhwolf.settings.Settings
 import com.paul.infrastructure.web.WebServerController as CommonWebServerController
 import com.paul.infrastructure.web.WebServerService as CommonWebServerService
@@ -83,7 +83,7 @@ class WebServerService : Service() {
     }
 
     // service has its own impl of tileGetter, since it runs outside of the main activity
-    private val tileGetter = TileGetter(
+    private val tileGetter = TileRepository(
         ImageProcessor(this),
         FileHelper(this)
     )

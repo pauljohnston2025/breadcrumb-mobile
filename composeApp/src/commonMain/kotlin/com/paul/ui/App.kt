@@ -32,6 +32,7 @@ import com.paul.infrastructure.service.IGpxFileLoader
 import com.paul.infrastructure.service.IntentHandler
 import com.paul.infrastructure.web.WebServerController
 import com.paul.viewmodels.DebugViewModel
+import com.paul.viewmodels.RoutesViewModel
 import com.paul.viewmodels.StartViewModel
 import com.paul.viewmodels.Settings as SettingsViewModel
 import kotlinx.coroutines.launch
@@ -141,6 +142,22 @@ fun App(
                     composable(Screen.Start.route) {
                         Start(
                             viewModel = startViewModel,
+                            navController = navController,
+                        )
+                    }
+
+                    composable(Screen.Routes.route) {
+                        val routesViewModel = viewModel {
+                            RoutesViewModel(
+                                connection,
+                                deviceSelector,
+                                startViewModel.routeRepo,
+                                startViewModel.historyRepo,
+                                scaffoldState.snackbarHostState,
+                            )
+                        }
+                        RoutesScreen(
+                            viewModel = routesViewModel,
                             navController = navController,
                         )
                     }

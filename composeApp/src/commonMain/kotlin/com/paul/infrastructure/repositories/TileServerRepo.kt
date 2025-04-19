@@ -1,8 +1,5 @@
 package com.paul.infrastructure.repositories
 
-import io.github.aakira.napier.Napier
-import androidx.compose.runtime.mutableStateListOf
-import androidx.lifecycle.viewModelScope
 import com.paul.domain.ServerType
 import com.paul.domain.TileServerInfo
 import com.paul.infrastructure.web.ChangeTileServer
@@ -13,12 +10,10 @@ import io.ktor.client.plugins.resources.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
+import io.ktor.http.isSuccess
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.serialization.json.Json
-import io.ktor.http.isSuccess
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 
 class TileServerRepo(private val webServerController: WebServerController) {
     companion object {
