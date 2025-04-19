@@ -249,6 +249,10 @@ fun DeviceSettings(
                 distProp?.let { distProp ->
                     item(key = distProp.id) { PropertyEditorResolver(distProp) }
                 }
+                val intervalProp = findProp("offTrackAlertsMaxReportIntervalS")
+                intervalProp?.let { intervalProp ->
+                    item(key = intervalProp.id) { PropertyEditorResolver(intervalProp) }
+                }
                 drawLineToClosestPointProp?.let { toggleProp ->
                     item(key = toggleProp.id) { PropertyEditorResolver(toggleProp) }
                 }
@@ -265,8 +269,6 @@ fun DeviceSettings(
                         ) {
                             // Inner Column for the settings
                             Column {
-                               val intervalProp = findProp("offTrackAlertsMaxReportIntervalS")
-                               if (intervalProp != null) PropertyEditorResolver(intervalProp)
                                val alertTypeProp = findProp("alertType")
                                if (alertTypeProp != null) PropertyEditorResolver(alertTypeProp)
                             }
