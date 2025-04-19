@@ -54,8 +54,10 @@ import com.paul.composables.LoadingOverlay
 import com.paul.domain.HistoryItem
 import com.paul.domain.RouteEntry
 import com.paul.viewmodels.StartViewModel
+import kotlinx.datetime.TimeZone.Companion.currentSystemDefault
 import kotlinx.datetime.format
 import kotlinx.datetime.format.DateTimeComponents
+import kotlinx.datetime.toLocalDateTime
 
 @Composable
 fun Start(
@@ -318,7 +320,7 @@ private fun HistoryListItem(
         },
         secondaryText = {
             Text(
-                item.timestamp.format(DateTimeComponents.Formats.ISO_DATE_TIME_OFFSET),
+                item.timestamp.toLocalDateTime(currentSystemDefault()).toString(),
                 maxLines = 1
             )
         }

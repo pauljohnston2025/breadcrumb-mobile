@@ -7,6 +7,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import com.benasher44.uuid.uuid4
+import kotlinx.datetime.Instant
+import kotlinx.datetime.TimeZone.Companion.currentSystemDefault
+import kotlinx.datetime.toLocalDateTime
 
 // Simple Log Entry structure (can be enhanced)
 data class LogEntry(
@@ -18,7 +21,7 @@ data class LogEntry(
 ) {
     // Basic formatter for display
     override fun toString(): String {
-        val timeStr = timestamp // Replace with actual time formatting later if needed
+        val timeStr = Instant.fromEpochMilliseconds(timestamp).toLocalDateTime(currentSystemDefault()).toString()
         val tagStr = tag?.let { "[$it]" } ?: ""
         return "$timeStr ${level.padEnd(5)} $tagStr: $message"
     }

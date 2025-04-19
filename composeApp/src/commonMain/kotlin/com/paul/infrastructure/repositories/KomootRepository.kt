@@ -77,7 +77,7 @@ class KomootRepository {
             val root = Json { ignoreUnknownKeys = true }.decodeFromString<KomootSetPropsRoot>(
                 jsonString
             )
-            Napier.d("$root")
+//            Napier.d("$root")
             return root
         }
 

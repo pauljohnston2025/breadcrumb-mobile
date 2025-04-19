@@ -21,6 +21,8 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.navigation.NavController
 import com.paul.domain.RouteEntry
+import kotlinx.datetime.TimeZone.Companion.currentSystemDefault
+import kotlinx.datetime.toLocalDateTime
 import okhttp3.internal.wait
 
 
@@ -151,36 +153,56 @@ private fun RouteListItem(
         )
     }
 
+    Row(
+        Modifier
+            .padding(start = 8.dp)
+            .fillMaxWidth()
+    ) {
+        Text(
+            text = "Created At: " + route.createdAt.toLocalDateTime(currentSystemDefault()).toString(),
+            style = MaterialTheme.typography.caption,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+
     // Action Buttons Section
     Row(
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment = Alignment.Top,
         // Add some space between info and buttons if needed
         modifier = Modifier
             .padding(start = 8.dp)
             .fillMaxWidth()
     ) {
+        Column {
+            Text(
+                text = "Type: ${route.type}", // Display type or other info
+                style = MaterialTheme.typography.caption,
+                maxLines = 1
+            )
+        }
 
-        Text(
-            text = "Type: ${route.type}", // Display type or other info
-            style = MaterialTheme.typography.caption,
-            maxLines = 1
-        )
         Spacer(Modifier.weight(1f))
-        IconButton(onClick = onEditClick) {
-            Icon(Icons.Default.Edit, contentDescription = "Edit Route Name")
-        }
-        IconButton(onClick = onPreviewClick) {
-            Icon(Icons.Default.LocationOn, contentDescription = "Preview Route")
-        }
-        IconButton(onClick = onSendClick) {
-            Icon(Icons.Default.PlayArrow, contentDescription = "Send Route To Watch")
-        }
-        IconButton(onClick = onDeleteClick) {
-            Icon(
-                Icons.Default.Delete,
-                contentDescription = "Delete Route",
-                tint = MaterialTheme.colors.error
-            ) // Indicate destructive action
+        Row(
+            verticalAlignment = Alignment.CenterVertically, // Center buttons vertically within this row
+            horizontalArrangement = Arrangement.End // Arrange buttons closely together at the end
+        ) {
+            IconButton(onClick = onEditClick) {
+                Icon(Icons.Default.Edit, contentDescription = "Edit Route Name")
+            }
+            IconButton(onClick = onPreviewClick) {
+                Icon(Icons.Default.LocationOn, contentDescription = "Preview Route")
+            }
+            IconButton(onClick = onSendClick) {
+                Icon(Icons.Default.PlayArrow, contentDescription = "Send Route To Watch")
+            }
+            IconButton(onClick = onDeleteClick) {
+                Icon(
+                    Icons.Default.Delete,
+                    contentDescription = "Delete Route",
+                    tint = MaterialTheme.colors.error
+                ) // Indicate destructive action
+            }
         }
     }
 }
