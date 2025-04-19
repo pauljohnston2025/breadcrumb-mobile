@@ -1,7 +1,6 @@
 package com.paul.infrastructure.service
 
 import android.graphics.Bitmap
-import android.util.Log
 import androidx.core.graphics.blue
 import androidx.core.graphics.green
 import androidx.core.graphics.red
@@ -12,7 +11,7 @@ import com.paul.infrastructure.web.LoadTileResponse
 import com.paul.infrastructure.web.platformInfo
 import com.paul.protocol.todevice.Colour
 import com.paul.protocol.todevice.MapTile
-import com.paul.viewmodels.Settings
+import io.github.aakira.napier.Napier
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.statement.bodyAsChannel
@@ -53,7 +52,7 @@ class TileGetter(
             .replace("{x}", "${x}")
             .replace("{y}", "${y}")
             .replace("{z}", "${req.z}")
-        Log.d("stdout", "fetching $tileUrl")
+        Napier.d("Loading tile $tileUrl")
 
         val fileName = "$tileServer/${req.z}/${x}/${y}.png"
 
@@ -71,7 +70,7 @@ class TileGetter(
                     }
                 }
                 if (!response.status.isSuccess()) {
-                    Log.d("stdout", "fetching $tileUrl failed ${response.status}")
+                    Napier.d("fetching $tileUrl failed ${response.status}")
                     return erroredTile(req)
                 }
 
@@ -86,7 +85,7 @@ class TileGetter(
         }
         catch (e: Throwable)
         {
-            Log.d("stdout", "fetching $tileUrl failed $e")
+            Napier.d("fetching $tileUrl failed $e")
             return erroredTile(req)
         }
 
@@ -95,7 +94,7 @@ class TileGetter(
         val offset = xOffset * smallTilesPerBigTile.toInt() + yOffset
         if (offset >= bitmaps.size || offset < 0)
         {
-            Log.d("stdout", "our math aint mathing $offset")
+            Napier.d("our math aint mathing $offset")
             return erroredTile(req)
         }
         val bitmap = bitmaps[offset]

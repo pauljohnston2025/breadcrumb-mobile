@@ -1,6 +1,6 @@
 package com.paul.viewmodels
 
-import android.util.Log
+import io.github.aakira.napier.Napier
 import androidx.compose.material.SnackbarHostState
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateListOf
@@ -148,7 +148,7 @@ class StartViewModel(
                     history.add(it)
                 }
             } catch (t: Throwable) {
-                Log.d("stdout", "failed to hydrate history items $t")
+                Napier.d("failed to hydrate history items $t")
             }
         }
     }
@@ -206,10 +206,10 @@ class StartViewModel(
                     sendRoute(gpxRoute, historyFileName)
                 } catch (e: SecurityException) {
                     snackbarHostState.showSnackbar("Failed to load gpx file (you might not have permissions, please restart app to grant)")
-                    Log.d("stdout", e.toString())
+                    Napier.d(e.toString())
                 } catch (e: Exception) {
                     snackbarHostState.showSnackbar("Failed to load gpx file (possibly invalid format)")
-                    Log.d("stdout", e.toString())
+                    Napier.d(e.toString())
                 }
             }
         }
@@ -259,13 +259,13 @@ class StartViewModel(
                 val root = Json { ignoreUnknownKeys = true }.decodeFromString<KomootSetPropsRoot>(
                     jsonString
                 )
-                Log.d("stdout", "$root")
+                Napier.d("$root")
                 return KomootGpxRoute(root)
             }
 
             return null
         } catch (e: Exception) {
-            Log.d("stdout", "failed to load komoot url $e")
+            Napier.d("failed to load komoot url $e")
             snackbarHostState.showSnackbar("Failed to load komoot url")
             return null
         }
@@ -303,10 +303,10 @@ class StartViewModel(
                 sendRoute(gpxRoute, filename)
             } catch (e: SecurityException) {
                 snackbarHostState.showSnackbar("Failed to load gpx file (you might not have permissions, please restart app to grant)")
-                Log.d("stdout", e.toString())
+                Napier.d(e.toString())
             } catch (e: Exception) {
                 snackbarHostState.showSnackbar("Failed to load gpx file (possibly invalid format)")
-                Log.d("stdout", e.toString())
+                Napier.d(e.toString())
             }
         }
     }
@@ -338,7 +338,7 @@ class StartViewModel(
                 saveHistory()
                 route = gpxRoute.toRoute(snackbarHostState)
             } catch (e: Exception) {
-                Log.d("stdout", "Failed to parse route: ${e.message}")
+                Napier.d("Failed to parse route: ${e.message}")
             }
         }
 
@@ -373,7 +373,7 @@ class StartViewModel(
             }
             cb()
         } catch (t: Throwable) {
-            Log.d("stdout", "Failed to do operation: $msg $t")
+            Napier.d("Failed to do operation: $msg $t")
         } finally {
             viewModelScope.launch(Dispatchers.Main) {
                 sendingFile.value = ""
@@ -408,7 +408,7 @@ class StartViewModel(
                 return@withContext res
             }
         } catch (e: Throwable) {
-            Log.d("stdout", "Problem while loading maps from mapstogpx $e")
+            Napier.d("Problem while loading maps from mapstogpx $e")
         }
 
         return null

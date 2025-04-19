@@ -1,6 +1,6 @@
 package com.paul.viewmodels
 
-import android.util.Log
+import io.github.aakira.napier.Napier
 import androidx.compose.material.SnackbarHostState
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.Stable
@@ -363,14 +363,14 @@ class DeviceSettings(
                     device,
                     SaveSettings(updatedValues)
                 )
-                Log.d("stdout", "got settings $settings")
+                Napier.d("got settings $settings")
                 settingsSaving.value = false
                 viewModelScope.launch(Dispatchers.Main) {
                     navController.popBackStack()
                 }
             } catch (t: Throwable) {
                 settingsSaving.value = false
-                Log.d("stdout", "Failed to save settings $t")
+                Napier.d("Failed to save settings $t")
                 snackbarHostState.showSnackbar("Failed to save settings")
                 viewModelScope.launch(Dispatchers.Main) {
                     navController.popBackStack()

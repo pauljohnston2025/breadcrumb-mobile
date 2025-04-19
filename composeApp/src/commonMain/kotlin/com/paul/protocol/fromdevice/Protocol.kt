@@ -1,6 +1,6 @@
 package com.paul.protocol.fromdevice
 
-import android.util.Log
+import io.github.aakira.napier.Napier
 
 enum class ProtocolResponse(val value: Int) {
     PROTOCOL_SEND_OPEN_APP(0),
@@ -17,7 +17,7 @@ sealed class Protocol(val type: ProtocolResponse) {
                 ProtocolResponse.PROTOCOL_SEND_OPEN_APP.value -> OpenApp.decode(payload)
                 ProtocolResponse.PROTOCOL_SEND_SETTINGS.value -> Settings.decode(payload)
                 else -> {
-                    Log.d("stdout","failed to decode: $data")
+                    Napier.d("failed to decode: $data")
                     null
                 }
             }

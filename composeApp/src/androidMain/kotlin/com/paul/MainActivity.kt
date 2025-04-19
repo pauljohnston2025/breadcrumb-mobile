@@ -24,8 +24,11 @@ import com.paul.infrastructure.connectiq.Connection
 import com.paul.infrastructure.connectiq.DeviceList
 import com.paul.infrastructure.service.FileHelper
 import com.paul.infrastructure.service.GpxFileLoader
+import com.paul.infrastructure.service.InMemoryDebugAntilog
 import com.paul.infrastructure.service.IntentHandler
 import com.paul.ui.App
+import io.github.aakira.napier.DebugAntilog
+import io.github.aakira.napier.Napier
 
 
 class MainActivity : ComponentActivity() {
@@ -68,6 +71,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        Napier.base(DebugAntilog())
+        Napier.base(InMemoryDebugAntilog())
+
         addOnNewIntentListener({
             handleIntent(it)
         })

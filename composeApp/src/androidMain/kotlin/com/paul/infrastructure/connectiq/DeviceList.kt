@@ -1,6 +1,6 @@
 package com.paul.infrastructure.connectiq
 
-import android.util.Log
+import io.github.aakira.napier.Napier
 import com.garmin.android.connectiq.ConnectIQ.IQApplicationEventListener
 import com.garmin.android.connectiq.ConnectIQ.IQDeviceEventListener
 import com.garmin.android.connectiq.ConnectIQ.IQMessageStatus
@@ -32,7 +32,7 @@ class DeviceList(private val connection: Connection) : IDeviceList {
     private var job: Job? = null
 
     private val mDeviceEventListener = IQDeviceEventListener { device, status ->
-        Log.d("stdout", "onDeviceStatusChanged():" + device + ": " + status.name)
+        Napier.d("onDeviceStatusChanged():" + device + ": " + status.name)
 
         val oldDevice = deviceList.find { device.deviceIdentifier == it.device.deviceIdentifier }
         val list = deviceList.filter {
@@ -64,7 +64,7 @@ class DeviceList(private val connection: Connection) : IDeviceList {
 //        list.add(dummyDevice2)
         deviceList = list
         CoroutineScope(Dispatchers.IO).launch {
-            Log.d("stdout", "emitting $list")
+            Napier.d("emitting $list")
             deviceListFlow.emit(list.toList())
         }
     }
@@ -88,7 +88,7 @@ class DeviceList(private val connection: Connection) : IDeviceList {
     }
 
     private suspend fun loadDevices() {
-//        Log.d("stdout", "loadDevices")
+//        Napier.d("loadDevices")
         val connectIQ = connection.getInstance()
         try {
             // would love to use a callback flow, but there
@@ -113,26 +113,26 @@ class DeviceList(private val connection: Connection) : IDeviceList {
             }
 
             for (device in toRemove) {
-                Log.d("stdout", "removing device $device")
+                Napier.d("removing device $device")
             }
             val newList = deviceList.filter { device ->
                 toRemove.find { device.device.deviceIdentifier == it.device.deviceIdentifier } == null
             }.toMutableList()
 
             for (device in toAdd) {
-                Log.d("stdout", "adding device $device")
+                Napier.d("adding device $device")
                 newList.add(device)
             }
 
             // emit the list before hooking up the callbacks, otherwise the callbacks can be called
             // first, and we get the wrong order
             deviceList = newList
-//            Log.d("stdout", "emitting from loop $newList")
+//            Napier.d("emitting from loop $newList")
             // note: if no objects in the list change this emit does nothing, because stateflow does
             // not see it as a change
             deviceListFlow.emit(newList)
 
-//            Log.d("stdout", deviceList[0].toString())
+//            Napier.d(deviceList[0].toString())
             // Let's register for device status updates.  By doing so we will
             // automatically get a status update for each device so we do not
             // need to call getStatus()
@@ -143,23 +143,22 @@ class DeviceList(private val connection: Connection) : IDeviceList {
 //                    // First inspect the status to make sure this
 //                    // was a SUCCESS. If not then the status will indicate why there
 //                    // was an issue receiving the message from the Connect IQ application.
-//                    Log.d(
-//                        "stdout",
+//                    Napier.d(
 //                        "device message:" + device + ": " + status.name + " " + messageData
 //                    )
 //                }
-//                Log.d("stdout","device: ${device.friendlyName} status: ${device.status.name}")
+//                Napier.d("device: ${device.friendlyName} status: ${device.status.name}")
             }
         } catch (e: InvalidStateException) {
             // This generally means you forgot to call initialize(), but since
             // we are in the callback for initialize(), this should never happen
-            Log.d("stdout", "invalid state")
+            Napier.d("invalid state")
         } catch (e: ServiceUnavailableException) {
             // This will happen if for some reason your app was not able to connect
             // to the ConnectIQ service running within Garmin Connect Mobile.  This
             // could be because Garmin Connect Mobile is not installed or needs to
             // be upgraded.
-            Log.d("stdout", "service unavailable")
+            Napier.d("service unavailable")
         }
     }
 }

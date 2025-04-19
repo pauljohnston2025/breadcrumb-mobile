@@ -12,7 +12,7 @@ import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
 import android.os.Build
 import android.os.IBinder
-import android.util.Log
+import io.github.aakira.napier.Napier
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -71,7 +71,7 @@ class WebServerController(private val context: Context): CommonWebServerControll
         }
         catch (t: Throwable)
         {
-            Log.d("stdout", "failed to start service (lets hope its because it's already running) $t")
+            Napier.d("failed to start service (lets hope its because it's already running) $t")
         }
     }
 }
@@ -127,9 +127,9 @@ class WebServerService : Service() {
                     enableLights(false)
                 }
                 notificationManager.createNotificationChannel(channel)
-                Log.d("stdout", "KtorServerService: Notification channel created.")
+                Napier.d("KtorServerService: Notification channel created.")
             } else {
-                Log.d("stdout", "KtorServerService: Notification channel already exists.")
+                Napier.d("KtorServerService: Notification channel already exists.")
             }
         }
 

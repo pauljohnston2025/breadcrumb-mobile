@@ -1,8 +1,8 @@
 package com.paul.infrastructure.web
 
 import android.app.Service.START_STICKY
-import android.util.Log
 import com.paul.infrastructure.service.ITileGetter
+import io.github.aakira.napier.Napier
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
@@ -20,9 +20,7 @@ import io.ktor.server.request.path
 import io.ktor.server.resources.Resources
 import io.ktor.server.resources.post
 import io.ktor.server.response.respond
-import io.ktor.server.response.respondText
 import io.ktor.server.response.responseType
-import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
 import io.ktor.util.AttributeKey
 import kotlinx.coroutines.CoroutineScope
@@ -49,7 +47,12 @@ val RequestLogging = createApplicationPlugin(name = "RequestLogging") {
             "$name: ${values.joinToString()}"
         }
 
-        Log.d("WebserverService","Incoming request - Method: $method, Path: $path\n  Headers:\n    $headers\n  Parameters:\n    $parameters")
+//        Napier.d("Incoming request - Method: $method, Path: $path\n  Headers:\n    $headers\n  Parameters:\n    $parameters", tag = "WebserverService")
+
+        val parametersSingleLine = request.queryParameters.entries().joinToString(separator = ", ") { (name, values) ->
+            "$name: ${values.joinToString()}"
+        }
+        Napier.d("Incoming request - Method: $method, Path: $path params: $parametersSingleLine", tag = "WebserverService")
 
         // Store the start time in the call attributes
         call.attributes.put(startTimeKey, System.currentTimeMillis())
@@ -72,8 +75,9 @@ val RequestLogging = createApplicationPlugin(name = "RequestLogging") {
             "$name: ${values.joinToString()}"
         }
         val responseType = call.response.responseType
-        Log.d("WebserverService", "Outgoing response - Method: $method, Path: $path\n  Status: $statusCode\n  Headers:\n" +
-                "    $headers\n  Duration: $duration ms\n  ResponseType: $responseType\n  Response: $responseObject")
+//        Napier.d("Outgoing response - Method: $method, Path: $path\n  Status: $statusCode\n  Headers:\n" +
+//                "    $headers\n  Duration: $duration ms\n  ResponseType: $responseType\n  Response: $responseObject", tag = "WebserverService")
+        Napier.d("Outgoing response - Method: $method Status: $statusCode", tag = "WebserverService")
     }
 }
 
@@ -96,7 +100,7 @@ class WebServerService(
         {
             // todo handle shutting down the old service somehow
             // then start a new one
-            Log.e("stdout", "failed to start service, probably already bound: $t")
+            Napier.e("failed to start service, probably already bound: $t")
         }
         return START_STICKY
     }

@@ -1,6 +1,6 @@
 package com.paul.viewmodels
 
-import android.util.Log
+import io.github.aakira.napier.Napier
 import androidx.compose.material.SnackbarHostState
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
@@ -75,7 +75,7 @@ class Settings(
             }
             cb()
         } catch (t: Throwable) {
-            Log.d("stdout", "Failed to do operation: $msg $t")
+            Napier.d("Failed to do operation: $msg $t")
         } finally {
             viewModelScope.launch(Dispatchers.Main) {
                 sendingMessage.value = ""
@@ -95,7 +95,7 @@ class Settings(
             try {
                 tileServerRepo.onTileServerEnabledChange(newVal)
             } catch (t: Throwable) {
-                Log.d("stdout", "failed to update tile server enabled, reverting: $t")
+                Napier.d("failed to update tile server enabled, reverting: $t")
                 snackbarHostState.showSnackbar("Failed to stop/start tile server")
                 launch(Dispatchers.Main) {
                     tileServerRepo.rollBackEnabled(oldVal)

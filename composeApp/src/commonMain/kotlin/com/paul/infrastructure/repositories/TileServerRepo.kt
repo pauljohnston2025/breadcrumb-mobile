@@ -1,6 +1,6 @@
 package com.paul.infrastructure.repositories
 
-import android.util.Log
+import io.github.aakira.napier.Napier
 import androidx.compose.runtime.mutableStateListOf
 import androidx.lifecycle.viewModelScope
 import com.paul.domain.ServerType

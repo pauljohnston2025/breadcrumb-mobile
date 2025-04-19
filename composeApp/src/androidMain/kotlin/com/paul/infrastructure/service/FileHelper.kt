@@ -3,7 +3,7 @@ package com.paul.infrastructure.service
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
-import android.util.Log
+import io.github.aakira.napier.Napier
 import androidx.activity.result.ActivityResultLauncher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -71,9 +71,9 @@ class FileHelper(
             if (uri == null) {
                 continuation.resumeWithException(Exception("failed to load file: $uri"))
             } else {
-                Log.d("stdout","Load file: " + uri.toString())
+                Napier.d("Load file: " + uri.toString())
                 continuation.resume(uri.toString()) {
-                    Log.d("stdout","failed to resume")
+                    Napier.d("failed to resume")
                 }
             }
 

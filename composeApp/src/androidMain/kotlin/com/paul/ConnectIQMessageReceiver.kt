@@ -8,7 +8,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -18,6 +17,7 @@ import com.paul.infrastructure.repositories.TileServerRepo.Companion.TILE_SERVER
 import com.paul.infrastructure.web.CheckStatusRequest
 import com.paul.infrastructure.web.KtorClient
 import com.russhwolf.settings.Settings
+import io.github.aakira.napier.Napier
 import io.ktor.client.plugins.resources.get
 import io.ktor.http.isSuccess
 import kotlinx.coroutines.CoroutineScope
@@ -65,16 +65,16 @@ class ConnectIQMessageReceiver : BroadcastReceiver() {
 //            val remoteApplication = intent.getStringExtra(ConnectIQ.EXTRA_REMOTE_APPLICATION)
 //            val remoteDevice = intent.getStringExtra(ConnectIQ.EXTRA_REMOTE_DEVICE)
 
-            Log.d(TAG, "Received Connect IQ message:")
-            Log.d(TAG, "  appId: $appId")
-            Log.d(TAG, "  payload: $payload")
-//            Log.d(TAG, "  remoteApplication: $remoteApplication")
-//            Log.d(TAG, "  remoteDevice: $remoteDevice")
+            Napier.d("Received Connect IQ message:", tag = TAG)
+            Napier.d("  appId: $appId", tag = TAG)
+            Napier.d("  payload: $payload", tag = TAG)
+//            Napier.d("  remoteApplication: $remoteApplication", tag = TAG)
+//            Napier.d("  remoteDevice: $remoteDevice", tag = TAG)
             if (appId?.lowercase() == CONNECT_IQ_APP_ID.replace("-", "").lowercase()
             // payload appears to change between runs
             /* && payload.toString().lowercase() == "[B@cd05ca5".lowercase() */
             ) {
-                Log.d(TAG, "got our special start message")
+                Napier.d("got our special start message", tag = TAG)
                 // apparently you cannot launch an app if the app is closed, or running inthe background
                 // https://stackoverflow.com/questions/59636083/broadcastreceiver-cant-start-activity-from-closed-or-in-background-app
                 // https://developer.android.com/guide/components/activities/background-starts

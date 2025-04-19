@@ -31,6 +31,7 @@ import com.paul.infrastructure.service.IFileHelper
 import com.paul.infrastructure.service.IGpxFileLoader
 import com.paul.infrastructure.service.IntentHandler
 import com.paul.infrastructure.web.WebServerController
+import com.paul.viewmodels.DebugViewModel
 import com.paul.viewmodels.StartViewModel
 import com.paul.viewmodels.Settings as SettingsViewModel
 import kotlinx.coroutines.launch
@@ -61,6 +62,7 @@ fun App(
                     scaffoldState.snackbarHostState
                 )
             }
+        val debugViewModel = viewModel { DebugViewModel() }
         val settingsViewModel = viewModel {
             SettingsViewModel(
                 deviceSelector,
@@ -105,7 +107,8 @@ fun App(
 
             var title = currentScreen.title
             if (deviceSelector.currentDevice.value != null) {
-                title = currentScreen.title + " (" + deviceSelector.currentDevice.value!!.friendlyName + ")"
+                title =
+                    currentScreen.title + " (" + deviceSelector.currentDevice.value!!.friendlyName + ")"
             }
 
             // Main content area wrapped by the drawer
@@ -202,13 +205,7 @@ fun App(
                     }
 
                     composable(Screen.Debug.route) {
-                        // Placeholder for your Storage Screen
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("Debug Screen Placeholder")
-                        }
+                        DebugScreen(debugViewModel)
                     }
                 } // End NavHost
             } // End Scaffold

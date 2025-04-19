@@ -1,6 +1,6 @@
 package com.paul.viewmodels
 
-import android.util.Log
+import io.github.aakira.napier.Napier
 import androidx.compose.material.SnackbarHostState
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
@@ -43,29 +43,29 @@ class DeviceSelector(
     init {
         viewModelScope.launch {
             try {
-                Log.d("stdout", "launching list")
+                Napier.d("launching list")
                 val sub = deviceList.subscribe()
                 sub.collect {
-                    Log.d("stdout", "got device ${it.size} $it")
+                    Napier.d("got device ${it.size} $it")
                     devicesFlow.emit(it)
                 }
             }
             catch (t: ConnectIqNeedsUpdate)
             {
                 errorMessage.value = "Please update the garmin connect app"
-                Log.d("stdout", "failed to subscribe to device list $t")
+                Napier.d("failed to subscribe to device list $t")
             }
             catch (t: ConnectIqNeedsInstall)
             {
                 errorMessage.value = "Please install the garmin connect app"
-                Log.d("stdout", "failed to subscribe to device list $t")
+                Napier.d("failed to subscribe to device list $t")
             }
             catch (t: Throwable)
             {
-                Log.d("stdout", "failed to subscribe to device list $t")
+                Napier.d("failed to subscribe to device list $t")
             }
         }.invokeOnCompletion {
-            Log.d("stdout", "list completed")
+            Napier.d("list completed")
         }
     }
 
@@ -74,7 +74,7 @@ class DeviceSelector(
     }
 
     override fun onCleared() {
-        Log.d("stdout","view model cleared")
+        Napier.d("view model cleared")
     }
 
     fun cancelSelection() {
@@ -137,7 +137,7 @@ class DeviceSelector(
                 ProtocolResponse.PROTOCOL_SEND_SETTINGS
             )
             lastLoadedSettings = settings
-            Log.d("stdout", "got settings $settings")
+            Napier.d("got settings $settings")
             settingsLoading.value = false
             viewModelScope.launch(Dispatchers.Main) {
                 navController.navigate(Screen.DeviceSettings.route)

@@ -22,9 +22,9 @@ data class Colour(
 //        val colour =  ((Math.round(red.toInt() / 255.0f) * 3) shl 4) or
 //                ((Math.round(green.toInt() / 255.0f) * 3) shl 2) or
 //                (Math.round(blue.toInt() / 255.0f) * 3)
-////        Log.d("stdout","red is: " + red.toInt());
-////        Log.d("stdout","red is: " + red.toUInt());
-////        Log.d("stdout","colour is: " + colour);
+////        Napier.d("red is: " + red.toInt());
+////        Napier.d("red is: " + red.toUInt());
+////        Napier.d("colour is: " + colour);
 //        return colour.toByte()
     }
 
@@ -78,7 +78,7 @@ class MapTile(
         // testing data
         for (colour in pixelData) {
             val colourByte = colour.asCharColour()
-//            Log.d("stdout","colour byte is: " + colourByte.toInt())
+//            Napier.d("colour byte is: " + colourByte.toInt())
             // we also cannot send all 0's since its the null terminator
             // so we will set the second highest bit
             val byteVal = ((colourByte.toInt() or 0x40) and 0x7F).toByte()
@@ -92,7 +92,7 @@ class MapTile(
         val res = mutableListOf<Int>();
         for (colour in pixelData) {
             val colourInt = colour.asPackedColour()
-//            Log.d("stdout","colour byte is: " + colourByte.toInt())
+//            Napier.d("colour byte is: " + colourByte.toInt())
             // we also cannot send all 0's since its the null terminator
             // so we will set the second highest bit
             res.add(colourInt)

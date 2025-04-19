@@ -1,7 +1,7 @@
 package com.paul.infrastructure.connectiq
 
 import android.content.Context
-import android.util.Log
+import io.github.aakira.napier.Napier
 import com.garmin.android.connectiq.ConnectIQ
 import com.garmin.android.connectiq.ConnectIQ.ConnectIQListener
 import com.garmin.android.connectiq.ConnectIQ.IQMessageStatus
@@ -46,12 +46,12 @@ class Connection(private val context: Context) : IConnection {
             // we are already connected, todo handle the case where 2 callers call connect at the same time (before onSdkReady is called)
             // need to make an outstanding task that gets returned?
             continuation.resume(Unit) {
-                Log.d("stdout", "cancelled whilst resuming")
+                Napier.d("cancelled whilst resuming")
             }
         } else {
             connectIQ.initialize(context, true, object : ConnectIQListener {
                 override fun onInitializeError(errStatus: IQSdkErrorStatus) {
-                    Log.d("stdout", "Failed to initialise: ${errStatus.name}")
+                    Napier.d("Failed to initialise: ${errStatus.name}")
                     if (errStatus == IQSdkErrorStatus.GCM_NOT_INSTALLED) {
                         continuation.resumeWithException(ConnectIqNeedsInstall())
                         return
@@ -63,15 +63,15 @@ class Connection(private val context: Context) : IConnection {
                 }
 
                 override fun onSdkReady() {
-                    Log.d("stdout", "onSdkReady()")
+                    Napier.d("onSdkReady()")
                     isConnected = true
                     continuation.resume(Unit) {
-                        Log.d("stdout", "cancelled whilst resuming")
+                        Napier.d("cancelled whilst resuming")
                     }
                 }
 
                 override fun onSdkShutDown() {
-                    Log.d("stdout", "onSdkShutDown()")
+                    Napier.d("onSdkShutDown()")
                     isConnected = false
                 }
             })
@@ -98,7 +98,7 @@ class Connection(private val context: Context) : IConnection {
                 sendInternal(cd.device, payload)
             }
         } catch (e: Exception) {
-            Log.d("stdout", "failed to send: $e")
+            Napier.d("failed to send: $e")
             throw e
         }
     }
@@ -123,8 +123,7 @@ class Connection(private val context: Context) : IConnection {
             // First inspect the status to make sure this
             // was a SUCCESS. If not then the status will indicate why there
             // was an issue receiving the message from the Connect IQ application.
-            Log.d(
-                "stdout",
+            Napier.d(
                 "mDeviceAppMessageListener():" + device + ": " + status.name + " " + messageData
             )
             try {
@@ -139,7 +138,7 @@ class Connection(private val context: Context) : IConnection {
                 }
             } catch (t: Throwable) {
                 // exceptions from within the callback crash the app, don't do that
-                Log.d("stdout", "failed $t");
+                Napier.d("failed $t");
             }
         }
 
@@ -159,18 +158,17 @@ class Connection(private val context: Context) : IConnection {
                     override fun onApplicationInfoReceived(
                         iqApp: IQApp,
                     ) {
-                        Log.d(
-                            "stdout",
+                        Napier.d(
                             "app info: " + iqApp.version() + " " + iqApp.displayName + " " + iqApp.status + " " + iqApp.applicationId
                         )
 
                         continuation.resume(AppInfo(iqApp.version())) {
-                            Log.d("stdout", "cancelled whilst resuming")
+                            Napier.d("cancelled whilst resuming")
                         }
                     }
 
                     override fun onApplicationNotInstalled(var1: String) {
-                        Log.d("stdout", "app info not installed: " + var1)
+                        Napier.d("app info not installed: " + var1)
                         continuation.resumeWithException(RuntimeException(var1))
                     }
                 })
@@ -196,14 +194,14 @@ class Connection(private val context: Context) : IConnection {
                         var2: IQApp,
                         status: ConnectIQ.IQOpenApplicationStatus
                     ) {
-                        Log.d("stdout", "app open response: " + var1 + " " + var2 + " " + status)
+                        Napier.d("app open response: " + var1 + " " + var2 + " " + status)
 
                         // garmin likes to double complete things
                         if (!completed) {
                             // we get PROMPT_NOT_SHOWN_ON_DEVICE if the app is already open, so mark it as success
                             if (status == ConnectIQ.IQOpenApplicationStatus.PROMPT_SHOWN_ON_DEVICE || status == ConnectIQ.IQOpenApplicationStatus.PROMPT_NOT_SHOWN_ON_DEVICE) {
                                 continuation.resume(Unit) {
-                                    Log.d("stdout", "cancelled whilst resuming")
+                                    Napier.d("cancelled whilst resuming")
                                 }
                             } else {
                                 continuation.resumeWithException(RuntimeException("failed to open app $status"))
@@ -271,8 +269,7 @@ class Connection(private val context: Context) : IConnection {
                     app: IQApp,
                     status: IQMessageStatus
                 ) {
-                    Log.d(
-                        "stdout",
+                    Napier.d(
                         "onMessageStatus device: " + device.toString() + " app: " + app.toString() + " status: " + status.name
                     )
                     if (completed) {
@@ -285,9 +282,9 @@ class Connection(private val context: Context) : IConnection {
                     }
 
                     completed = true
-                    Log.d("stdout", "onMessageStatus: reciver.send")
+                    Napier.d("onMessageStatus: reciver.send")
                     continuation.resume(Unit) {
-                        Log.d("stdout", "cancelled whilst resuming")
+                        Napier.d("cancelled whilst resuming")
                     }
                 }
             })

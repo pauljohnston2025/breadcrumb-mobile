@@ -1,6 +1,6 @@
 package com.paul.infrastructure.service
 
-import android.util.Log
+import io.github.aakira.napier.Napier
 import androidx.compose.material.SnackbarHostState
 import com.paul.domain.GpxRoute
 import com.paul.protocol.todevice.Point
@@ -22,7 +22,7 @@ data class GpxFile(
         var points = emptyList<GpxPoint>()
         if (gpx.tracks.size != 0) {
             val track = gpx.tracks[0]
-            Log.d("stdout", "loading points for ${track.trackName}")
+            Napier.d("loading points for ${track.trackName}")
             if (track.trackSegments.size < 1) {
                 snackbarHostState.showSnackbar("failed to get segments")
                 return null
@@ -32,10 +32,10 @@ data class GpxFile(
             points = segment.trackPoints
         } else if (gpx.routes.size != 0) {
             val route = gpx.routes[0]
-            Log.d("stdout", "loading points for ${route.routeName}")
+            Napier.d("loading points for ${route.routeName}")
             points = route.routePoints
         } else {
-            Log.d("stdout", "failed to get track or route")
+            Napier.d("failed to get track or route")
             return null
         }
 

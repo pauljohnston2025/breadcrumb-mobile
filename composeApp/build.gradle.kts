@@ -55,6 +55,7 @@ kotlin {
             implementation(libs.ktor.client.logging)
             implementation(libs.ktor.client.resources)
             implementation(libs.logback.classic) // Required for logging in Ktor
+            implementation(libs.napier)
         }
     }
 }
