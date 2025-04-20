@@ -115,7 +115,7 @@ class TileServerRepo(private val webServerController: WebServerController) {
         settings.putString(TILE_SERVER_KEY, tileServer.url)
 
         // should probably be driven from event from currentServerFlow, but oh well
-        val req = ChangeTileServer(tileServer = tileServer.url)
+        val req = ChangeTileServer(tileServer = tileServer)
         val response = client.post(req) {
             contentType(ContentType.Application.Json) // Set content type
             setBody(req)
@@ -153,5 +153,14 @@ class TileServerRepo(private val webServerController: WebServerController) {
         var newList = availableServers.value.toMutableList()
         newList.removeIf { it.isCustom && it.title == tileServer.title }
         availableServers.emit(newList.toList())
+    }
+
+    fun nameFromId(id: String): String? {
+        val tileServer = availableServers.value.find { it.id == id }
+        if (tileServer == null) {
+            return null
+        }
+
+        return tileServer.title
     }
 }

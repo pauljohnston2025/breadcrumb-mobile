@@ -18,5 +18,6 @@ data class TileServerInfo(
     val url: String,
     val tileLayerMin: Int,
     val tileLayerMax: Int,
-    val isCustom: Boolean = false // Flag to identify user-added servers
+    val isCustom: Boolean = false, // Flag to identify user-added servers
+    val id: String = title, // should probably be a uuid, but we want the file system to be readable for now (if the name changes on custom servers then we will have to re-download tiles, not great but should be fairly rare)
 )

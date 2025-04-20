@@ -1,5 +1,6 @@
 package com.paul.infrastructure.repositories
 
+import com.paul.domain.TileServerInfo
 import com.paul.infrastructure.web.LoadTileRequest
 import com.paul.infrastructure.web.LoadTileResponse
 import com.paul.protocol.todevice.Colour
@@ -20,5 +21,5 @@ interface ITileRepository {
     }
 
     suspend fun getTile(req: LoadTileRequest): LoadTileResponse
-    fun setTileServer(tileServer: String)
+    fun setTileServer(tileServer: TileServerInfo)
 }

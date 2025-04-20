@@ -84,8 +84,7 @@ class FileHelper(
         getContentLauncher!!.launch(arrayOf("*"))
     }
 
-    override suspend fun getFileName(fullName: String) : String?
-    {
+    override suspend fun getFileName(fullName: String): String? {
         val uri = Uri.parse(fullName)
         if (uri.scheme == "file") {
             return uri.lastPathSegment
@@ -113,4 +112,74 @@ class FileHelper(
         require(searchCompletion != null)
         searchCompletion!!(uri)
     }
+
+    override suspend fun localDirectorySize(directory: String): Long {
+        return getDirectorySize(File(context.filesDir, directory))
+    }
+
+    private fun getDirectorySize(directory: File): Long {
+        var totalSize: Long = 0
+        // Check if it's a valid, readable directory
+        if (!directory.exists() || !directory.isDirectory || !directory.canRead()) {
+            return 0L
+        }
+
+        // List contents, handle potential null (e.g., permission issues)
+        val files = directory.listFiles()
+        files?.forEach { file ->
+            totalSize += if (file.isDirectory) {
+                getDirectorySize(file) // Recursive call for subdirectories
+            } else {
+                if (file.exists() && file.canRead()) {
+                    file.length() // Add file size
+                } else {
+                    0L // Skip unreadable/non-existent files
+                }
+            }
+        }
+        return totalSize
+    }
+
+    override suspend fun deleteDir(directory: String) {
+        File(context.filesDir, directory).deleteRecursively()
+    }
+
+    override suspend fun delete(file: String) {
+        File(context.filesDir, file).delete()
+    }
+
+    override suspend fun localContentsSize(directoryPath: String): Map<String, Long> =
+        withContext(Dispatchers.IO) {
+            val directory = File(context.filesDir, directoryPath)
+
+            // Basic validation
+            if (!directory.exists() || !directory.isDirectory || !directory.canRead()) {
+                Napier.e("Directory is invalid or not readable: $directoryPath")
+                return@withContext mapOf() // Indicate error or invalid path
+            }
+
+            val result = mutableMapOf<String, Long>()
+            val files = directory.listFiles()
+
+            if (files == null) {
+                Napier.e("Failed to list files, check permissions for: $directoryPath")
+                return@withContext mapOf() // Could be a permission issue
+            }
+
+            files.forEach { file ->
+                try {
+                    val size = if (file.isDirectory) {
+                        getDirectorySize(file)
+                    } else {
+                        if (file.exists() && file.canRead()) file.length() else 0L
+                    }
+
+                    result.put(file.name, size)
+                } catch (e: Exception) {
+                    Napier.e("Error processing file: ${file.path}", e)
+                }
+            }
+
+            result
+        }
 }

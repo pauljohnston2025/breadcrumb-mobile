@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import androidx.core.graphics.blue
 import androidx.core.graphics.green
 import androidx.core.graphics.red
+import com.paul.domain.TileServerInfo
 import com.paul.infrastructure.repositories.ITileRepository
 import com.paul.infrastructure.repositories.TileServerRepo.Companion.getTileServerOnStart
 import com.paul.infrastructure.service.IFileHelper
@@ -32,9 +33,9 @@ class TileRepository(
 
     private val client = KtorClient.client // Get the singleton client instance
 
-    private var tileServer = getTileServerOnStart().url
+    private var tileServer = getTileServerOnStart()
 
-    override fun setTileServer(tileServer: String)
+    override fun setTileServer(tileServer: TileServerInfo)
     {
         this.tileServer = tileServer
         // todo: nuke local tile cache?
@@ -51,13 +52,13 @@ class TileRepository(
 
 //        val brisbaneUrl = "https://a.tile.opentopomap.org/11/1894/1186.png"
 //        var tileUrl = brisbaneUrl;
-        val tileUrl = tileServer
+        val tileUrl = tileServer.url
             .replace("{x}", "${x}")
             .replace("{y}", "${y}")
             .replace("{z}", "${req.z}")
         Napier.d("Loading tile $tileUrl")
 
-        val fileName = "tiles/$tileServer/${req.z}/${x}/${y}.png"
+        val fileName = "tiles/${tileServer.id}/${req.z}/${x}/${y}.png"
 
         val bitmaps: List<Bitmap>
         try {

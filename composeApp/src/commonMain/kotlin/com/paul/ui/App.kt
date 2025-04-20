@@ -34,6 +34,7 @@ import com.paul.infrastructure.web.WebServerController
 import com.paul.viewmodels.DebugViewModel
 import com.paul.viewmodels.RoutesViewModel
 import com.paul.viewmodels.StartViewModel
+import com.paul.viewmodels.StorageViewModel
 import com.paul.viewmodels.Settings as SettingsViewModel
 import kotlinx.coroutines.launch
 import com.paul.viewmodels.DeviceSelector as DeviceSelectorModel
@@ -212,13 +213,14 @@ fun App(
                     }
 
                     composable(Screen.Storage.route) {
-                        // Placeholder for your Storage Screen
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("Storage Screen Placeholder")
+                        val storageViewModel = viewModel {
+                            StorageViewModel(
+                                fileHelper,
+                                startViewModel.routeRepo,
+                            )
                         }
+                        storageViewModel.refresh()
+                        StorageScreen(settingsViewModel.tileServerRepo, storageViewModel)
                     }
 
                     composable(Screen.Debug.route) {

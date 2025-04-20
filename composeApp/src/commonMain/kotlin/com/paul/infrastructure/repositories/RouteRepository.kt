@@ -84,13 +84,13 @@ class RouteRepository(
         }
     }
 
-    fun deleteRoute(routeId: String) {
-        // todo: delete the file too
+    suspend fun deleteRoute(routeId: String) {
+        fileHelper.delete("routes/${routeId}")
         routes.removeIf { it.id == routeId }
         saveRoutes()
     }
 
-    fun updateRoute(routeId: String, newName: String) {
+    suspend fun updateRoute(routeId: String, newName: String) {
         val current = getRouteEntry(routeId)
         if (current == null) {
             return
@@ -114,5 +114,11 @@ class RouteRepository(
 
     private fun saveRoutes() {
         settings.putString(ROUTES_KEY, Json.encodeToString(routes.toList().takeLast(100)))
+    }
+
+    suspend fun deleteAll() {
+        fileHelper.deleteDir("routes")
+        routes.clear()
+        saveRoutes()
     }
 }
