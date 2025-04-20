@@ -55,18 +55,18 @@ fun DebugScreen(viewModel: DebugViewModel) {
 
 @Composable
 fun LogItem(logEntry: LogEntry) {
-    val textColor = when (logEntry.level) {
-        LogLevel.VERBOSE.name -> Color.Gray
-        LogLevel.DEBUG.name -> Color.Blue.copy(alpha = 0.8f)
-        LogLevel.INFO.name -> Color.Green.copy(alpha = 0.8f)
-        LogLevel.WARNING.name -> Color.Magenta.copy(red = 0.8f, green = 0.5f) // Orange-ish
-        LogLevel.ERROR.name, LogLevel.ASSERT.name -> Color.Red
-        else -> Color.Black
-    }
+    // colours were hard to read, and log level is already included, maye we should do char instead in the logEntry.toString() method?
+//    val logLevelChar = when (logEntry.level) {
+//        LogLevel.VERBOSE.name -> "V"
+//        LogLevel.DEBUG.name -> "D"
+//        LogLevel.INFO.name -> "I"
+//        LogLevel.WARNING.name -> "W"
+//        LogLevel.ERROR.name -> "E"
+//        else -> "U"
+//    }
 
     Text(
-        text = logEntry.toString(), // Use the formatted string from LogEntry
-        color = textColor,
+        text = /* logLevelChar + ": " +*/  logEntry.toString(), // Use the formatted string from LogEntry
         fontSize = 11.sp, // Smaller font size for logs
         fontFamily = FontFamily.Monospace, // Monospace looks good for logs
         modifier = Modifier.padding(vertical = 4.dp)
