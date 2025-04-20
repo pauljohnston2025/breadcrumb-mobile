@@ -140,6 +140,12 @@ fun DeviceSettings(
                         uiModeProp
                     )
                 }
+                val elevationModeProp = findProp("elevationMode")
+                if (elevationModeProp != null) item(key = elevationModeProp.id) {
+                    PropertyEditorResolver(
+                        elevationModeProp
+                    )
+                }
                 val scaleProp = findProp("scale")
                 if (scaleProp != null) item(key = scaleProp.id) { PropertyEditorResolver(scaleProp) }
                 val recalculateItervalSProp = findProp("recalculateItervalS")
@@ -205,6 +211,10 @@ fun DeviceSettings(
                                 if (tileUrlProp != null) PropertyEditorResolver(tileUrlProp)
                                 val tileSizeProp = findProp("tileSize")
                                 if (tileSizeProp != null) PropertyEditorResolver(tileSizeProp)
+                                val fullTileSizeProp = findProp("fullTileSize")
+                                if (fullTileSizeProp != null) PropertyEditorResolver(fullTileSizeProp)
+                                val scaledTileSizeProp = findProp("scaledTileSize")
+                                if (scaledTileSizeProp != null) PropertyEditorResolver(scaledTileSizeProp)
                                 val tileLayerMaxProp = findProp("tileLayerMax")
                                 if (tileLayerMaxProp != null) PropertyEditorResolver(
                                     tileLayerMaxProp

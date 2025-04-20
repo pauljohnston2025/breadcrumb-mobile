@@ -127,6 +127,10 @@ val listOptionsMapping: Map<String, List<ListOption>> = mapOf(
         ListOption(2, "Buffered Without Rotations - performance"),
         ListOption(3, "No Buffer No Rotations - low memory")
     ),
+    "elevationMode" to listOf(
+        ListOption(0, "Stacked"),
+        ListOption(1, "Ordered Routes"),
+    ),
     "mapChoice" to listOf(
         ListOption(0, "Custom"),
         ListOption(1, "Companion App"),
@@ -146,7 +150,6 @@ val listOptionsMapping: Map<String, List<ListOption>> = mapOf(
         ListOption(15, "Esri - World Navigation Charts"),
         ListOption(16, "Esri - World Physical Map"),
         ListOption(17, "Open Street Map - Cyclosm"),
-
     )
 )
 
@@ -160,7 +163,9 @@ val labelOverrides: Map<String, String> = mapOf(
 
 val descriptions: Map<String, String> = mapOf(
     "mapEnabled" to "Choose these values wisely. Too big = crash, too small = crash or slow performance.",
-    "tileSize" to "Should be a multiple of 256 for best results.",
+    "tileSize" to "Tile size should be a multiple of Scaled Tile Size for best results. The tile size in pixels loaded from the companion app or other source. Should be equal to Scaled Tile Size if using a template url.",
+    "fullTileSize" to "Should usually be 256. The size of the tiles on the remote tile server",
+    "scaledTileSize" to "The tile size to fetch images from the web (or companion app). Setting this to something like 128 will result in 4 times the performance (compared to 256), since the images we need to download are much smaller. Smaller sizes such as 128 come at the cost of resolution as each pixel of the downloaded tile will be 4 pixels on the screen (at full resolution). Smaller values are much faster, but may not look as nice (slightly blurry)",
     "tileUrl" to "Tile url should be 'http://127.0.0.1:8080' for companion app, it can also be a template.\neg. 'https://a.tile.opentopomap.org/{z}/{x}/{y}.png'.\nTile size should generally be 256 if using a template.",
 )
 
@@ -207,9 +212,12 @@ class DeviceSettings(
                     "uiMode",
                     "alertType",
                     "renderMode",
+                    "elevationMode",
                     "zoomAtPaceMode",
                     "metersAroundUser",
                     "tileSize",
+                    "fullTileSize",
+                    "scaledTileSize",
                     "tileLayerMax",
                     "tileLayerMin",
                     "tileCacheSize",

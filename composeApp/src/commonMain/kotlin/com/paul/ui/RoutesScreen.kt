@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.navigation.NavController
 import com.paul.domain.RouteEntry
+import com.paul.infrastructure.service.formatBytes
 import kotlinx.datetime.TimeZone.Companion.currentSystemDefault
 import kotlinx.datetime.toLocalDateTime
 import okhttp3.internal.wait
@@ -175,6 +176,11 @@ private fun RouteListItem(
             .fillMaxWidth()
     ) {
         Column {
+            Text(
+                text = "Size: ${formatBytes(route.sizeBytes)}", // Display type or other info
+                style = MaterialTheme.typography.caption,
+                maxLines = 1
+            )
             Text(
                 text = "Type: ${route.type}", // Display type or other info
                 style = MaterialTheme.typography.caption,

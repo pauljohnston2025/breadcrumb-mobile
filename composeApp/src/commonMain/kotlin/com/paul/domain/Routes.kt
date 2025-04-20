@@ -62,4 +62,5 @@ data class RouteEntry(
     val name: String,
     val type: RouteType,
     val createdAt: Instant,
+    val sizeBytes: Long,
 )

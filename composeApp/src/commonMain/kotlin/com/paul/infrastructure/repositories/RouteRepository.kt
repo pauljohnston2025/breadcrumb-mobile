@@ -96,7 +96,7 @@ class RouteRepository(
             return
         }
         deleteRoute(routeId) // we need to replace it with a new object, or we will not be able to render
-        routes.add(RouteEntry(routeId, newName, current.type, current.createdAt))
+        routes.add(RouteEntry(routeId, newName, current.type, current.createdAt, current.sizeBytes))
         saveRoutes()
         saveRoutes()
     }
@@ -108,7 +108,7 @@ class RouteRepository(
             is CoordinatesRoute -> RouteType.COORDINATES
             else -> throw RuntimeException("unknown route type")
         }
-        routes.add(RouteEntry(route.id, route.name(), type, Clock.System.now()))
+        routes.add(RouteEntry(route.id, route.name(), type, Clock.System.now(), route.rawBytes().size.toLong()))
         saveRoutes()
     }
 
