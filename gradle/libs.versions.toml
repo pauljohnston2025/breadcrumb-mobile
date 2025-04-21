@@ -1,5 +1,6 @@
 [versions]
 agp = "8.2.2"
+skiko = "0.9.4"
 android-compileSdk = "34"
 android-minSdk = "26"
 android-targetSdk = "34"
@@ -55,6 +56,8 @@ ktor-client-cio-jvm = { module = "io.ktor:ktor-client-cio-jvm", version.ref = "k
 ktor-client-okhttp =  { module = "io.ktor:ktor-client-okhttp", version.ref = "ktorServer" }
 napier =  { module = "io.github.aakira:napier", version.ref = "napier" }
 uuid =  { module = "com.benasher44:uuid", version = "0.8.4"}
+#skiko-android =  { module = "org.jetbrains.skiko:skiko-android", version.ref = "skiko"}
+skiko-core =  { module = "org.jetbrains.skiko:skiko", version.ref = "skiko"}
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }

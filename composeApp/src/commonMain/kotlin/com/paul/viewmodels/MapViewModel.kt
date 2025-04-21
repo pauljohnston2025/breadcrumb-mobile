@@ -13,6 +13,7 @@ import com.paul.protocol.todevice.Route
 import com.paul.ui.Screen
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update // Import update extension
@@ -88,8 +89,9 @@ class MapViewModel(
     }
 
     suspend fun provideTileData(x: Int, y: Int, z: Int): ByteArray? {
-        // ... (no changes needed here for profile)
-        return tileRepository.getTile(x, y, z)
+        return viewModelScope.async(Dispatchers.IO) {
+            tileRepository.getTile(x, y, z)
+        }.await()
     }
 
     // Called by the user to start seeding an area

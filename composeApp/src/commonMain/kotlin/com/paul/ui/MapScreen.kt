@@ -44,6 +44,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.paul.composables.MapTilerComposable
+import com.paul.infrastructure.service.GeoPosition
 import com.paul.protocol.todevice.Point
 import com.paul.protocol.todevice.Route
 import com.paul.viewmodels.MapViewModel
@@ -70,11 +72,19 @@ fun MapScreen(viewModel: MapViewModel) {
         Box(modifier = Modifier
             .weight(1f)
             .fillMaxWidth()) {
-            // *** Placeholder for the actual Map Library Composable ***
-            MapLibraryComposable(
-                modifier = Modifier.fillMaxSize(),
-                tileProvider = { x, y, z -> viewModel.provideTileData(x, y, z) },
-                routeToDisplay = currentRoute,
+            MapTilerComposable(
+                modifier = Modifier.fillMaxSize(), // Or Modifier.weight(1f).fillMaxWidth() etc.
+                initialCenter = GeoPosition( // Optional: Pass initial center from ViewModel
+                    viewModel.mapCenter.collectAsState().value.latitude.toDouble(),
+                    viewModel.mapCenter.collectAsState().value.longitude.toDouble()
+                ),
+                initialZoom = viewModel.mapZoom.collectAsState().value.roundToInt(), // Optional
+                tileProvider = { x, y, z ->
+                    // Call your ViewModel's function
+                    viewModel.provideTileData(x, y, z)
+                },
+                routeToDisplay = currentRoute // Pass the route state
+                // Customize routeColor, zoom levels etc. if needed
             )
 
             // --- Map Overlays / Buttons ---
@@ -144,36 +154,6 @@ fun MapScreen(viewModel: MapViewModel) {
         }
     }
 }
-
-// *** Placeholder - Replace with actual Map Library Composable ***
-@Composable
-fun MapLibraryComposable(
-    modifier: Modifier = Modifier,
-    tileProvider: suspend (x: Int, y: Int, z: Int) -> ByteArray?, // How tiles are fetched
-    routeToDisplay: Route? // Route to draw
-    // ... other state like viewport, callbacks ...
-) {
-    // This is where you integrate the chosen KMP map library (MapLibre, Moko, etc.)
-    // The implementation heavily depends on the library.
-    // - You'll configure its tile source based on tileServerInfo (maybe URL template or custom provider).
-    // - You'll use the library's API to draw a polyline using routeToDisplay.points coordinates.
-    // - You'll handle map interactions (zoom, pan).
-
-    Box(modifier = modifier.background(Color.LightGray)) { // Simple placeholder
-        Text(
-            "Map View Placeholder",
-            modifier = Modifier.align(Alignment.Center)
-        )
-        // Draw route placeholder (very basic)
-        routeToDisplay?.let {
-            // Use library's line drawing feature here
-            Text("Drawing route: ${it.name}", Modifier
-                .align(Alignment.BottomStart)
-                .padding(4.dp))
-        }
-    }
-}
-
 
 // Data class to hold calculated chart bounds and data
 private data class ChartData(

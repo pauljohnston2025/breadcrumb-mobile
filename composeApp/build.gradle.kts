@@ -27,6 +27,7 @@ kotlin {
             implementation("com.garmin.connectiq:ciq-companion-app-sdk:2.2.0@aar")
             implementation(libs.ktor.client.cio.jvm)
             implementation(libs.ktor.client.okhttp)
+//            implementation(libs.skiko.android)
         }
         commonMain.dependencies {
             implementation(compose.runtime)
@@ -57,6 +58,7 @@ kotlin {
             implementation(libs.logback.classic) // Required for logging in Ktor
             implementation(libs.napier)
             implementation(libs.uuid)
+            implementation(libs.skiko.core)
         }
     }
 }
