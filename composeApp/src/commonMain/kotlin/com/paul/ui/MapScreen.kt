@@ -77,16 +77,6 @@ fun MapScreen(viewModel: MapViewModel) {
             MapTilerComposable(
                 modifier = Modifier.fillMaxSize(), // Or Modifier.weight(1f).fillMaxWidth() etc.
                 viewModel = viewModel,
-                onMapCenterChange = { gp ->
-                    viewModel.centerMapOn(
-                        Point(
-                            gp.latitude.toFloat(),
-                            gp.longitude.toFloat(),
-                            0f
-                        )
-                    )
-                },
-                onZoomChange = { z -> viewModel.setMapZoom(z) },
                 routeToDisplay = currentRoute
             )
 

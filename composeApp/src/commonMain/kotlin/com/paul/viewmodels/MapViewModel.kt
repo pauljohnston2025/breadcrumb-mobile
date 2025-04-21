@@ -10,6 +10,7 @@ import com.paul.composables.byteArrayToImageBitmap
 import com.paul.domain.TileServerInfo
 import com.paul.infrastructure.repositories.ITileRepository
 import com.paul.infrastructure.repositories.TileServerRepo
+import com.paul.infrastructure.service.GeoPosition
 import com.paul.infrastructure.service.TileId
 import com.paul.protocol.todevice.Point
 import com.paul.protocol.todevice.Route
@@ -97,40 +98,91 @@ class MapViewModel(
                         if (!isActive) return@launch // Check cancellation *after* conversion
 
                         // Update cache and state flow (ensure thread safety if needed, StateFlow is safe)
-                        _tileBitmapCache[tileId] = bitmapResult
-                        _tileCacheState.value = _tileBitmapCache.toMap() // Emit new map state
+                        launch(Dispatchers.Main) {
+                            _tileBitmapCache[tileId] = bitmapResult
+                            _tileCacheState.value = _tileBitmapCache.toMap() // Emit new map state
+                        }.join()
 
                     } catch (e: CancellationException) {
                         // println("VM Job cancelled for $tileId")
                         // Don't update cache
                     } catch (e: Exception) {
                         // println("VM Error $tileId: ${e.message}")
-                        _tileBitmapCache[tileId] = null // Cache error state
-                        _tileCacheState.value = _tileBitmapCache.toMap()
+                        launch(Dispatchers.Main) {
+                            _tileBitmapCache[tileId] = null // Cache error state
+                            _tileCacheState.value = _tileBitmapCache.toMap()
+                        }.join()
                     } finally {
                         // Always remove from loading state and jobs map
-                        _loadingTiles.remove(tileId)
-                        loadingJobs.remove(tileId)
+                        launch(Dispatchers.Main) {
+                            _loadingTiles.remove(tileId)
+                            loadingJobs.remove(tileId)
+                        }.join()
                         // _loadingTilesState.value = _loadingTiles.toSet() // Emit loading state change
                     }
                 }
-                loadingJobs[tileId] = job
+                viewModelScope.launch(Dispatchers.Main) {
+                    loadingJobs[tileId] = job
+                }
             }
         }
     }
 
     fun displayRoute(route: Route) {
         viewModelScope.launch(Dispatchers.Main) {
+            // Navigate if necessary
             val current = navController.currentDestination
             if (current?.route != Screen.Map.route) {
                 navController.navigate(Screen.Map.route)
             }
 
-            _currentRoute.value = route
-            _isElevationProfileVisible.value =
-                false // Ensure profile is hidden when new route loads
-            route.route.firstOrNull()?.let { centerMapOn(it) }
+            _currentRoute.value = route // Set the route
+            _isElevationProfileVisible.value = false
+
+            // --- Calculate geographic center of the route ---
+            val boundingBoxCenter = calculateRouteCenter(route)
+
+            // Set the map center initially to the route's geographic center
+            // The zoom will be adjusted by the Composable once its size is known
+            boundingBoxCenter?.let { centerGeo ->
+                _mapCenter.value = Point(
+                    centerGeo.latitude.toFloat(),
+                    centerGeo.longitude.toFloat(),
+                    0f // Assuming altitude isn't needed for centering
+                )
+                // Keep existing zoom or reset to a default? Let's keep it for now.
+                // Zoom adjustment will happen in LaunchedEffect in the Composable.
+            } ?: run {
+                // Fallback: Center on the first point if center calculation fails (e.g., empty route)
+                route.route.firstOrNull()?.let { centerMapOn(it) }
+            }
         }
+    }
+
+    private fun calculateRouteCenter(route: Route): GeoPosition? {
+        if (route.route.isEmpty()) return null
+        if (route.route.size == 1) return GeoPosition(
+            route.route.first().latitude.toDouble(),
+            route.route.first().longitude.toDouble()
+        )
+
+        var minLat = route.route.first().latitude.toDouble()
+        var maxLat = route.route.first().latitude.toDouble()
+        var minLon = route.route.first().longitude.toDouble()
+        var maxLon = route.route.first().longitude.toDouble()
+
+        route.route.drop(1).forEach { point ->
+            minLat = min(minLat, point.latitude.toDouble())
+            maxLat = max(maxLat, point.latitude.toDouble())
+            minLon = min(minLon, point.longitude.toDouble())
+            maxLon = max(maxLon, point.longitude.toDouble())
+        }
+
+        // Simple midpoint calculation (doesn't handle longitude wrapping well, but ok for most routes)
+        val centerLat = minLat + (maxLat - minLat) / 2.0
+        val centerLon = minLon + (maxLon - minLon) / 2.0
+
+        return GeoPosition(centerLat, centerLon)
     }
 
     fun clearRoute() {

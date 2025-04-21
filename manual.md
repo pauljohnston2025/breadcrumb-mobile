@@ -62,7 +62,26 @@ All the settings from connectiq are available, and the routes can be edited (unl
 
 # Map View Page
 
-Feature comming soon - will support pre downloading tiles for a selected area, and possibly previewing routes on the app before sending to watch.
+A map view for displaying the routes that have been imported, preview a route before sending it to your device. 
+
+Feature still in beta:
+Known issues:
+* map panning does not work
+
+Features to come:
+* cache tile layers around a route
+* better ui
+* cache tile layers for any panned to area
+* tile server attribution
+* maybe display route name on the map like the watch does
+
+What does work:
+* zooming in and out
+* displaying route on map
+
+![](images/manual/mapview-noroute.png)
+![](images/manual/mapview-nolevation.png)
+![](images/manual/mapview-elevation.png)
 
 ---
 

@@ -29,76 +29,202 @@ import com.paul.infrastructure.service.GeoPosition
 import com.paul.infrastructure.service.TileId
 import com.paul.infrastructure.service.TileInfo
 import com.paul.infrastructure.service.geoToScreenPixel
+import com.paul.infrastructure.service.getScaleFactor
 import com.paul.infrastructure.service.latLonToTileXY
 import com.paul.infrastructure.service.screenPixelToGeo
 import com.paul.infrastructure.service.worldPixelToGeo
+import com.paul.protocol.todevice.Point
 import com.paul.protocol.todevice.Route
 import com.paul.viewmodels.MapViewModel
 import kotlinx.coroutines.*
+import kotlin.math.abs
+import kotlin.math.min
+import kotlin.math.max
 import kotlin.math.roundToInt
 
 @Composable
 fun MapTilerComposable(
     modifier: Modifier = Modifier,
-    viewModel: MapViewModel, // Inject or get ViewModel instance
+    viewModel: MapViewModel,
     minZoom: Int = 1,
     maxZoom: Int = 18,
-    onMapCenterChange: (GeoPosition) -> Unit, // Callback to update ViewModel state
-    onZoomChange: (Int) -> Unit,             // Callback to update ViewModel state
     routeToDisplay: Route? = null,
     routeColor: Color = Color.Blue,
-    routeStrokeWidth: Float = 5f
+    routeStrokeWidth: Float = 5f,
+    fitToBoundsPaddingPercent: Float = 0.1f // e.g., 10% padding around the route
 ) {
     var viewportSize by remember { mutableStateOf(IntSize.Zero) }
 
-    // Read cache and loading state from ViewModel
-    val tileCache by viewModel.tileCacheState.collectAsState()
-    // val loadingTiles by viewModel.loadingTilesState.collectAsState() // If exposing loading state
+    // Read state from ViewModel
+    val mapCenterPoint by viewModel.mapCenter.collectAsState()
+    val currentZoomLevel by viewModel.mapZoom.collectAsState()
 
-    // Calculate visible tiles based on props passed from VM (or local state if managing here)
-    val mapCenter by viewModel.mapCenter.collectAsState()
-    val mapCenterGeo = GeoPosition(mapCenter.latitude.toDouble(), mapCenter.longitude.toDouble())
-    val zoomLevel by viewModel.mapZoom.collectAsState()
-    val visibleTiles by remember(mapCenterGeo, zoomLevel, viewportSize) { // Key calculation
+    // Convert ViewModel center Point to GeoPosition for calculations
+    val currentMapCenterGeo = remember(mapCenterPoint) {
+        GeoPosition(mapCenterPoint.latitude.toDouble(), mapCenterPoint.longitude.toDouble())
+    }
+
+    val tileCache by viewModel.tileCacheState.collectAsState()
+
+    val visibleTiles by remember(currentMapCenterGeo, currentZoomLevel, viewportSize) {
         derivedStateOf {
             if (viewportSize == IntSize.Zero) emptyList() else {
-                calculateVisibleTiles(mapCenterGeo, zoomLevel, viewportSize)
+                calculateVisibleTiles(currentMapCenterGeo, currentZoomLevel, viewportSize)
             }
         }
     }
 
-    // Effect to *request* tiles from ViewModel
+    // Effect to request tiles from ViewModel
     LaunchedEffect(visibleTiles) {
         val visibleIds = visibleTiles.map { it.id }.toSet()
         viewModel.requestTilesForViewport(visibleIds)
     }
+
+    // === Effect to Zoom/Center on Route Change ===
+    LaunchedEffect(routeToDisplay, viewportSize) {
+        // Run calculation only when we have a route AND the viewport has been measured
+        if (routeToDisplay != null && routeToDisplay.route.isNotEmpty() && viewportSize != IntSize.Zero) {
+            // 1. Calculate Bounding Box
+            var minLat = routeToDisplay.route.first().latitude.toDouble()
+            var maxLat = minLat
+            var minLon = routeToDisplay.route.first().longitude.toDouble()
+            var maxLon = minLon
+
+            routeToDisplay.route.drop(1).forEach { point ->
+                minLat = min(minLat, point.latitude.toDouble())
+                maxLat = max(maxLat, point.latitude.toDouble())
+                minLon = min(minLon, point.longitude.toDouble())
+                maxLon = max(maxLon, point.longitude.toDouble())
+            }
+
+            // Handle single point case (just use VM center, maybe zoom in?)
+            if (minLat == maxLat && minLon == maxLon) {
+                viewModel.setMapZoom(
+                    (currentZoomLevel + 2).coerceIn(
+                        minZoom,
+                        maxZoom
+                    )
+                ) // Example: Zoom in 2 levels
+                return@LaunchedEffect // Exit effect
+            }
+
+            // 2. Calculate Target Center (already done mostly in VM, but recalculate for precision)
+            val targetCenterLat = minLat + (maxLat - minLat) / 2.0
+            val targetCenterLon = minLon + (maxLon - minLon) / 2.0
+            val targetCenterGeo = GeoPosition(targetCenterLat, targetCenterLon)
+
+            // 3. Calculate Target Zoom
+            var targetZoom = maxZoom // Start checking from max zoom level
+            while (targetZoom > minZoom) {
+                val scale = getScaleFactor(targetZoom)
+
+                // Calculate pixel coordinates of bounds relative to the *target center*
+                val topLeftScreen = geoToScreenPixel(
+                    GeoPosition(maxLat, minLon),
+                    targetCenterGeo,
+                    targetZoom,
+                    viewportSize
+                )
+                val bottomRightScreen = geoToScreenPixel(
+                    GeoPosition(minLat, maxLon),
+                    targetCenterGeo,
+                    targetZoom,
+                    viewportSize
+                )
+
+                val routePixelWidth = abs(bottomRightScreen.x - topLeftScreen.x)
+                val routePixelHeight = abs(bottomRightScreen.y - topLeftScreen.y)
+
+                // Check if it fits within the viewport with padding
+                val paddedViewportWidth = viewportSize.width * (1f - fitToBoundsPaddingPercent * 2)
+                val paddedViewportHeight =
+                    viewportSize.height * (1f - fitToBoundsPaddingPercent * 2)
+
+                if (routePixelWidth <= paddedViewportWidth && routePixelHeight <= paddedViewportHeight) {
+                    // This zoom level fits, break the loop
+                    break
+                }
+                targetZoom-- // Try the next lower zoom level
+            }
+            targetZoom = targetZoom.coerceIn(minZoom, maxZoom) // Ensure it's within bounds
+
+
+            // 4. Apply the calculated Center and Zoom via ViewModel functions
+            // Use Dispatchers.Main if state updates require it, though StateFlow should handle it
+            launch(Dispatchers.Main.immediate) {
+                viewModel.centerMapOn(
+                    Point(
+                        targetCenterGeo.latitude.toFloat(),
+                        targetCenterGeo.longitude.toFloat(),
+                        0f
+                    )
+                )
+                viewModel.setMapZoom(targetZoom)
+            }
+        }
+    } // === End of Zoom/Center Effect ===
+
 
     Box(
         modifier = modifier
             .onSizeChanged { viewportSize = it }
             .background(Color.LightGray)
             .pointerInput(Unit) {
-                detectDragGestures { change, dragAmount ->
-                    change.consume()
-                    val currentCenterScreen =
-                        IntOffset(viewportSize.width / 2, viewportSize.height / 2)
-                    val draggedToScreen = currentCenterScreen - IntOffset(
-                        dragAmount.x.roundToInt(),
-                        dragAmount.y.roundToInt()
-                    )
-                    val newCenter =
-                        screenPixelToGeo(draggedToScreen, mapCenterGeo, zoomLevel, viewportSize)
-                    onMapCenterChange(newCenter) // Update ViewModel's center state
-                }
+                detectDragGestures(
+                    onDragEnd = {
+                        // Update VM only on drag end
+                        viewModel.centerMapOn(
+                            Point(
+                                currentMapCenterGeo.latitude.toFloat(),
+                                currentMapCenterGeo.longitude.toFloat(),
+                                0f
+                            )
+                        )
+                    },
+                    onDrag = { change, dragAmount ->
+                        change.consume()
+                        // Update local state for immediate feedback (using previous local state approach)
+                        val currentCenterScreen =
+                            IntOffset(viewportSize.width / 2, viewportSize.height / 2)
+                        val draggedToScreen = currentCenterScreen - IntOffset(
+                            dragAmount.x.roundToInt(),
+                            dragAmount.y.roundToInt()
+                        )
+                        val newCenter = screenPixelToGeo(
+                            draggedToScreen,
+                            currentMapCenterGeo,
+                            currentZoomLevel,
+                            viewportSize
+                        )
+
+                        viewModel.centerMapOn(
+                            Point(
+                                newCenter.latitude.toFloat(),
+                                newCenter.longitude.toFloat(),
+                                0f
+                            )
+                        )
+
+                    }
+                )
             }
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             clipRect {
                 // --- Draw Tiles ---
                 visibleTiles.forEach { tileInfo ->
+                    // Use currentMapCenterGeo and currentZoomLevel from VM state for tile pos
+                    val screenOffset = geoToScreenPixel(
+                        worldPixelToGeo(
+                            tileInfo.id.x.toDouble() / (1 shl currentZoomLevel),
+                            tileInfo.id.y.toDouble() / (1 shl currentZoomLevel)
+                        ),
+                        currentMapCenterGeo,
+                        currentZoomLevel,
+                        viewportSize
+                    )
                     val tileId = tileInfo.id
-                    val imageBitmap = tileCache[tileId] // Read from VM's cache state
-
+                    val imageBitmap = tileCache[tileId]
                     if (tileCache.containsKey(tileId)) {
                         if (imageBitmap != null) {
                             drawImage(
@@ -124,25 +250,20 @@ fun MapTilerComposable(
                 routeToDisplay?.let { route ->
                     if (route.route.size >= 2) {
                         val path = Path()
+                        // Use currentMapCenterGeo and currentZoomLevel from VM state
                         val startPoint = geoToScreenPixel(
-                            geo = GeoPosition(
+                            GeoPosition(
                                 route.route.first().latitude.toDouble(),
                                 route.route.first().longitude.toDouble()
-                            ),
-                            mapCenterGeo = mapCenterGeo,
-                            zoom = zoomLevel,
-                            viewportSize = viewportSize
+                            ), currentMapCenterGeo, currentZoomLevel, viewportSize
                         )
                         path.moveTo(startPoint.x.toFloat(), startPoint.y.toFloat())
                         route.route.drop(1).forEach { point ->
                             val screenPoint = geoToScreenPixel(
-                                geo = GeoPosition(
+                                GeoPosition(
                                     point.latitude.toDouble(),
                                     point.longitude.toDouble()
-                                ),
-                                mapCenterGeo = mapCenterGeo,
-                                zoom = zoomLevel,
-                                viewportSize = viewportSize
+                                ), currentMapCenterGeo, currentZoomLevel, viewportSize
                             )
                             path.lineTo(screenPoint.x.toFloat(), screenPoint.y.toFloat())
                         }
@@ -157,21 +278,30 @@ fun MapTilerComposable(
         }
 
         // --- Simple Zoom Buttons ---
-        Row(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
+        Row( /* ... */) {
             Button(
-                onClick = { onZoomChange((zoomLevel + 1).coerceIn(minZoom, maxZoom)) },
-                enabled = zoomLevel < maxZoom
+                onClick = {
+                    viewModel.setMapZoom(
+                        (currentZoomLevel + 1).coerceIn(
+                            minZoom,
+                            maxZoom
+                        )
+                    )
+                },
+                enabled = currentZoomLevel < maxZoom
             ) {
                 Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Zoom In")
             }
             Button(
-                onClick = { onZoomChange((zoomLevel - 1).coerceIn(minZoom, maxZoom)) },
-                enabled = zoomLevel > minZoom
+                onClick = {
+                    viewModel.setMapZoom(
+                        (currentZoomLevel - 1).coerceIn(
+                            minZoom,
+                            maxZoom
+                        )
+                    )
+                },
+                enabled = currentZoomLevel > minZoom
             ) {
                 Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Zoom Out")
             }
@@ -179,18 +309,17 @@ fun MapTilerComposable(
     }
 }
 
-
-// Helper function to calculate which tiles are visible
+// Helper function calculateVisibleTiles needs slight adjustment if it uses the *local* screenOffset calculation
+// It should probably just return List<TileId> and the drawing loop calculates offset.
+// OR ensure it uses the VM state passed in. Let's assume it uses the passed state:
 private fun calculateVisibleTiles(
-    mapCenterGeo: GeoPosition,
-    zoom: Int,
+    mapCenterGeo: GeoPosition, // Use state from VM
+    zoom: Int,                 // Use state from VM
     viewportSize: IntSize
-): List<TileInfo> {
+): List<TileInfo> { // Keep returning TileInfo for now
+    // ... (implementation remains the same, calculates offset based on passed center/zoom) ...
     if (viewportSize == IntSize.Zero) return emptyList()
-
     val tiles = mutableListOf<TileInfo>()
-
-    // Get the geo coordinates of the corners of the viewport
     val topLeftGeo = screenPixelToGeo(IntOffset(0, 0), mapCenterGeo, zoom, viewportSize)
     val bottomRightGeo = screenPixelToGeo(
         IntOffset(viewportSize.width, viewportSize.height),
@@ -198,32 +327,30 @@ private fun calculateVisibleTiles(
         zoom,
         viewportSize
     )
-
-    // Convert corner geo coordinates to tile indices
     val (minTileX, minTileY) = latLonToTileXY(topLeftGeo.latitude, topLeftGeo.longitude, zoom)
     val (maxTileX, maxTileY) = latLonToTileXY(
         bottomRightGeo.latitude,
         bottomRightGeo.longitude,
         zoom
     )
-
-    // Expand slightly to cover edges fully, clamp to valid tile range
     val n = 1 shl zoom
-    val buffer = 1 // Load 1 extra tile around the edges
+    val buffer = 1
     val startX = (minTileX - buffer).coerceAtLeast(0)
     val startY = (minTileY - buffer).coerceAtLeast(0)
     val endX = (maxTileX + buffer).coerceAtMost(n - 1)
     val endY = (maxTileY + buffer).coerceAtMost(n - 1)
-
     for (x in startX..endX) {
         for (y in startY..endY) {
             val tileId = TileId(x, y, zoom)
-            // Calculate where this tile's top-left corner should be on the screen
-            val tileTopLeftGeo =
-                worldPixelToGeo(x.toDouble() / n, y.toDouble() / n) // Approx geo for tile corner
+            val tileTopLeftGeo = worldPixelToGeo(x.toDouble() / n, y.toDouble() / n)
+            // This screenOffset is calculated based on the *current* VM state
             val screenOffset = geoToScreenPixel(tileTopLeftGeo, mapCenterGeo, zoom, viewportSize)
-
-            tiles.add(TileInfo(id = tileId, screenOffset = screenOffset))
+            tiles.add(
+                TileInfo(
+                    id = tileId,
+                    screenOffset = screenOffset
+                )
+            ) // Include offset here for drawing
         }
     }
     return tiles
