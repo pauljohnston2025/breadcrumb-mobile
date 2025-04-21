@@ -18,7 +18,7 @@ import io.ktor.utils.io.toByteArray
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-abstract class ITileRepository(private val fileHelper: IFileHelper,) {
+abstract class ITileRepository(private val fileHelper: IFileHelper) {
     private val client = KtorClient.client // Get the singleton client instance
 
     private var tileServer = getTileServerOnStart()
@@ -42,16 +42,22 @@ abstract class ITileRepository(private val fileHelper: IFileHelper,) {
     }
 
     abstract suspend fun getWatchTile(req: LoadTileRequest): LoadTileResponse
+
     // gets a full size tile
     suspend fun getTile(x: Int, y: Int, z: Int): ByteArray? {
-        //        val brisbaneUrl = "https://a.tile.opentopomap.org/11/1894/1186.png"
-        //        var tileUrl = brisbaneUrl;
         val tileUrl = tileServer.url
             .replace("{x}", "${x}")
             .replace("{y}", "${y}")
             .replace("{z}", "${z}")
         Napier.d("Loading tile $tileUrl")
 
+        if (z < tileServer.tileLayerMin || z > tileServer.tileLayerMax) {
+            Napier.w("Tile url outsize z layer $tileUrl")
+            return null
+        }
+        //        val brisbaneUrl = "https://a.tile.opentopomap.org/11/1894/1186.png"
+        //        var tileUrl = brisbaneUrl;
+        
         val fileName = "tiles/${tileServer.id}/${z}/${x}/${y}.png"
 
         try {
