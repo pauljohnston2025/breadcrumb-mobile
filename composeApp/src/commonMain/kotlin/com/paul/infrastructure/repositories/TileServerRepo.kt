@@ -13,6 +13,8 @@ import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.json.Json
 
 class TileServerRepo(private val webServerController: WebServerController) {
@@ -52,8 +54,8 @@ class TileServerRepo(private val webServerController: WebServerController) {
     )
     private val tileServerEnabled: MutableStateFlow<Boolean> = MutableStateFlow(true)
 
-    fun currentServerFlow(): Flow<TileServerInfo> {
-        return currentTileServer
+    fun currentServerFlow(): StateFlow<TileServerInfo> {
+        return currentTileServer.asStateFlow()
     }
 
     fun tileServerEnabledFlow(): Flow<Boolean> {

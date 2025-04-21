@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 class RoutesViewModel(
+    private val mapViewModel: MapViewModel,
     private val connection: IConnection,
     private val deviceSelector: DeviceSelector,
     val routeRepo: RouteRepository,
@@ -68,14 +69,23 @@ class RoutesViewModel(
     }
 
     fun previewRoute(route: RouteEntry) {
-        // TODO: show route on maps screen
-        println("Previewing route: ${route.name} (${route.id})")
+        viewModelScope.launch(Dispatchers.IO) {
+            var iRoute = routeRepo.getRouteI(route.id)
+            if (iRoute == null) {
+                return@launch
+            }
+            var coords = iRoute.toRoute(snackbarHostState)
+            if (coords == null) {
+                return@launch
+            }
+            mapViewModel.displayRoute(coords)
+        }
     }
 
     fun sendRoute(route: RouteEntry) {
         viewModelScope.launch(Dispatchers.IO) {
             val route = routeRepo.getRouteI(route.id)
-            if(route == null) {
+            if (route == null) {
                 snackbarHostState.showSnackbar("failed to load route")
                 Napier.d("Failed to load route")
                 return@launch

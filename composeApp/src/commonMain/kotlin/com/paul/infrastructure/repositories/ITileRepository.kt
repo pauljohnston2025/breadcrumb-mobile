@@ -16,12 +16,19 @@ import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.isSuccess
 import io.ktor.utils.io.toByteArray
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.concurrent.atomic.AtomicLong
 
 abstract class ITileRepository(private val fileHelper: IFileHelper) {
     private val client = KtorClient.client // Get the singleton client instance
 
     private var tileServer = getTileServerOnStart()
+
+    fun currentTileServer(): TileServerInfo {
+        return tileServer
+    }
 
     fun setTileServer(tileServer: TileServerInfo) {
         this.tileServer = tileServer
@@ -44,6 +51,55 @@ abstract class ITileRepository(private val fileHelper: IFileHelper) {
     abstract suspend fun getWatchTile(req: LoadTileRequest): LoadTileResponse
 
     // gets a full size tile
+    suspend fun seedLayer(
+        xMin: Int,
+        xMax: Int,
+        yMin: Int,
+        yMax: Int,
+        z: Int,
+        progressCallback: suspend (Float) -> Unit,
+        errorCallback: suspend (x: Int, y: Int, z: Int, Throwable) -> Unit
+    ) {
+        // Calculate total number of tiles expected - Use Long to avoid overflow
+        val totalTiles = (xMax - xMin + 1L) * (yMax - yMin + 1L)
+        if (totalTiles <= 0) {
+            progressCallback(1.0f) // Nothing to do, report 100%
+            return
+        }
+
+        val processedTiles = AtomicLong(0L) // Thread-safe counter for progress
+
+        // Use coroutineScope to wait for all launched jobs to complete
+        coroutineScope {
+            for (x in xMin..xMax) {
+                for (y in yMin..yMax) {
+                    // Launch a new coroutine for each tile fetch.
+                    // These will run concurrently, limited by the available threads
+                    // in the dispatcher (likely Default or IO if getTile switches).
+                    launch { // Uses the scope's default dispatcher unless specified
+                        try {
+                            getTile(x, y, z)
+                        } catch (e: Exception) {
+                            // Report the error for this specific tile
+                            errorCallback(x, y, z, e)
+
+                            // Still count it as "processed" in terms of the loop attempt,
+                            // otherwise progress might never reach 100% if errors occur.
+                            // Alternatively, you could choose *not* to increment here
+                            // if progress should only reflect successful fetches.
+                            val currentProcessed = processedTiles.incrementAndGet()
+                            progressCallback(
+                                (currentProcessed.toFloat() / totalTiles.toFloat()).coerceIn(0f, 1f)
+                            )
+                            // Optional: Log the error locally as well
+                            // println("Error fetching tile ($x, $y, $z): ${e.message}")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     suspend fun getTile(x: Int, y: Int, z: Int): ByteArray? {
         val tileUrl = tileServer.url
             .replace("{x}", "${x}")
@@ -57,7 +113,7 @@ abstract class ITileRepository(private val fileHelper: IFileHelper) {
         }
         //        val brisbaneUrl = "https://a.tile.opentopomap.org/11/1894/1186.png"
         //        var tileUrl = brisbaneUrl;
-        
+
         val fileName = "tiles/${tileServer.id}/${z}/${x}/${y}.png"
 
         try {

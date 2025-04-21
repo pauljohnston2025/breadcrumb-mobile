@@ -1,7 +1,6 @@
 package com.paul.ui
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
+import MapScreen
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.DrawerValue
 import androidx.compose.material.Icon
@@ -18,7 +17,6 @@ import androidx.compose.material.rememberScaffoldState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
@@ -27,21 +25,24 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.paul.infrastructure.connectiq.IConnection
 import com.paul.infrastructure.connectiq.IDeviceList
+import com.paul.infrastructure.repositories.ITileRepository
 import com.paul.infrastructure.service.IFileHelper
 import com.paul.infrastructure.service.IGpxFileLoader
 import com.paul.infrastructure.service.IntentHandler
 import com.paul.infrastructure.web.WebServerController
 import com.paul.viewmodels.DebugViewModel
+import com.paul.viewmodels.MapViewModel
 import com.paul.viewmodels.RoutesViewModel
 import com.paul.viewmodels.StartViewModel
 import com.paul.viewmodels.StorageViewModel
-import com.paul.viewmodels.Settings as SettingsViewModel
 import kotlinx.coroutines.launch
 import com.paul.viewmodels.DeviceSelector as DeviceSelectorModel
 import com.paul.viewmodels.DeviceSettings as DeviceSettingsModel
+import com.paul.viewmodels.Settings as SettingsViewModel
 
 @Composable
 fun App(
+    tileRepo: ITileRepository,
     connection: IConnection,
     deviceList: IDeviceList,
     gpxFileLoader: IGpxFileLoader,
@@ -82,6 +83,15 @@ fun App(
                 fileHelper,
                 scaffoldState.snackbarHostState,
                 navController,
+            )
+        }
+
+        val mapViewModel = viewModel {
+            MapViewModel(
+                tileRepository = tileRepo,
+                tileServerRepository = settingsViewModel.tileServerRepo,
+                snackbarHostState = scaffoldState.snackbarHostState,
+                navController = navController,
             )
         }
 
@@ -143,8 +153,7 @@ fun App(
                 ) {
                     val current = navController.currentDestination
                     // if we are on the select device screen but navigating to a new screen then pop stack before navigate
-                    if (current?.route == Screen.DeviceSelection.route)
-                    {
+                    if (current?.route == Screen.DeviceSelection.route) {
                         navController.popBackStack()
                     }
 
@@ -158,6 +167,7 @@ fun App(
                     composable(Screen.Routes.route) {
                         val routesViewModel = viewModel {
                             RoutesViewModel(
+                                mapViewModel,
                                 connection,
                                 deviceSelector,
                                 startViewModel.routeRepo,
@@ -211,13 +221,8 @@ fun App(
                     }
 
                     composable(Screen.Map.route) {
-                        // Placeholder for your Map Screen
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("Map Screen Placeholder")
-                        }
+
+                        MapScreen(mapViewModel)
                     }
 
                     composable(Screen.Storage.route) {

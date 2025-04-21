@@ -1,7 +1,6 @@
 package com.paul.protocol.todevice
 
 import kotlinx.serialization.Serializable
-import kotlin.Float.Companion.NaN
 import kotlin.math.PI
 import kotlin.math.ln
 import kotlin.math.tan
@@ -35,7 +34,7 @@ data class Point(val latitude: Float, val longitude: Float, val altitude: Float)
     }
 }
 
-class Route(private val name: String, private val route: List<Point>) : Protocol {
+class Route(val name: String, val route: List<Point>) : Protocol {
     override fun type(): ProtocolType {
         return ProtocolType.PROTOCOL_ROUTE_DATA
     }

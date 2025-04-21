@@ -24,7 +24,7 @@ data class GpxFile(
         var points = emptyList<GpxPoint>()
         if (gpx.tracks.size != 0) {
             val track = gpx.tracks[0]
-            Napier.d("loading points for ${track.trackName}")
+            Napier.d("loading track points for ${name()}")
             if (track.trackSegments.size < 1) {
                 snackbarHostState.showSnackbar("failed to get segments")
                 return null
@@ -34,7 +34,7 @@ data class GpxFile(
             points = segment.trackPoints
         } else if (gpx.routes.size != 0) {
             val route = gpx.routes[0]
-            Napier.d("loading points for ${route.routeName}")
+            Napier.d("loading route points for ${name()}")
             points = route.routePoints
         } else {
             Napier.d("failed to get track or route")

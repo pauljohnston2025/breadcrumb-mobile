@@ -22,8 +22,10 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.content.ContextCompat
 import com.paul.infrastructure.connectiq.Connection
 import com.paul.infrastructure.connectiq.DeviceList
+import com.paul.infrastructure.repositories.TileRepository
 import com.paul.infrastructure.service.FileHelper
 import com.paul.infrastructure.service.GpxFileLoader
+import com.paul.infrastructure.service.ImageProcessor
 import com.paul.infrastructure.service.InMemoryDebugAntilog
 import com.paul.infrastructure.service.IntentHandler
 import com.paul.ui.App
@@ -42,6 +44,10 @@ class MainActivity : ComponentActivity() {
     val gpxFileLoader = GpxFileLoader()
     val webServerController = WebServerController(this)
     val intentHandler = IntentHandler()
+    val tileRepo = TileRepository(
+        ImageProcessor(this),
+        FileHelper(this)
+    )
 
     // based on ActivityResultContracts.OpenDocument()
     val getFileContent =
@@ -82,6 +88,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             PermissionHandler {
                 App(
+                    tileRepo,
                     connection,
                     deviceList,
                     gpxFileLoader,
