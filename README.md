@@ -31,4 +31,11 @@ Google: https://cloud.google.com/maps-platform/terms https://policies.google.com
 
 ---
 
+# Licencing
+
+Attribution-NonCommercial-ShareAlike 4.0 International: https://creativecommons.org/licenses/by-nc-sa/4.0/  
+
+---
+
 ![Logo](https://github.com/pauljohnston2025/breadcrumb-mobile/blob/master/composeApp/src/androidMain/res/mipmap/iconlarge.png)
+
