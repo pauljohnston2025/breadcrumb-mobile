@@ -12,17 +12,21 @@ import com.paul.protocol.todevice.MapTile
 import io.github.aakira.napier.Napier
 
 // todo: move this into common code
-// only thing holding it back is the image processing
+// only thing holding it back is the image processing (which can be done like the map tiles)
 class TileRepository(
     private val imageProcessor: ImageProcessor,
     fileHelper: IFileHelper,
 ) : ITileRepository(fileHelper) {
 
     override suspend fun getWatchTile(req: LoadTileRequest): LoadTileResponse {
-        val smallTilesPerBigTile = Math.ceil(req.scaledTileSize.toDouble() / req.tileSize).toInt()
-        val scaleUpSize = smallTilesPerBigTile * req.tileSize
-        val x = req.x / smallTilesPerBigTile
-        val y = req.y / smallTilesPerBigTile
+        Napier.d("small tile req: $req")
+        // watch app incorrectly does integer division to calculate this, so we must too
+        // next release will fix this issue on both sides
+        val smallTilesPerScaledTile = req.scaledTileSize / req.tileSize
+        val scaleUpSize = smallTilesPerScaledTile * req.tileSize
+        val x = req.x / smallTilesPerScaledTile
+        val y = req.y / smallTilesPerScaledTile
+        Napier.d("large tile req: $x, $y, ${req.z}")
 
         val tileContents = getTile(x, y, req.z)
         if (tileContents == null) {
@@ -36,9 +40,9 @@ class TileRepository(
             return erroredTile(req)
         }
 
-        val xOffset = req.x % smallTilesPerBigTile
-        val yOffset = req.y % smallTilesPerBigTile
-        val offset = xOffset * smallTilesPerBigTile + yOffset
+        val xOffset = req.x % smallTilesPerScaledTile
+        val yOffset = req.y % smallTilesPerScaledTile
+        val offset = xOffset * smallTilesPerScaledTile + yOffset
         if (offset >= bitmaps.size || offset < 0) {
             Napier.d("our math aint mathing $offset")
             return erroredTile(req)
