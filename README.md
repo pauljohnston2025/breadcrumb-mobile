@@ -22,5 +22,13 @@ To aid in the fastest resolution, please include.
 Please ensure any images/recordings do not contain any identifying information, such as your current location. 
 
 ---
+# Map Tiles
+
+Powered by Esri: https://www.esri.com  
+OpenStreetMap: https://openstreetmap.org/copyright  
+OpenTopoMap: https://opentopomap.org/about  
+Google: https://cloud.google.com/maps-platform/terms https://policies.google.com/privacy  
+
+---
 
 ![Logo](https://github.com/pauljohnston2025/breadcrumb-mobile/blob/master/composeApp/src/androidMain/res/mipmap/iconlarge.png)

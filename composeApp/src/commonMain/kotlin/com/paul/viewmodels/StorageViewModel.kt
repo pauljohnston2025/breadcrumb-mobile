@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.paul.infrastructure.repositories.RouteRepository
 import com.paul.infrastructure.service.IFileHelper
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,21 +26,40 @@ class StorageViewModel(
     private val _deletingRoutes = MutableStateFlow<Boolean>(false)
     val deletingRoutes: StateFlow<Boolean> = _deletingRoutes.asStateFlow()
 
+    private val _loadingTileServer = MutableStateFlow<Boolean>(false)
+    val loadingTileServer: StateFlow<Boolean> = _loadingTileServer.asStateFlow()
+
+    private val _loadingRoutes = MutableStateFlow<Boolean>(false)
+    val loadingRoutes: StateFlow<Boolean> = _loadingRoutes.asStateFlow()
+
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing
+
     init {
         refresh()
     }
 
     private suspend fun updateTileServers() {
+        viewModelScope.launch(Dispatchers.Main) {
+            _loadingTileServer.value = true
+        }
         val result = fileHelper.localContentsSize("tiles")
+        delay(500) // delay for a bit, otherwise it looks like the ui is broken (immediately updates - spinners never start but refresh does)
         viewModelScope.launch(Dispatchers.Main) {
             tileServers.value = result
+            _loadingTileServer.value = false
         }
     }
 
     private suspend fun updateRouteTotalSize() {
+        viewModelScope.launch(Dispatchers.Main) {
+            _loadingRoutes.value = true
+        }
         val result = fileHelper.localDirectorySize("routes")
+        delay(500) // delay for a bit, otherwise it looks like the ui is broken (immediately updates - spinners never start but refresh does)
         viewModelScope.launch(Dispatchers.Main) {
             routesTotalSize.value = result
+            _loadingRoutes.value = false
         }
     }
 
@@ -80,11 +100,13 @@ class StorageViewModel(
     }
 
     fun refresh() {
-        // not ideal as it means we have to close and open page to refresh, could add a swipe down functionality too
-        // but it is not live as tiles are added (not a huge deal)
+        _isRefreshing.value = true
         viewModelScope.launch(Dispatchers.IO) {
             updateTileServers()
             updateRouteTotalSize()
+            viewModelScope.launch(Dispatchers.Main) {
+                _isRefreshing.value = false
+            }
         }
     }
 }

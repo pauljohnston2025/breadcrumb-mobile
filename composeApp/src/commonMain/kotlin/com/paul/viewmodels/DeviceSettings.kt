@@ -159,6 +159,7 @@ val labelOverrides: Map<String, String> = mapOf(
     "offTrackAlertsDistanceM" to "Off Track Alert Distance (m)",
     "offTrackAlertsMaxReportIntervalS" to "Max Report Interval (s)",
     "tileSize" to "Tile Size (pixels)",
+    "drawLineToClosestPoint" to "Draw Line To Closest Point",
 )
 
 val descriptions: Map<String, String> = mapOf(
