@@ -90,14 +90,13 @@ class RouteRepository(
         saveRoutes()
     }
 
-    suspend fun updateRoute(routeId: String, newName: String) {
+    fun updateRoute(routeId: String, newName: String) {
         val current = getRouteEntry(routeId)
         if (current == null) {
             return
         }
-        deleteRoute(routeId) // we need to replace it with a new object, or we will not be able to render
+        routes.removeIf { it.id == routeId }
         routes.add(RouteEntry(routeId, newName, current.type, current.createdAt, current.sizeBytes))
-        saveRoutes()
         saveRoutes()
     }
 
