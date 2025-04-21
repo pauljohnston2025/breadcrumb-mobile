@@ -10,12 +10,24 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.ExperimentalTextApi
+import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.paul.protocol.todevice.Point // Make sure Point is imported if needed by chart
 import com.paul.protocol.todevice.Route
 import com.paul.viewmodels.MapViewModel
@@ -60,11 +72,11 @@ fun MapScreen(viewModel: MapViewModel) {
                     ) {
                         Icon(
                             Icons.Default.MoreVert, // Chart icon
-                            contentDescription = if (isElevationProfileVisible) "Hide Profile" else "Show Profile",
+                            contentDescription = if (isElevationProfileVisible) "Hide Elevation Profile" else "Show Elevation Profile",
                             modifier = Modifier.size(ButtonDefaults.IconSize)
                         )
                         Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-                        Text(if (isElevationProfileVisible) "Hide Profile" else "Show Profile")
+                        Text(if (isElevationProfileVisible) "Hide Elevation Profile" else "Show Elevation Profile")
                     }
                 }
             }
@@ -142,38 +154,203 @@ private data class ChartData(
     val totalDistance: Float = 0f
 )
 
+@OptIn(ExperimentalTextApi::class) // Still needed for TextMeasurer/drawText at the top level
 @Composable
 fun ElevationProfileChart(
     modifier: Modifier = Modifier,
     route: Route,
-    lineColor: Color = MaterialTheme.colors.primary, // Allow customizing color
-    strokeWidth: Float = 4f, // Allow customizing line thickness
-    horizontalPadding: Float = 16f, // Padding inside the canvas (in pixels)
-    verticalPadding: Float = 16f
+    lineColor: Color = MaterialTheme.colors.primary,
+    strokeWidth: Float = 4f,
+    gridColor: Color = Color.Gray,
+    gridStrokeWidth: Float = 3f,
+    labelTextColor: Color = MaterialTheme.colors.onSurface.copy(alpha = 0.8f),
+    labelTextSize: TextUnit = 10.sp,
+    numHorizontalGridLines: Int = 5,
+    numVerticalGridLines: Int = 5,
+    horizontalPadding: Dp = 16.dp,
+    verticalPadding: Dp = 16.dp,
+    labelPadding: Dp = 4.dp
 ) {
-    // Calculate distance-altitude pairs and bounds, memoizing based on route points
     val chartData: ChartData = remember(route.route) {
         processRouteForChart(route.route)
     }
 
-    // Use Canvas for custom drawing
-    Canvas(modifier = modifier.fillMaxSize()) {
-        // Draw the chart if we have enough data
-        if (chartData.points.size >= 2 && chartData.totalDistance > 0f) {
-            drawElevationLine(
-                drawScope = this, // Pass the drawing scope
-                data = chartData,
-                lineColor = lineColor,
-                strokeWidth = strokeWidth,
-                horizontalPadding = horizontalPadding,
-                verticalPadding = verticalPadding
-            )
-        } else {
-            // Optional: Draw a placeholder text if no data or not enough points
-            // This part requires access to Text drawing on Canvas which is more complex.
-            // For simplicity, keep the text outside or rely on the calling composable
-            // to handle the "no data" case if needed. You could also draw simple
-            // shapes or lines as a placeholder within the canvas.
+    val density = LocalDensity.current
+    val horizontalPaddingPx = with(density) { horizontalPadding.toPx() }
+    val verticalPaddingPx = with(density) { verticalPadding.toPx() }
+    val labelPaddingPx = with(density) { labelPadding.toPx() }
+
+    // === Get TextMeasurer here in the Composable scope ===
+    val textMeasurer = rememberTextMeasurer()
+
+    Column(modifier = modifier) {
+
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+        ) { // Canvas lambda provides DrawScope
+            if (chartData.points.size >= 2 && chartData.totalDistance > 0f) {
+                // Pass the textMeasurer instance to drawGridLines
+                drawGridLines(
+                    drawScope = this,
+                    textMeasurer = textMeasurer, // Pass the measurer
+                    data = chartData,
+                    gridColor = gridColor,
+                    strokeWidth = gridStrokeWidth,
+                    labelTextColor = labelTextColor,
+                    labelTextSize = labelTextSize,
+                    numHorizontalLines = numHorizontalGridLines,
+                    numVerticalLines = numVerticalGridLines,
+                    horizontalPadding = horizontalPaddingPx,
+                    verticalPadding = verticalPaddingPx,
+                    labelPadding = labelPaddingPx
+                )
+
+                // drawElevationLine does not need the textMeasurer
+                drawElevationLine(
+                    drawScope = this,
+                    data = chartData,
+                    lineColor = lineColor,
+                    strokeWidth = strokeWidth,
+                    horizontalPadding = horizontalPaddingPx,
+                    verticalPadding = verticalPaddingPx
+                )
+            }
+        }
+
+        // --- Labels Below Canvas ---
+        if (chartData.points.isNotEmpty()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp) // Space between canvas and labels
+                    .padding(horizontal = horizontalPadding), // Align labels roughly with chart padding
+                horizontalArrangement = Arrangement.SpaceBetween // Space out labels
+            ) {
+                // Display Total Distance
+                Text(
+                    text = "Dist: ${formatDistance(chartData.totalDistance)}",
+                    style = MaterialTheme.typography.caption
+                )
+                // Display Max Altitude
+                Text(
+                    text = "Max Alt: ${formatAltitude(chartData.maxAltitude)}",
+                    style = MaterialTheme.typography.caption
+                )
+            }
+        }
+    }
+}
+
+// Helper function to format distance (e.g., to km)
+private fun formatDistance(distanceMeters: Float): String {
+    return if (distanceMeters < 1000) {
+        "${distanceMeters.roundToInt()} m"
+    } else {
+        "${"%.1f".format(distanceMeters / 1000f)} km"
+    }
+}
+
+// Helper function to format altitude
+private fun formatAltitude(altitudeMeters: Float): String {
+    return "${altitudeMeters.roundToInt()} m"
+}
+
+
+@OptIn(ExperimentalTextApi::class) // Still needed for drawText parameter type
+private fun drawGridLines(
+    drawScope: DrawScope,
+    textMeasurer: TextMeasurer, // Receive the TextMeasurer instance
+    data: ChartData,
+    gridColor: Color,
+    strokeWidth: Float,
+    labelTextColor: Color,
+    labelTextSize: TextUnit,
+    numHorizontalLines: Int,
+    numVerticalLines: Int,
+    horizontalPadding: Float,
+    verticalPadding: Float,
+    labelPadding: Float
+) {
+    with(drawScope) { // Use DrawScope receiver
+        val altitudeRange = data.maxAltitude - data.minAltitude
+        val availableWidth = size.width - 2 * horizontalPadding
+        val availableHeight = size.height - 2 * verticalPadding
+
+        if (availableWidth <= 0 || availableHeight <= 0) return
+
+        val dashEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f), 0f)
+
+        // --- Draw Horizontal Grid Lines & Labels (Altitude) ---
+        if (numHorizontalLines > 1 && altitudeRange > 0) {
+            val altitudeStep = altitudeRange / (numHorizontalLines - 1)
+            val yScale = availableHeight / altitudeRange
+
+            for (i in 0 until numHorizontalLines) {
+                val currentAltitude = data.minAltitude + i * altitudeStep
+                val y = size.height - verticalPadding - ((currentAltitude - data.minAltitude) * yScale)
+                // Draw Grid Line
+                drawLine(
+                    color = gridColor,
+                    start = Offset(horizontalPadding, y),
+                    end = Offset(size.width - horizontalPadding, y),
+                    strokeWidth = strokeWidth,
+                    pathEffect = dashEffect
+                )
+
+                // Prepare and Draw Label - Use the passed textMeasurer
+                val labelText = formatAltitude(currentAltitude)
+                val textLayoutResult = textMeasurer.measure(
+                    AnnotatedString(labelText),
+                    style = TextStyle( /* ... */ )
+                )
+                val labelX = horizontalPadding - labelPadding - textLayoutResult.size.width
+                val labelY = y - textLayoutResult.size.height / 2f
+                drawText(textLayoutResult, topLeft = Offset(labelX.coerceAtLeast(0f), labelY))
+            }
+        } else if (numHorizontalLines > 0) { // Handle flat case
+            val y = verticalPadding + availableHeight / 2f
+            val currentAltitude = data.minAltitude
+            // Draw Grid Line
+            drawLine(color = gridColor, start = Offset(horizontalPadding, y), end = Offset(size.width - horizontalPadding, y), strokeWidth = strokeWidth, pathEffect = dashEffect)
+            // Prepare and Draw Label
+            val labelText = formatAltitude(currentAltitude)
+            val textLayoutResult = textMeasurer.measure(AnnotatedString(labelText), style = TextStyle(/* ... */))
+            val labelX = horizontalPadding - labelPadding - textLayoutResult.size.width
+            val labelY = y - textLayoutResult.size.height / 2f
+            drawText(textLayoutResult, topLeft = Offset(labelX.coerceAtLeast(0f), labelY))
+        }
+
+        // --- Draw Vertical Grid Lines & Labels (Distance) ---
+        if (numVerticalLines > 1 && data.totalDistance > 0) {
+            val distanceStep = data.totalDistance / (numVerticalLines - 1)
+            val xScale = availableWidth / data.totalDistance
+
+            for (i in 0 until numVerticalLines) {
+                val currentDistance = i * distanceStep
+                val x = horizontalPadding + (currentDistance * xScale)
+                // Draw Grid Line
+                drawLine(
+                    color = gridColor,
+                    start = Offset(x, verticalPadding),
+                    end = Offset(x, size.height - verticalPadding),
+                    strokeWidth = strokeWidth,
+                    pathEffect = dashEffect
+                )
+
+                // Prepare and Draw Label
+                if (i > 0 || numHorizontalLines <= 1) {
+                    val labelText = formatDistance(currentDistance)
+                    val textLayoutResult = textMeasurer.measure(
+                        AnnotatedString(labelText),
+                        style = TextStyle( /* ... */ )
+                    )
+                    val labelX = x - textLayoutResult.size.width / 2f
+                    val labelY = size.height - verticalPadding + labelPadding
+                    drawText(textLayoutResult, topLeft = Offset(labelX.coerceIn(0f, size.width - textLayoutResult.size.width), labelY))
+                }
+            }
         }
     }
 }
