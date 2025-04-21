@@ -12,6 +12,7 @@ import com.garmin.android.connectiq.IQDevice
 import com.paul.domain.IqDevice
 import com.paul.infrastructure.connectiq.IConnection.Companion.CONNECT_IQ_APP_ID
 import com.paul.protocol.fromdevice.ProtocolResponse
+import com.paul.protocol.fromdevice.Settings
 import com.paul.protocol.todevice.Protocol
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -221,6 +222,73 @@ class Connection(private val context: Context) : IConnection {
         payload: Protocol,
         type: ProtocolResponse
     ): T {
+        // since this does not work on the simulator we will mock out the response whe we need to
+        // device messages do not seem to go from garmin simulator to android simulator
+//        val fakedResponse = Settings(
+//            settings = mapOf(
+//                "fixedLatitude" to 0.0,
+//                "trackColour" to "FF00FF00",
+//                "tileUrl" to "http://127.0.0.1:8080",
+//                "uiMode" to 0,
+//                "fullTileSize" to 256,
+//                "drawLineToClosestPoint" to true,
+//                "recalculateItervalS" to 5,
+//                "routeMax" to 3,
+//                "normalModeColour" to "FF00AAFF",
+//                "routesEnabled" to true,
+//                "tileCachePadding" to 0,
+//                "zoomAtPaceSpeedMPS" to 1.0,
+//                "debugColour" to "FEFFFFFF",
+//                "mode" to 0,
+//                "routes" to listOf(
+//                    mapOf(
+//                        "colour" to "FFFF00FF",
+//                        "routeId" to 0,
+//                        "name" to "Local Loop",
+//                        "enabled" to true
+//                    ),
+//                    mapOf(
+//                        "colour" to "FFFF0000",
+//                        "routeId" to 2,
+//                        "name" to "Piper Comanche Wreck",
+//                        "enabled" to true
+//                    ),
+//                    mapOf(
+//                        "colour" to "FF00AAFF",
+//                        "routeId" to 1,
+//                        "name" to "Afternoon Ride",
+//                        "enabled" to true
+//                    )
+//                ),
+//                "zoomAtPaceMode" to 3,
+//                "tileLayerMin" to 0,
+//                "displayRouteNames" to true,
+//                "enableOffTrackAlerts" to true,
+//                "elevationMode" to 0,
+//                "offTrackAlertsMaxReportIntervalS" to 30,
+//                "elevationColour" to "FFFF5500",
+//                "alertType" to 0,
+//                "displayLatLong" to true,
+//                "resetDefaults" to false,
+//                "scaledTileSize" to 256,
+//                "metersAroundUser" to 500,
+//                "mapChoice" to 1,
+//                "offTrackAlertsDistanceM" to 5,
+//                "renderMode" to 0,
+//                "fixedLongitude" to 0.0,
+//                "tileCacheSize" to 64,
+//                "tileSize" to 64,
+//                "userColour" to "FFFF5500",
+//                "uiColour" to "FF555555",
+//                "mapEnabled" to true,
+//                "scaleRestrictedToTileLayers" to false,
+//                "tileLayerMax" to 15,
+//                "disableMapsFailureCount" to 200,
+//                "maxPendingWebRequests" to 100
+//            )
+//        )
+//
+//        return fakedResponse as T
 
         return withTimeout(30000) {
             start()
@@ -232,7 +300,6 @@ class Connection(private val context: Context) : IConnection {
             // pretty hacky impl, we should have the deviceMessages flow running all the time,
             // and then complete futures as messages come in from the device
             // they should be in order though, and this is hopefully ok for now
-
             val fut = CompletableDeferred<T>()
             CoroutineScope(Dispatchers.IO).launch {
                 deviceMessages(device).collect {
