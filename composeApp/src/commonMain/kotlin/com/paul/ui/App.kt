@@ -1,6 +1,5 @@
 package com.paul.ui
 
-import MapScreen
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.DrawerValue
 import androidx.compose.material.Icon
@@ -221,7 +220,6 @@ fun App(
                     }
 
                     composable(Screen.Map.route) {
-
                         MapScreen(mapViewModel)
                     }
 

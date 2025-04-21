@@ -1,6 +1,7 @@
 package com.paul.viewmodels
 
 import androidx.compose.material.SnackbarHostState
+import androidx.compose.runtime.mutableStateOf // Import mutableStateOf for simple boolean
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavController
@@ -14,6 +15,7 @@ import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update // Import update extension
 import kotlinx.coroutines.launch
 import kotlin.math.max
 import kotlin.math.min
@@ -26,20 +28,21 @@ class MapViewModel(
 ) : ViewModel() {
 
     // --- Map State ---
-    // Viewport might be managed by the Map library itself, but you might need to observe/set it
-    // Example: represent center and zoom
     private val _mapCenter = MutableStateFlow(Point(-27.472077f, 153.022172f, 0f)) // Brisbane
     val mapCenter: StateFlow<Point> = _mapCenter
 
     private val _mapZoom = MutableStateFlow(10f) // Zoom level (abstract)
     val mapZoom: StateFlow<Float> = _mapZoom
 
-    // The currently selected tile server for display
     val currentTileServer: StateFlow<TileServerInfo> = tileServerRepository.currentServerFlow()
 
     // --- Route State ---
     private val _currentRoute = MutableStateFlow<Route?>(null)
     val currentRoute: StateFlow<Route?> = _currentRoute
+
+    // --- Elevation Profile State ---
+    private val _isElevationProfileVisible = MutableStateFlow(false) // Initially hidden
+    val isElevationProfileVisible: StateFlow<Boolean> = _isElevationProfileVisible
 
     // --- Seeding / Offline State ---
     private val _isSeeding = MutableStateFlow(false)
@@ -54,32 +57,38 @@ class MapViewModel(
     fun displayRoute(route: Route) {
         viewModelScope.launch(Dispatchers.Main) {
             val current = navController.currentDestination
-            // if we are on the select device screen but navigating to a new screen then pop stack before navigate
             if (current?.route != Screen.Map.route) {
                 navController.navigate(Screen.Map.route)
             }
 
             _currentRoute.value = route
-            // Optionally center map on route start
+            _isElevationProfileVisible.value = false // Ensure profile is hidden when new route loads
             route.route.firstOrNull()?.let { centerMapOn(it) }
         }
     }
 
     fun clearRoute() {
         _currentRoute.value = null
+        _isElevationProfileVisible.value = false // Hide profile when route is cleared
     }
 
-    fun setTileServer(serverInfo: TileServerInfo) {
-        viewModelScope.launch(Dispatchers.IO) {
-            tileServerRepository.updateCurrentTileServer(serverInfo)
-            // Map library might need to be explicitly told to change source
+    // --- New function to toggle profile visibility ---
+    fun toggleElevationProfileVisibility() {
+        // Only toggle if a route actually exists
+        if (_currentRoute.value != null) {
+            _isElevationProfileVisible.update { !it }
         }
     }
 
-    // Called by the Map View when it needs a tile (if library supports this pull model)
-    // NOTE: MapLibre usually works by giving it a URL template or local source path.
-    // You might need an adapter layer if the library can't call this directly.
+    fun setTileServer(serverInfo: TileServerInfo) {
+        // ... (no changes needed here for profile)
+        viewModelScope.launch(Dispatchers.IO) {
+            tileServerRepository.updateCurrentTileServer(serverInfo)
+        }
+    }
+
     suspend fun provideTileData(x: Int, y: Int, z: Int): ByteArray? {
+        // ... (no changes needed here for profile)
         return tileRepository.getTile(x, y, z)
     }
 
@@ -97,7 +106,6 @@ class MapViewModel(
 
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                // Clamp zoom levels to server capabilities
                 val effectiveMinZoom = max(minZoom, server.tileLayerMin)
                 val effectiveMaxZoom = min(maxZoom, server.tileLayerMax)
 
