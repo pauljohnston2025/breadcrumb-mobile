@@ -2,12 +2,28 @@ package com.paul.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.*
-import androidx.compose.material.*
-import androidx.compose.material.icons.Icons // Import icons
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.Button
+import androidx.compose.material.ButtonDefaults
+import androidx.compose.material.Icon
+import androidx.compose.material.MaterialTheme
+import androidx.compose.material.OutlinedButton
+import androidx.compose.material.Text
+import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -28,10 +44,16 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.paul.protocol.todevice.Point // Make sure Point is imported if needed by chart
+import com.paul.protocol.todevice.Point
 import com.paul.protocol.todevice.Route
 import com.paul.viewmodels.MapViewModel
-import kotlin.math.* // For Haversine
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.roundToInt
+import kotlin.math.sin
+import kotlin.math.sqrt
 
 @Composable
 fun MapScreen(viewModel: MapViewModel) {
@@ -45,7 +67,9 @@ fun MapScreen(viewModel: MapViewModel) {
     Column(modifier = Modifier.fillMaxSize()) {
 
         // --- Map View Area ---
-        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+        Box(modifier = Modifier
+            .weight(1f)
+            .fillMaxWidth()) {
             // *** Placeholder for the actual Map Library Composable ***
             MapLibraryComposable(
                 modifier = Modifier.fillMaxSize(),
@@ -96,9 +120,12 @@ fun MapScreen(viewModel: MapViewModel) {
 
         // --- Seeding Controls / Status ---
         // (Keep this section as is)
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-            if (isSeeding) { /* ... Seeding UI ... */ }
-            else { /* ... Download Button ... */ }
+        Column(modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)) {
+            if (isSeeding) { /* ... Seeding UI ... */
+            } else { /* ... Download Button ... */
+            }
             seedingError?.let { /* ... Error text ... */ }
         }
 
@@ -110,7 +137,7 @@ fun MapScreen(viewModel: MapViewModel) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(150.dp) // Example height
-                    .padding(horizontal=16.dp),
+                    .padding(horizontal = 16.dp),
                 route = currentRoute!! // Use non-null assertion or smart cast
             )
             Spacer(modifier = Modifier.height(8.dp)) // Padding at the bottom
@@ -140,7 +167,9 @@ fun MapLibraryComposable(
         // Draw route placeholder (very basic)
         routeToDisplay?.let {
             // Use library's line drawing feature here
-            Text("Drawing route: ${it.name}", Modifier.align(Alignment.BottomStart).padding(4.dp))
+            Text("Drawing route: ${it.name}", Modifier
+                .align(Alignment.BottomStart)
+                .padding(4.dp))
         }
     }
 }
@@ -289,7 +318,8 @@ private fun drawGridLines(
 
             for (i in 0 until numHorizontalLines) {
                 val currentAltitude = data.minAltitude + i * altitudeStep
-                val y = size.height - verticalPadding - ((currentAltitude - data.minAltitude) * yScale)
+                val y =
+                    size.height - verticalPadding - ((currentAltitude - data.minAltitude) * yScale)
                 // Draw Grid Line
                 drawLine(
                     color = gridColor,
@@ -303,7 +333,10 @@ private fun drawGridLines(
                 val labelText = formatAltitude(currentAltitude)
                 val textLayoutResult = textMeasurer.measure(
                     AnnotatedString(labelText),
-                    style = TextStyle( /* ... */ )
+                    style = TextStyle(
+                        color = labelTextColor,
+                        fontSize = labelTextSize,
+                    )
                 )
                 val labelX = horizontalPadding - labelPadding - textLayoutResult.size.width
                 val labelY = y - textLayoutResult.size.height / 2f
@@ -313,10 +346,21 @@ private fun drawGridLines(
             val y = verticalPadding + availableHeight / 2f
             val currentAltitude = data.minAltitude
             // Draw Grid Line
-            drawLine(color = gridColor, start = Offset(horizontalPadding, y), end = Offset(size.width - horizontalPadding, y), strokeWidth = strokeWidth, pathEffect = dashEffect)
+            drawLine(
+                color = gridColor,
+                start = Offset(horizontalPadding, y),
+                end = Offset(size.width - horizontalPadding, y),
+                strokeWidth = strokeWidth,
+                pathEffect = dashEffect
+            )
             // Prepare and Draw Label
             val labelText = formatAltitude(currentAltitude)
-            val textLayoutResult = textMeasurer.measure(AnnotatedString(labelText), style = TextStyle(/* ... */))
+            val textLayoutResult = textMeasurer.measure(
+                AnnotatedString(labelText), style = TextStyle(
+                    color = labelTextColor,
+                    fontSize = labelTextSize,
+                )
+            )
             val labelX = horizontalPadding - labelPadding - textLayoutResult.size.width
             val labelY = y - textLayoutResult.size.height / 2f
             drawText(textLayoutResult, topLeft = Offset(labelX.coerceAtLeast(0f), labelY))
@@ -344,11 +388,22 @@ private fun drawGridLines(
                     val labelText = formatDistance(currentDistance)
                     val textLayoutResult = textMeasurer.measure(
                         AnnotatedString(labelText),
-                        style = TextStyle( /* ... */ )
+                        style = TextStyle(
+                            color = labelTextColor,
+                            fontSize = labelTextSize,
+                        )
                     )
                     val labelX = x - textLayoutResult.size.width / 2f
                     val labelY = size.height - verticalPadding + labelPadding
-                    drawText(textLayoutResult, topLeft = Offset(labelX.coerceIn(0f, size.width - textLayoutResult.size.width), labelY))
+                    drawText(
+                        textLayoutResult,
+                        topLeft = Offset(
+                            labelX.coerceIn(
+                                0f,
+                                size.width - textLayoutResult.size.width
+                            ), labelY
+                        )
+                    )
                 }
             }
         }
@@ -406,8 +461,10 @@ private fun drawElevationLine(
             } else {
                 verticalPadding + availableHeight / 2f // Keep drawing horizontally if flat
             }
-            path.lineTo(x.coerceIn(horizontalPadding, size.width - horizontalPadding), // Clamp X
-                y.coerceIn(verticalPadding, size.height - verticalPadding))     // Clamp Y
+            path.lineTo(
+                x.coerceIn(horizontalPadding, size.width - horizontalPadding), // Clamp X
+                y.coerceIn(verticalPadding, size.height - verticalPadding)
+            )     // Clamp Y
         }
 
         // Draw the path onto the canvas
