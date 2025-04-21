@@ -44,7 +44,7 @@ class FileHelper(
                 return@withContext res
             }
         } catch (e: IOException) {
-            e.printStackTrace()
+            // e.printStackTrace() // normally file not found
             null
         }
     }

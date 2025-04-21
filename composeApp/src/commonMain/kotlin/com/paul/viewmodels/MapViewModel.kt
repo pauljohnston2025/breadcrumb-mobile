@@ -2,22 +2,27 @@ package com.paul.viewmodels
 
 import androidx.compose.material.SnackbarHostState
 import androidx.compose.runtime.mutableStateOf // Import mutableStateOf for simple boolean
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavController
+import com.paul.composables.byteArrayToImageBitmap
 import com.paul.domain.TileServerInfo
 import com.paul.infrastructure.repositories.ITileRepository
 import com.paul.infrastructure.repositories.TileServerRepo
+import com.paul.infrastructure.service.TileId
 import com.paul.protocol.todevice.Point
 import com.paul.protocol.todevice.Route
 import com.paul.ui.Screen
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update // Import update extension
 import kotlinx.coroutines.launch
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.max
 import kotlin.math.min
 
@@ -32,8 +37,8 @@ class MapViewModel(
     private val _mapCenter = MutableStateFlow(Point(-27.472077f, 153.022172f, 0f)) // Brisbane
     val mapCenter: StateFlow<Point> = _mapCenter
 
-    private val _mapZoom = MutableStateFlow(10f) // Zoom level (abstract)
-    val mapZoom: StateFlow<Float> = _mapZoom
+    private val _mapZoom = MutableStateFlow(10)
+    val mapZoom: StateFlow<Int> = _mapZoom
 
     val currentTileServer: StateFlow<TileServerInfo> = tileServerRepository.currentServerFlow()
 
@@ -54,6 +59,65 @@ class MapViewModel(
 
     private val _seedingError = MutableStateFlow<String?>(null)
     val seedingError: StateFlow<String?> = _seedingError
+    private val _tileBitmapCache = mutableMapOf<TileId, ImageBitmap?>() // Internal cache
+    private val _tileCacheState = MutableStateFlow<Map<TileId, ImageBitmap?>>(emptyMap())
+    val tileCacheState: StateFlow<Map<TileId, ImageBitmap?>> = _tileCacheState // Expose state
+
+    private val _loadingTiles = mutableSetOf<TileId>() // Track loading IDs
+// private val _loadingTilesState = MutableStateFlow<Set<TileId>>(emptySet()) // Optionally expose loading state too
+// val loadingTilesState: StateFlow<Set<TileId>> = _loadingTilesState
+
+    private val loadingJobs = mutableMapOf<TileId, Job>() // Still needed for cancellation
+    val isActive = true;
+
+    // Function called by Composable
+    fun requestTilesForViewport(visibleTileIds: Set<TileId>) {
+        // 1. Cancel jobs for tiles no longer needed
+        val jobsToCancel = loadingJobs.filterKeys { it !in visibleTileIds }
+        jobsToCancel.forEach { (_, job) -> job.cancel() }
+        jobsToCancel.keys.forEach { loadingJobs.remove(it) }
+        _loadingTiles.removeAll(jobsToCancel.keys)
+
+        // 2. Request missing tiles
+        visibleTileIds.forEach { tileId ->
+            if (!_tileBitmapCache.containsKey(tileId) && !loadingJobs.containsKey(tileId)) {
+                // Launch within viewModelScope - won't be cancelled by recomposition
+                val job = viewModelScope.launch(Dispatchers.IO) {
+                    var bitmapResult: ImageBitmap? = null
+                    _loadingTiles.add(tileId) // Mark as loading (update state flow if exposing)
+                    try {
+                        // println("VM Fetching $tileId")
+                        val data = tileRepository.getTile(
+                            tileId.x,
+                            tileId.y,
+                            tileId.z
+                        ) // Use injected repo
+                        if (!isActive) return@launch // Check cancellation *before* conversion
+                        bitmapResult = byteArrayToImageBitmap(data) // Non-composable conversion
+                        if (!isActive) return@launch // Check cancellation *after* conversion
+
+                        // Update cache and state flow (ensure thread safety if needed, StateFlow is safe)
+                        _tileBitmapCache[tileId] = bitmapResult
+                        _tileCacheState.value = _tileBitmapCache.toMap() // Emit new map state
+
+                    } catch (e: CancellationException) {
+                        // println("VM Job cancelled for $tileId")
+                        // Don't update cache
+                    } catch (e: Exception) {
+                        // println("VM Error $tileId: ${e.message}")
+                        _tileBitmapCache[tileId] = null // Cache error state
+                        _tileCacheState.value = _tileBitmapCache.toMap()
+                    } finally {
+                        // Always remove from loading state and jobs map
+                        _loadingTiles.remove(tileId)
+                        loadingJobs.remove(tileId)
+                        // _loadingTilesState.value = _loadingTiles.toSet() // Emit loading state change
+                    }
+                }
+                loadingJobs[tileId] = job
+            }
+        }
+    }
 
     fun displayRoute(route: Route) {
         viewModelScope.launch(Dispatchers.Main) {
@@ -63,7 +127,8 @@ class MapViewModel(
             }
 
             _currentRoute.value = route
-            _isElevationProfileVisible.value = false // Ensure profile is hidden when new route loads
+            _isElevationProfileVisible.value =
+                false // Ensure profile is hidden when new route loads
             route.route.firstOrNull()?.let { centerMapOn(it) }
         }
     }
@@ -165,9 +230,13 @@ class MapViewModel(
 
     // --- Helper Functions (Needs Implementation) ---
 
-    private fun centerMapOn(point: Point) {
+    fun centerMapOn(point: Point) {
         // Logic to update _mapCenter (and potentially _mapZoom)
         _mapCenter.value = point
+    }
+
+    fun setMapZoom(z: Int) {
+        _mapZoom.value = z
     }
 
     // Essential: Convert Lat/Lon to Tile X/Y for a given zoom

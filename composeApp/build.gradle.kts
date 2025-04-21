@@ -59,6 +59,7 @@ kotlin {
             implementation(libs.napier)
             implementation(libs.uuid)
             implementation(libs.skiko.core)
+//            implementation(libs.icons.extended)
         }
     }
 }

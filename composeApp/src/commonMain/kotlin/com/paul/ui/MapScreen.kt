@@ -69,22 +69,25 @@ fun MapScreen(viewModel: MapViewModel) {
     Column(modifier = Modifier.fillMaxSize()) {
 
         // --- Map View Area ---
-        Box(modifier = Modifier
-            .weight(1f)
-            .fillMaxWidth()) {
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+        ) {
             MapTilerComposable(
                 modifier = Modifier.fillMaxSize(), // Or Modifier.weight(1f).fillMaxWidth() etc.
-                initialCenter = GeoPosition( // Optional: Pass initial center from ViewModel
-                    viewModel.mapCenter.collectAsState().value.latitude.toDouble(),
-                    viewModel.mapCenter.collectAsState().value.longitude.toDouble()
-                ),
-                initialZoom = viewModel.mapZoom.collectAsState().value.roundToInt(), // Optional
-                tileProvider = { x, y, z ->
-                    // Call your ViewModel's function
-                    viewModel.provideTileData(x, y, z)
+                viewModel = viewModel,
+                onMapCenterChange = { gp ->
+                    viewModel.centerMapOn(
+                        Point(
+                            gp.latitude.toFloat(),
+                            gp.longitude.toFloat(),
+                            0f
+                        )
+                    )
                 },
-                routeToDisplay = currentRoute // Pass the route state
-                // Customize routeColor, zoom levels etc. if needed
+                onZoomChange = { z -> viewModel.setMapZoom(z) },
+                routeToDisplay = currentRoute
             )
 
             // --- Map Overlays / Buttons ---
@@ -130,9 +133,11 @@ fun MapScreen(viewModel: MapViewModel) {
 
         // --- Seeding Controls / Status ---
         // (Keep this section as is)
-        Column(modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+        ) {
             if (isSeeding) { /* ... Seeding UI ... */
             } else { /* ... Download Button ... */
             }
