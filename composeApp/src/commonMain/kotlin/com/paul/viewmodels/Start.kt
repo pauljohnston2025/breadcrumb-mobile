@@ -1,24 +1,24 @@
 package com.paul.viewmodels
 
-import com.paul.infrastructure.service.SendMessageHelper
-import com.paul.infrastructure.service.SendRoute
 import androidx.compose.material.SnackbarHostState
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.benasher44.uuid.uuid4
+import androidx.navigation.NavController
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import com.paul.domain.HistoryItem
 import com.paul.domain.IRoute
-import com.paul.domain.RouteType
 import com.paul.infrastructure.connectiq.IConnection
 import com.paul.infrastructure.repositories.HistoryRepository
 import com.paul.infrastructure.repositories.KomootRepository
 import com.paul.infrastructure.repositories.RouteRepository
 import com.paul.infrastructure.service.IFileHelper
 import com.paul.infrastructure.service.IGpxFileLoader
+import com.paul.infrastructure.service.SendMessageHelper
+import com.paul.infrastructure.service.SendRoute
 import com.paul.infrastructure.web.KtorClient
-import com.paul.protocol.todevice.Route
+import com.paul.ui.Screen
 import com.russhwolf.settings.Settings
 import io.github.aakira.napier.Napier
 import io.ktor.client.request.get
@@ -28,20 +28,17 @@ import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.utils.io.toByteArray
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.datetime.Clock
-import kotlinx.serialization.json.Json
 import java.net.URLEncoder
-import kotlin.uuid.ExperimentalUuidApi
 
 class StartViewModel(
     private val connection: IConnection,
     private val deviceSelector: DeviceSelector,
     private val gpxFileLoader: IGpxFileLoader,
     private val fileHelper: IFileHelper,
-    private val snackbarHostState: SnackbarHostState
+    private val snackbarHostState: SnackbarHostState,
+    private val navController: NavController,
 ) : ViewModel() {
     val settings: Settings = Settings()
 
@@ -59,6 +56,14 @@ class StartViewModel(
         komootUrl: String?,
         initialErrorMessage: String?
     ) {
+        // return to the main overview screen if we get a gpx route, or any other load call come in
+        navController.navigate(Screen.Start.route) {
+            popUpTo(navController.graph.findStartDestination().id) {
+                inclusive = true
+            }
+            launchSingleTop = true
+        }
+
         if (initialErrorMessage != null) {
             errorMessage.value = initialErrorMessage
             htmlErrorMessage.value = initialErrorMessage

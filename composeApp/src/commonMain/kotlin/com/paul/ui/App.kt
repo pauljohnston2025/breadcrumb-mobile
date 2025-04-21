@@ -81,6 +81,7 @@ fun App(
                 gpxFileLoader,
                 fileHelper,
                 scaffoldState.snackbarHostState,
+                navController,
             )
         }
 
@@ -140,6 +141,13 @@ fun App(
                     startDestination = Screen.Start.route,
                     modifier = Modifier.padding(paddingValues) // Apply padding to NavHost content
                 ) {
+                    val current = navController.currentDestination
+                    // if we are on the select device screen but navigating to a new screen then pop stack before navigate
+                    if (current?.route == Screen.DeviceSelection.route)
+                    {
+                        navController.popBackStack()
+                    }
+
                     composable(Screen.Start.route) {
                         Start(
                             viewModel = startViewModel,

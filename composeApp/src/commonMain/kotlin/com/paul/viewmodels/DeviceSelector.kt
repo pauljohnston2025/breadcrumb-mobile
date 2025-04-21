@@ -99,7 +99,13 @@ class DeviceSelector(
                 }
                 catch(e: TimeoutCancellationException) {
                     viewModelScope.launch(Dispatchers.Main) {
-                        navController.popBackStack()
+                        val current = navController.currentDestination
+                        // if we already navigated away ignore the change
+                        if (current?.route == Screen.DeviceSelection.route)
+                        {
+                            // we are still on he device select page, go back
+                            navController.popBackStack()
+                        }
                     }
                 }
             }
