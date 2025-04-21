@@ -10,6 +10,7 @@ data class LoadTileRequest(
     val y: Int,
     val z: Int,
     val tileSize: Int,
+    val scaledTileSize: Int,
 )
 
 @Serializable

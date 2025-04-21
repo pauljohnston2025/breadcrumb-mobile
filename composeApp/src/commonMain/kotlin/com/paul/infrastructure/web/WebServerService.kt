@@ -140,7 +140,7 @@ class WebServerService(
 
         routing {
             resourcesGet<LoadTileRequest>  { params ->
-                call.respond(tileGetter.getTile(params))
+                call.respond(tileGetter.getWatchTile(params))
             }
 
             post<ChangeTileServer> { params ->
