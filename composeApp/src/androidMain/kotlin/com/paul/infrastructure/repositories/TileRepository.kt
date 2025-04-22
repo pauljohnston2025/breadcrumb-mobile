@@ -20,9 +20,7 @@ class TileRepository(
 
     override suspend fun getWatchTile(req: LoadTileRequest): LoadTileResponse {
         Napier.d("small tile req: $req")
-        // watch app incorrectly does integer division to calculate this, so we must too
-        // next release will fix this issue on both sides
-        val smallTilesPerScaledTile = req.scaledTileSize / req.tileSize
+        val smallTilesPerScaledTile = Math.ceil(req.scaledTileSize.toDouble() / req.tileSize).toInt()
         val scaleUpSize = smallTilesPerScaledTile * req.tileSize
         val x = req.x / smallTilesPerScaledTile
         val y = req.y / smallTilesPerScaledTile
