@@ -91,7 +91,6 @@ fun App(
                 tileRepository = tileRepo,
                 tileServerRepository = settingsViewModel.tileServerRepo,
                 snackbarHostState = scaffoldState.snackbarHostState,
-                navController = navController,
             )
         }
 
@@ -173,6 +172,7 @@ fun App(
                                 startViewModel.routeRepo,
                                 startViewModel.historyRepo,
                                 scaffoldState.snackbarHostState,
+                                navController
                             )
                         }
                         RoutesScreen(

@@ -323,11 +323,11 @@ class DeviceSettings(
                                 try {
                                     RouteItem.fromDict(map)
                                 } catch (e: Exception) {
-                                    println("Error parsing route item content at index $index: $e. Skipping.")
+                                    Napier.d("Error parsing route item content at index $index: $e. Skipping.")
                                     null // Skip items that cause errors during content parsing
                                 }
                             } else {
-                                println("Route item at index $index is not a Map. Skipping.")
+                                Napier.d("Route item at index $index is not a Map. Skipping.")
                                 null // Skip items that aren't maps
                             }
                         }.toMutableList() // Crucial: Convert to MutableList for state modification
@@ -345,7 +345,7 @@ class DeviceSettings(
                     // --- Default/Unknown ---
                     // Add cases here if new properties might appear unexpectedly
                     else -> {
-                        println("Warning: Unhandled property key '$key' - Treating as UNKNOWN/String")
+                        Napier.d("Warning: Unhandled property key '$key' - Treating as UNKNOWN/String")
                         // Fallback: Treat as String or UNKNOWN
                         EditableProperty(
                             key,
@@ -361,10 +361,10 @@ class DeviceSettings(
                 }
             }
         } catch (e: ClassCastException) {
-            println("Error: Type mismatch for key '$key'. Expected type based on mapping but got ${value::class.simpleName}. Skipping. Error: ${e.message}")
+            Napier.d("Error: Type mismatch for key '$key'. Expected type based on mapping but got ${value::class.simpleName}. Skipping. Error: ${e.message}")
             null // Skip properties that cause a casting error
         } catch (e: Exception) {
-            println("Error creating EditableProperty for key '$key': ${e.message}")
+            Napier.d("Error creating EditableProperty for key '$key': ${e.message}")
             null // Skip on other errors
         }
     }

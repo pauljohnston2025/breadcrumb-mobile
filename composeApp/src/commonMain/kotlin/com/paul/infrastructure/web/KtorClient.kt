@@ -50,7 +50,7 @@ object KtorClient {
             val status = call.response.status.value
 
             // Log the concise message
-            Napier.d("Fetching $url, got response $status", tag="HTTP client")
+//            Napier.d("Fetching $url, got response $status", tag="HTTP client")
 
             // Return the result of the execution (the HttpClientCall) to the pipeline
             call // Ensure the interceptor returns the call object

@@ -32,8 +32,7 @@ import kotlin.math.min
 class MapViewModel(
     private val tileRepository: ITileRepository,
     val tileServerRepository: TileServerRepo,
-    private val snackbarHostState: SnackbarHostState,
-    private val navController: NavController,
+    private val snackbarHostState: SnackbarHostState
 ) : ViewModel() {
 
     // --- Map State ---
@@ -59,6 +58,8 @@ class MapViewModel(
 
     private val _seedingProgress = MutableStateFlow(0f) // 0.0 to 1.0
     val seedingProgress: StateFlow<Float> = _seedingProgress
+    private val _zSeedingProgress = MutableStateFlow(0) // 0 to tile layer max
+    val zSeedingProgress: StateFlow<Int> = _zSeedingProgress
 
     private val _seedingError = MutableStateFlow<String?>(null)
     val seedingError: StateFlow<String?> = _seedingError
@@ -81,10 +82,9 @@ class MapViewModel(
         }
     }
 
-    fun refresh()
-    {
+    fun refresh() {
         val serverId = tileServerRepository.currentServerFlow().value.id
-        currentVisibleTiles = currentVisibleTiles.map { it.copy(serverId=serverId) }.toSet()
+        currentVisibleTiles = currentVisibleTiles.map { it.copy(serverId = serverId) }.toSet()
         requestTilesForViewport(currentVisibleTiles)
     }
 
@@ -105,7 +105,7 @@ class MapViewModel(
                     var bitmapResult: ImageBitmap? = null
                     _loadingTiles.add(tileId) // Mark as loading (update state flow if exposing)
                     try {
-                        // println("VM Fetching $tileId")
+                        // Napier.d("VM Fetching $tileId")
                         val data = tileRepository.getTile(
                             tileId.x,
                             tileId.y,
@@ -122,10 +122,10 @@ class MapViewModel(
                         }.join()
 
                     } catch (e: CancellationException) {
-                        // println("VM Job cancelled for $tileId")
+                        // Napier.d("VM Job cancelled for $tileId")
                         // Don't update cache
                     } catch (e: Exception) {
-                        // println("VM Error $tileId: ${e.message}")
+                        // Napier.d("VM Error $tileId: ${e.message}")
                         launch(Dispatchers.Main) {
                             _tileBitmapCache[tileId] = null // Cache error state
                             _tileCacheState.value = _tileBitmapCache.toMap()
@@ -147,33 +147,25 @@ class MapViewModel(
     }
 
     fun displayRoute(route: Route) {
-        viewModelScope.launch(Dispatchers.Main) {
-            // Navigate if necessary
-            val current = navController.currentDestination
-            if (current?.route != Screen.Map.route) {
-                navController.navigate(Screen.Map.route)
-            }
+        _currentRoute.value = route // Set the route
+        _isElevationProfileVisible.value = false
 
-            _currentRoute.value = route // Set the route
-            _isElevationProfileVisible.value = false
+        // --- Calculate geographic center of the route ---
+        val boundingBoxCenter = calculateRouteCenter(route)
 
-            // --- Calculate geographic center of the route ---
-            val boundingBoxCenter = calculateRouteCenter(route)
-
-            // Set the map center initially to the route's geographic center
-            // The zoom will be adjusted by the Composable once its size is known
-            boundingBoxCenter?.let { centerGeo ->
-                _mapCenter.value = Point(
-                    centerGeo.latitude.toFloat(),
-                    centerGeo.longitude.toFloat(),
-                    0f // Assuming altitude isn't needed for centering
-                )
-                // Keep existing zoom or reset to a default? Let's keep it for now.
-                // Zoom adjustment will happen in LaunchedEffect in the Composable.
-            } ?: run {
-                // Fallback: Center on the first point if center calculation fails (e.g., empty route)
-                route.route.firstOrNull()?.let { centerMapOn(it) }
-            }
+        // Set the map center initially to the route's geographic center
+        // The zoom will be adjusted by the Composable once its size is known
+        boundingBoxCenter?.let { centerGeo ->
+            _mapCenter.value = Point(
+                centerGeo.latitude.toFloat(),
+                centerGeo.longitude.toFloat(),
+                0f // Assuming altitude isn't needed for centering
+            )
+            // Keep existing zoom or reset to a default? Let's keep it for now.
+            // Zoom adjustment will happen in LaunchedEffect in the Composable.
+        } ?: run {
+            // Fallback: Center on the first point if center calculation fails (e.g., empty route)
+            route.route.firstOrNull()?.let { centerMapOn(it) }
         }
     }
 
@@ -218,8 +210,12 @@ class MapViewModel(
 
     // Called by the user to start seeding an area
     fun startSeedingArea(
-        minLat: Float, maxLat: Float, minLon: Float, maxLon: Float,
-        minZoom: Int, maxZoom: Int
+        minLat: Float,
+        maxLat: Float,
+        minLon: Float,
+        maxLon: Float,
+        minZoom: Int,
+        maxZoom: Int
     ) {
         if (_isSeeding.value) return // Already seeding
 
@@ -234,51 +230,108 @@ class MapViewModel(
                 val effectiveMaxZoom = min(maxZoom, server.tileLayerMax)
 
                 var totalTilesExpected = 0L
+                // --- Pre-calculate bounds for total count ---
                 for (z in effectiveMinZoom..effectiveMaxZoom) {
-                    val (xMin, yMin) = latLonToTileXY(minLat, minLon, z)
-                    val (xMax, yMax) = latLonToTileXY(maxLat, maxLon, z)
-                    totalTilesExpected += (xMax - xMin + 1L) * (yMax - yMin + 1L)
+                    // Get tile indices for the corners
+                    val (xTileMinLon, yTileMaxLat) = latLonToTileXY(maxLat, minLon, z) // Top-Left
+                    val (xTileMaxLon, yTileMinLat) = latLonToTileXY(
+                        minLat,
+                        maxLon,
+                        z
+                    ) // Bottom-Right
+
+                    // Determine the actual min/max tile indices for X and Y
+                    val currentXMin = min(xTileMinLon, xTileMaxLon)
+                    val currentXMax = max(xTileMinLon, xTileMaxLon)
+                    val currentYMin = min(yTileMaxLat, yTileMinLat) // Smaller Y index (North)
+                    val currentYMax = max(yTileMaxLat, yTileMinLat) // Larger Y index (South)
+
+                    // --- CORRECTED Total Calculation ---
+                    val widthInTiles = currentXMax - currentXMin + 1L
+                    val heightInTiles = currentYMax - currentYMin + 1L
+                    if (widthInTiles > 0 && heightInTiles > 0) { // Avoid adding if calculation is weird
+                        totalTilesExpected += widthInTiles * heightInTiles
+                    }
                 }
+
+                Napier.d("Total tiles expected: $totalTilesExpected") // Debug log
+
                 if (totalTilesExpected <= 0) {
-                    throw IllegalStateException("No tiles to download in the selected area/zoom.")
+                    // It's possible the area is too small or spans across anti-meridian incorrectly handled
+                    Napier.d("Warning: No tiles expected for the given area/zoom. Lat: $minLat/$maxLat, Lon: $minLon/$maxLon, Zoom: $effectiveMinZoom..$effectiveMaxZoom")
+                    // Don't throw an exception, just finish gracefully
+                    _seedingProgress.value = 1f
+                    _isSeeding.value = false
+                    return@launch // Exit the launch block
+                    // throw IllegalStateException("No tiles to download in the selected area/zoom ($minLat/$maxLat, $minLon/$maxLon, $effectiveMinZoom..$effectiveMaxZoom).")
                 }
 
                 var tilesProcessed = 0L
+                val progressUpdateThreshold =
+                    (totalTilesExpected / 100).coerceAtLeast(1L) // Update progress roughly every 1% or every tile
 
                 for (z in effectiveMinZoom..effectiveMaxZoom) {
-                    // Convert lat/lon bounds to tile indices for this zoom level
-                    val (xMin, yMin) = latLonToTileXY(minLat, minLon, z)
-                    val (xMax, yMax) = latLonToTileXY(maxLat, maxLon, z)
+                    // Convert lat/lon bounds to tile indices for this zoom level (same as above)
+                    val (xTileMinLon, yTileMaxLat) = latLonToTileXY(maxLat, minLon, z) // Top-Left
+                    val (xTileMaxLon, yTileMinLat) = latLonToTileXY(
+                        minLat,
+                        maxLon,
+                        z
+                    ) // Bottom-Right
 
-                    // Ensure min <= max after conversion
-                    val finalXMin = min(xMin, xMax)
-                    val finalXMax = max(xMin, xMax)
-                    val finalYMin = min(yMin, yMax)
-                    val finalYMax = max(yMin, yMax)
+                    // Determine the actual min/max tile indices for the loop
+                    val finalXMin = min(xTileMinLon, xTileMaxLon)
+                    val finalXMax = max(xTileMinLon, xTileMaxLon)
+                    val finalYMin = min(yTileMaxLat, yTileMinLat) // Smaller Y index (North)
+                    val finalYMax = max(yTileMaxLat, yTileMinLat) // Larger Y index (South)
 
-                    // Tell the repository to seed this layer
+                    Napier.d("Seeding Layer z=$z: X=$finalXMin..$finalXMax, Y=$finalYMin..$finalYMax") // Debug log
+                    _zSeedingProgress.value = z
+
+                    // --- Pass the correct bounds to seedLayer ---
                     tileRepository.seedLayer(
-                        finalXMin,
-                        finalXMax,
-                        finalYMin,
-                        finalYMax,
-                        z, { layerProgress ->
-                            // This callback might be tricky - seedLayer might not easily provide overall progress
-                            // Calculate overall progress based on layer progress and number of tiles in layer
-                            // This needs refinement based on how seedLayer reports progress.
-                            // Simplified placeholder: Assume seedLayer finishes before next loop iteration
-                            _seedingProgress.value = layerProgress
-                        }
-                    ) { x, y, z, e ->
-                        Napier.e("Failed to seed: $x, $y, $z, $e")
-                        snackbarHostState.showSnackbar("failed to seed: $x, $y, $z")
-                    }
+                        xMin = finalXMin, // Use correct min/max
+                        xMax = finalXMax,
+                        yMin = finalYMin, // Use correct min/max (smaller Y index is North)
+                        yMax = finalYMax, // Use correct min/max (larger Y index is South)
+                        z = z,
+                        progressCallback = { layerProgress -> // This callback comes from *within* seedLayer now
+                            // Need a way to map layerProgress to overall progress
+                            // This simplistic approach assumes seedLayer finishes sequentially
+                            // You might need a more sophisticated progress update from seedLayer itself
+                            // For now, let's update based on tiles processed count from within seedLayer if possible
+                            // If not, we update crudely after seedLayer finishes.
+                            _seedingProgress.value =
+                                layerProgress // This only shows progress within one layer
+                        },
+                        errorCallback = { x, y, z, e ->
+                            // Error handling remains the same
+                            Napier.e("Failed to seed: $x, $y, $z, $e")
+                            // Launch on Main for Snackbar
+                            launch(Dispatchers.Main) {
+                                snackbarHostState.showSnackbar("failed to seed: $x, $y, $z")
+                            }
+                            // Optionally increment processed count even on error for progress
+                            val currentProcessed = tilesProcessed++ // Use post-increment
+                            if (currentProcessed % progressUpdateThreshold == 0L || currentProcessed == totalTilesExpected) {
+                                _seedingProgress.value =
+                                    (currentProcessed.toFloat() / totalTilesExpected.toFloat()).coerceIn(
+                                        0f,
+                                        1f
+                                    )
+                            }
+                        },
+                    )
+                    // --- Crude progress update if seedLayer doesn't provide success callback ---
+                    // val tilesInLayer = (finalXMax - finalXMin + 1L) * (finalYMax - finalYMin + 1L)
+                    // tilesProcessed += tilesInLayer
+                    // _seedingProgress.value = (tilesProcessed.toFloat() / totalTilesExpected.toFloat()).coerceIn(0f, 1f)
                 }
                 _seedingProgress.value = 1f // Mark as complete
             } catch (e: Exception) {
                 _seedingError.value = "Seeding failed: ${e.message}"
                 _seedingProgress.value = 0f // Reset progress on error
-                // Log e
+                Napier.e("Seeding error", e) // Log the full exception
             } finally {
                 _isSeeding.value = false
             }

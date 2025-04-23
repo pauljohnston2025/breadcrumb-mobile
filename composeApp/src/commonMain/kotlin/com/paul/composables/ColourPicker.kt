@@ -40,11 +40,11 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.paul.viewmodels.padColorString
+import io.github.aakira.napier.Napier
 import java.lang.Float.max
 import kotlin.math.floor
 import kotlin.math.min
 import kotlin.math.roundToInt
-
 
 /**
  * Converts an RGB color value to HSV. Conversion formula
@@ -667,11 +667,11 @@ fun parseColor(hexString: String): Color {
 
         // Create Color using the component constructor (Ints 0-255)
         val resultColor = Color(red = red, green = green, blue = blue, alpha = alpha)
-        // println("$funcName: Parsed '$hexString' (ARGB: ${argbInt.toUInt().toString(16)}) to Color: $resultColor")
+        // Napier.d("$funcName: Parsed '$hexString' (ARGB: ${argbInt.toUInt().toString(16)}) to Color: $resultColor")
         resultColor
 
     } catch (e: Exception) {
-        println("$funcName: Error parsing hex color '$hexString': ${e.message}. Defaulting to Black.")
+        Napier.d("$funcName: Error parsing hex color '$hexString': ${e.message}. Defaulting to Black.")
         Color.Black // Default fallback color
     }
 }

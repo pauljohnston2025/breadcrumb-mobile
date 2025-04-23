@@ -225,7 +225,7 @@ class HardCodedColourPalette {
 
     fun convertColourToPalette(colour: Colour): Byte {
         val packedColor = rgbTo6Bit(colour.red.toInt(), colour.green.toInt(), colour.blue.toInt(), colorPalette64)
-//        println("Packed color (6-bit): 0x${String.format("%02X", packedColor)}")
+//        Napier.d("Packed color (6-bit): 0x${String.format("%02X", packedColor)}")
         return packedColor
     }
 }

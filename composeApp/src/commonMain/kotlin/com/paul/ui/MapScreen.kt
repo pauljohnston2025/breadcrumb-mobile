@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.Button
 import androidx.compose.material.ButtonDefaults
 import androidx.compose.material.Icon
+import androidx.compose.material.LinearProgressIndicator
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.OutlinedButton
 import androidx.compose.material.Text
@@ -22,7 +23,9 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -40,13 +43,18 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.paul.composables.MapTilerComposable
+import com.paul.infrastructure.service.GeoPosition
+import com.paul.infrastructure.service.screenPixelToGeo
 import com.paul.protocol.todevice.Point
 import com.paul.protocol.todevice.Route
 import com.paul.viewmodels.MapViewModel
+import io.github.aakira.napier.Napier
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.max
@@ -60,9 +68,11 @@ fun MapScreen(viewModel: MapViewModel) {
     val currentRoute by viewModel.currentRoute.collectAsState()
     val isSeeding by viewModel.isSeeding.collectAsState()
     val seedingProgress by viewModel.seedingProgress.collectAsState()
+    val zSeedingProgress by viewModel.zSeedingProgress.collectAsState()
     val seedingError by viewModel.seedingError.collectAsState()
     // Collect the new state for profile visibility
     val isElevationProfileVisible by viewModel.isElevationProfileVisible.collectAsState()
+    var viewportSize by remember { mutableStateOf(IntSize.Zero) }
 
     Column(modifier = Modifier.fillMaxSize()) {
 
@@ -75,6 +85,8 @@ fun MapScreen(viewModel: MapViewModel) {
             MapTilerComposable(
                 modifier = Modifier.fillMaxSize(), // Or Modifier.weight(1f).fillMaxWidth() etc.
                 viewModel = viewModel,
+                viewportSize = viewportSize,
+                onViewportSizeChange = { viewportSize = it }, // Update the state
                 routeToDisplay = currentRoute
             )
 
@@ -86,10 +98,6 @@ fun MapScreen(viewModel: MapViewModel) {
             ) {
                 // Optional: Button to clear route display
                 if (currentRoute != null) {
-//                    Button(onClick = { viewModel.startSeedingArea() }) {
-//                        Text("Cache Current Area")
-//                    }
-//                    Spacer(Modifier.height(8.dp)) // Space between buttons
                     Button(onClick = { viewModel.clearRoute() }) {
                         Text("Clear Route")
                     }
@@ -130,24 +138,78 @@ fun MapScreen(viewModel: MapViewModel) {
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
-            if (isSeeding) { /* ... Seeding UI ... */
-            } else { /* ... Download Button ... */
-            }
-            seedingError?.let { /* ... Error text ... */ }
-        }
+            if (isSeeding) {
+                Text("Caching map area (zlayer: $zSeedingProgress)...") // Updated text slightly
+                LinearProgressIndicator(
+                    progress = seedingProgress,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                )
+            } else {
+                // Add Button or UI to trigger seeding
+                // --- Cache Current Area Button ---
+                Button(onClick = {
+                    // Get bounds and zoom from user input or map viewport
+                    // Example fixed values:
+                    if (viewportSize != IntSize.Zero) {
+                        // 1. Get current map state from ViewModel
+                        val centerPoint = viewModel.mapCenter.value
+                        val centerGeo = GeoPosition(
+                            centerPoint.latitude.toDouble(),
+                            centerPoint.longitude.toDouble()
+                        )
+                        val currentZoom = viewModel.mapZoom.value
 
-        // --- Elevation Profile Area ---
-        // Conditionally display based on BOTH route existence AND visibility state
-        if (currentRoute != null && isElevationProfileVisible) {
-            Spacer(modifier = Modifier.height(8.dp))
-            ElevationProfileChart(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(150.dp) // Example height
-                    .padding(horizontal = 16.dp),
-                route = currentRoute!! // Use non-null assertion or smart cast
-            )
-            Spacer(modifier = Modifier.height(8.dp)) // Padding at the bottom
+                        // 2. Calculate viewport corners' geographic coordinates
+                        val topLeftGeo =
+                            screenPixelToGeo(IntOffset(0, 0), centerGeo, currentZoom, viewportSize)
+                        val bottomRightGeo = screenPixelToGeo(
+                            IntOffset(viewportSize.width, viewportSize.height),
+                            centerGeo,
+                            currentZoom,
+                            viewportSize
+                        )
+
+                        // 3. Determine zoom range (e.g., current to current + 2, or up to max)
+                        //    Make sure minZoom is at least the current zoom level
+                        val tilServer = viewModel.tileServerRepository.currentServerFlow().value
+                        val minSeedZoom = tilServer.tileLayerMin
+                        val maxSeedZoom = tilServer.tileLayerMax
+
+                        // 4. Call ViewModel function
+                        viewModel.startSeedingArea(
+                            minLat = bottomRightGeo.latitude.toFloat(), // Min lat is bottom
+                            maxLat = topLeftGeo.latitude.toFloat(),     // Max lat is top
+                            minLon = topLeftGeo.longitude.toFloat(),    // Min lon is left
+                            maxLon = bottomRightGeo.longitude.toFloat(), // Max lon is right
+                            minZoom = minSeedZoom,
+                            maxZoom = maxSeedZoom
+                        )
+                    } else {
+                        // Optional: Show a message if size is not ready
+                        // scope.launch { snackbarHostState.showSnackbar("Map not ready yet") }
+                        Napier.d("Viewport size not available yet.")
+                    }
+                }) {
+                    Text("Download Current Map Area")
+                }
+                Spacer(Modifier.height(8.dp)) // Space between buttons
+            }
+
+            // --- Elevation Profile Area ---
+            // Conditionally display based on BOTH route existence AND visibility state
+            if (currentRoute != null && isElevationProfileVisible) {
+                Spacer(modifier = Modifier.height(8.dp))
+                ElevationProfileChart(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(150.dp) // Example height
+                        .padding(horizontal = 16.dp),
+                    route = currentRoute!! // Use non-null assertion or smart cast
+                )
+                Spacer(modifier = Modifier.height(8.dp)) // Padding at the bottom
+            }
         }
     }
 }

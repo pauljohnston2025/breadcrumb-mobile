@@ -5,6 +5,8 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.navigation.NavController
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import com.paul.domain.IRoute
 import com.paul.domain.RouteEntry
 import com.paul.infrastructure.connectiq.IConnection
@@ -12,6 +14,7 @@ import com.paul.infrastructure.repositories.HistoryRepository
 import com.paul.infrastructure.repositories.RouteRepository
 import com.paul.infrastructure.service.SendMessageHelper
 import com.paul.infrastructure.service.SendRoute
+import com.paul.ui.Screen
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,7 +28,8 @@ class RoutesViewModel(
     private val deviceSelector: DeviceSelector,
     val routeRepo: RouteRepository,
     private val historyRepo: HistoryRepository,
-    private val snackbarHostState: SnackbarHostState
+    private val snackbarHostState: SnackbarHostState,
+    private val navController: NavController
 ) : ViewModel() {
     // State for controlling the edit dialog
     private val _editingRoute = MutableStateFlow<RouteEntry?>(null)
@@ -80,6 +84,17 @@ class RoutesViewModel(
             }
             mapViewModel.displayRoute(coords)
         }
+
+            // Navigate if necessary
+            val current = navController.currentDestination
+            if (current?.route != Screen.Map.route) {
+                navController.navigate(Screen.Map.route) {
+                    popUpTo(navController.graph.findStartDestination().id) {
+                        inclusive = true
+                    }
+                    launchSingleTop = true
+                }
+            }
     }
 
     fun sendRoute(route: RouteEntry) {

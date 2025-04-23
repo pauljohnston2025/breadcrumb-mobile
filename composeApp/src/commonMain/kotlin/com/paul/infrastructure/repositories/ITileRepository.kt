@@ -89,6 +89,8 @@ abstract class ITileRepository(private val fileHelper: IFileHelper) {
                         } catch (e: Exception) {
                             // Report the error for this specific tile
                             errorCallback(x, y, z, e)
+                        }
+                        finally {
 
                             // Still count it as "processed" in terms of the loop attempt,
                             // otherwise progress might never reach 100% if errors occur.
@@ -99,7 +101,7 @@ abstract class ITileRepository(private val fileHelper: IFileHelper) {
                                 (currentProcessed.toFloat() / totalTiles.toFloat()).coerceIn(0f, 1f)
                             )
                             // Optional: Log the error locally as well
-                            // println("Error fetching tile ($x, $y, $z): ${e.message}")
+                            // Napier.d("Error fetching tile ($x, $y, $z): ${e.message}")
                         }
                     }
                 }
@@ -113,7 +115,7 @@ abstract class ITileRepository(private val fileHelper: IFileHelper) {
             .replace("{y}", "${y}")
             .replace("{z}", "${z}")
             .replace("{authToken}", this.authToken)
-        Napier.d("Loading tile $tileUrl")
+//        Napier.d("Loading tile $tileUrl")
 
         if (z < tileServer.tileLayerMin || z > tileServer.tileLayerMax) {
             Napier.w("Tile url outsize z layer $tileUrl")
@@ -125,7 +127,7 @@ abstract class ITileRepository(private val fileHelper: IFileHelper) {
         val fileName = "tiles/${tileServer.id}/${z}/${x}/${y}.png"
 
         try {
-            var tileContents = fileHelper.readFile(fileName)
+            var tileContents = fileHelper.readLocalFile(fileName)
             if (tileContents == null) {
                 val response = withContext(Dispatchers.IO) {
                     return@withContext client.get(tileUrl) {

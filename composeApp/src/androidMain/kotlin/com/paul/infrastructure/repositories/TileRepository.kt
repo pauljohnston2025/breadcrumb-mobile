@@ -19,12 +19,12 @@ class TileRepository(
 ) : ITileRepository(fileHelper) {
 
     override suspend fun getWatchTile(req: LoadTileRequest): LoadTileResponse {
-        Napier.d("small tile req: $req")
+//        Napier.d("small tile req: $req")
         val smallTilesPerScaledTile = Math.ceil(req.scaledTileSize.toDouble() / req.tileSize).toInt()
         val scaleUpSize = smallTilesPerScaledTile * req.tileSize
         val x = req.x / smallTilesPerScaledTile
         val y = req.y / smallTilesPerScaledTile
-        Napier.d("large tile req: $x, $y, ${req.z}")
+        Napier.d("webserver full tile req: $x, $y, ${req.z}")
 
         val tileContents = getTile(x, y, req.z)
         if (tileContents == null) {

@@ -74,6 +74,7 @@ import com.paul.viewmodels.DeviceSettings
 import com.paul.viewmodels.EditableProperty
 import com.paul.viewmodels.PropertyType
 import com.paul.viewmodels.RouteItem
+import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -391,7 +392,7 @@ fun DeviceSettings(
 
                             } catch (e: Exception) {
                                 // Handle potential casting errors or other issues during transformation
-                                println("Error transforming routes list for saving for key '$key': ${e.message}")
+                                Napier.d("Error transforming routes list for saving for key '$key': ${e.message}")
                                 // Decide how to handle the error:
                                 // Option 1: Return the original (potentially problematic) list
                                 // key to currentValue
@@ -461,7 +462,7 @@ fun PropertyEditorResolver(property: EditableProperty<*>) {
             return // Handled this property, exit the resolver
         } else {
             // Fallback if casting fails - indicates issue in createEditableProperties
-            println("Error: Could not cast state for property '${property.id}' to MutableList<RouteItem>. Displaying placeholder.")
+            Napier.d("Error: Could not cast state for property '${property.id}' to MutableList<RouteItem>. Displaying placeholder.")
             UnknownTypeEditor(property) // Show a generic editor
             return
         }

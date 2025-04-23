@@ -3,20 +3,25 @@ package com.paul.composables
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.Button
 import androidx.compose.material.Icon
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
@@ -24,7 +29,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.unit.dp
 import com.paul.infrastructure.service.GeoPosition
 import com.paul.infrastructure.service.TileId
 import com.paul.infrastructure.service.TileInfo
@@ -36,29 +40,31 @@ import com.paul.infrastructure.service.worldPixelToGeo
 import com.paul.protocol.todevice.Point
 import com.paul.protocol.todevice.Route
 import com.paul.viewmodels.MapViewModel
-import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlin.math.abs
-import kotlin.math.min
 import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.roundToInt
 
 @Composable
 fun MapTilerComposable(
     modifier: Modifier = Modifier,
     viewModel: MapViewModel,
-    minZoom: Int = 1,
-    maxZoom: Int = 18,
+    viewportSize: IntSize,
+    onViewportSizeChange: (IntSize) -> Unit,
     routeToDisplay: Route? = null,
     routeColor: Color = Color.Blue,
     routeStrokeWidth: Float = 5f,
     fitToBoundsPaddingPercent: Float = 0.1f // e.g., 10% padding around the route
 ) {
-    var viewportSize by remember { mutableStateOf(IntSize.Zero) }
-
     // Read state from ViewModel
     val initialMapCenterPoint by viewModel.mapCenter.collectAsState()
     val mapCenterPoint by viewModel.mapCenter.collectAsState()
     val currentZoomLevel by viewModel.mapZoom.collectAsState()
+    val tilServer by viewModel.tileServerRepository.currentServerFlow().collectAsState()
+    val minZoom = tilServer.tileLayerMin
+    val maxZoom = tilServer.tileLayerMax
 
     // --- LOCAL state for map center during interaction ---
     var localMapCenterGeo by remember {
@@ -196,7 +202,7 @@ fun MapTilerComposable(
 
     Box(
         modifier = modifier
-            .onSizeChanged { viewportSize = it }
+            .onSizeChanged { onViewportSizeChange(it) }
             .background(Color.LightGray)
             .pointerInput(Unit) {
                 detectDragGestures(
