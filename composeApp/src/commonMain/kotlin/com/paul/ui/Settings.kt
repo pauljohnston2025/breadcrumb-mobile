@@ -267,8 +267,10 @@ fun Settings(
     var showAddDialog by remember { mutableStateOf(false) }
     var serverToDelete by remember { mutableStateOf<TileServerInfo?>(null) }
     val showDeleteConfirmDialog = serverToDelete != null
-    val currentTileServer = viewModel.tileServerRepo.currentServerFlow().collectAsState(TileServerRepo.defaultTileServer)
-    val availableServers = viewModel.tileServerRepo.availableServersFlow().collectAsState(listOf(TileServerRepo.defaultTileServer))
+    val currentTileServer = viewModel.tileServerRepo.currentServerFlow()
+        .collectAsState(TileServerRepo.defaultTileServer)
+    val availableServers = viewModel.tileServerRepo.availableServersFlow()
+        .collectAsState(listOf(TileServerRepo.defaultTileServer))
     val tileServerEnabled = viewModel.tileServerRepo.tileServerEnabledFlow().collectAsState(true)
     val authTokenFlow = viewModel.tileServerRepo.authTokenFlow().collectAsState("")
 
@@ -276,7 +278,7 @@ fun Settings(
     AddCustomServerDialog(
         showDialog = showAddDialog,
         onDismissRequest = { showAddDialog = false },
-        onSave = { name, url, tileLayerMin, tileLayerMax->
+        onSave = { name, url, tileLayerMin, tileLayerMax ->
             // Create the new TileServer object
             val newServer = TileServerInfo(
                 serverType = ServerType.CUSTOM,
@@ -369,85 +371,89 @@ fun Settings(
                 )
             }
 
-            if (tileServerEnabled.value)
-            {
+            Text(
+                text = "Tile Server (map view and phone hosted):",
+                style = MaterialTheme.typography.body1,
+                modifier = Modifier.fillMaxWidth() // Take full width for alignment
+                // You might want TextAligh.Start if your parent Column is CenterHorizontally
+                // textAlign = TextAlign.Start
+            )
 
-                AuthTokenEditor(
-                    currentAuthToken = authTokenFlow.value,
-                    onAuthTokenChange = { updatedToken ->
-                        viewModel.onAuthKeyChange(updatedToken)
-                    },
-                    enabled = true,
-                    obscureText = false // Set to true if you want dots/asterisks
+            AuthTokenEditor(
+                currentAuthToken = authTokenFlow.value,
+                onAuthTokenChange = { updatedToken ->
+                    viewModel.onAuthKeyChange(updatedToken)
+                },
+                enabled = true,
+                obscureText = false // Set to true if you want dots/asterisks
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween // Align label and add button
+            ) {
+                Text(
+                    text = "Add Custom Server:",
+                    style = MaterialTheme.typography.body2,
                 )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween // Align label and add button
-                ) {
-                    Text(
-                        text = "Add Custom Server:",
-                        style = MaterialTheme.typography.body2,
-                    )
-                    // --- Add Custom Server Button ---
-                    IconButton(onClick = { showAddDialog = true }) {
-                        Icon(Icons.Filled.Add, contentDescription = "Add custom tile server")
-                    }
+                // --- Add Custom Server Button ---
+                IconButton(onClick = { showAddDialog = true }) {
+                    Icon(Icons.Filled.Add, contentDescription = "Add custom tile server")
                 }
+            }
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                ExposedDropdownMenuBox(
+                    expanded = expanded,
+                    onExpandedChange = { expanded = !expanded },
+                    modifier = Modifier.weight(1.5f)
                 ) {
-                    ExposedDropdownMenuBox(
+                    OutlinedTextField(
+                        value = currentTileServer.value.title,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Select Server") },
+                        trailingIcon = {
+                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+                        },
+                        colors = ExposedDropdownMenuDefaults.textFieldColors(),
+                        modifier = Modifier.fillMaxWidth() // Just standard modifiers
+                    )
+
+                    ExposedDropdownMenu(
                         expanded = expanded,
-                        onExpandedChange = { expanded = !expanded },
-                        modifier = Modifier.weight(1.5f)
+                        onDismissRequest = { expanded = false }
                     ) {
-                        OutlinedTextField(
-                            value = currentTileServer.value.title,
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text("Select Server") },
-                            trailingIcon = {
-                                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
-                            },
-                            colors = ExposedDropdownMenuDefaults.textFieldColors(),
-                            modifier = Modifier.fillMaxWidth() // Just standard modifiers
-                        )
+                        availableServers.value.forEach { server ->
+                            DropdownMenuItem(
+                                onClick = {
+                                    viewModel.onServerSelected(server)
+                                    expanded = false
+                                }
+                            ) {
+                                Text(server.title)
 
-                        ExposedDropdownMenu(
-                            expanded = expanded,
-                            onDismissRequest = { expanded = false }
-                        ) {
-                            availableServers.value.forEach { server ->
-                                DropdownMenuItem(
-                                    onClick = {
-                                        viewModel.onServerSelected(server)
-                                        expanded = false
-                                    }
-                                ) {
-                                    Text(server.title)
+                                Spacer(modifier = Modifier.weight(1f))
 
-                                    Spacer(modifier = Modifier.weight(1f))
-
-                                    if (server.isCustom) {
-                                        IconButton(
-                                            onClick = {
-                                                serverToDelete = server
-                                                expanded = false // Close menu after delete
-                                            },
-                                            modifier = Modifier
-                                                .size(24.dp)
-                                                .padding(start = 8.dp)
-                                        ) {
-                                            Icon(
-                                                Icons.Filled.Delete,
-                                                contentDescription = "Delete custom server ${server.title}",
-                                                tint = MaterialTheme.colors.error
-                                            )
-                                        }
+                                if (server.isCustom) {
+                                    IconButton(
+                                        onClick = {
+                                            serverToDelete = server
+                                            expanded = false // Close menu after delete
+                                        },
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .padding(start = 8.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Filled.Delete,
+                                            contentDescription = "Delete custom server ${server.title}",
+                                            tint = MaterialTheme.colors.error
+                                        )
                                     }
                                 }
                             }

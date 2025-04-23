@@ -144,30 +144,37 @@ class TileServerRepo(
     }
 
     suspend fun updateCurrentTileServer(tileServer: TileServerInfo) {
-        tileRepo.setTileServer(tileServer)
+        tileRepo.setTileServer(tileServer) // app map view
 
-        // should probably be driven from event from currentServerFlow, but oh well
-        val req = ChangeTileServer(tileServer = tileServer)
-        val response = client.post(req) {
-            contentType(ContentType.Application.Json) // Set content type
-            setBody(req)
+        if (currentlyEnabled()) {
+            // webserver
+            // should probably be driven from event from currentServerFlow, but oh well
+            val req = ChangeTileServer(tileServer = tileServer)
+            val response = client.post(req) {
+                contentType(ContentType.Application.Json) // Set content type
+                setBody(req)
+            }
+            response.status.isSuccess()
         }
-        response.status.isSuccess()
+
 
         currentTileServer.emit(tileServer)
         settings.putString(TILE_SERVER_KEY, Json.encodeToString(tileServer))
     }
 
     suspend fun updateAuthToken(authToken: String) {
-        tileRepo.setAuthToken(authToken)
+        tileRepo.setAuthToken(authToken) // app map view
 
-        // should probably be driven from event from currentServerFlow, but oh well
-        val req = ChangeAuthToken(authToken = authToken)
-        val response = client.post(req) {
-            contentType(ContentType.Application.Json) // Set content type
-            setBody(req)
+        if (currentlyEnabled()) {
+            // webserver
+            // should probably be driven from event from currentServerFlow, but oh well
+            val req = ChangeAuthToken(authToken = authToken)
+            val response = client.post(req) {
+                contentType(ContentType.Application.Json) // Set content type
+                setBody(req)
+            }
+            response.status.isSuccess()
         }
-        response.status.isSuccess()
 
         currentAuthToken.emit(authToken)
         settings.putString(AUTH_TOKEN_KEY, authToken)

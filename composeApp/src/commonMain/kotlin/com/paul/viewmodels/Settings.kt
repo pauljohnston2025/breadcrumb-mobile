@@ -31,33 +31,37 @@ class Settings(
 
     fun onServerSelected(tileServer: TileServerInfo) {
         viewModelScope.launch(Dispatchers.IO) {
-            val device = deviceSelector.currentDevice()
-            if (device == null) {
-                // todo make this a toast or something better for the user
-                snackbarHostState.showSnackbar("no devices selected")
-                return@launch
-            }
+            if (tileServerRepo.currentlyEnabled()) {
+                // we also need to tell the watch about the changes
 
-            sendingMessage("Setting tile server") {
-                try {
+                val device = deviceSelector.currentDevice()
+                if (device == null) {
+                    // todo make this a toast or something better for the user
+                    snackbarHostState.showSnackbar("no devices selected")
+                    return@launch
+                }
+
+                sendingMessage("Setting tile server") {
                     try {
-                        tileServerRepo.updateCurrentTileServer(tileServer)
-                    } catch (e: Exception) {
-                        println("POST request failed: ${e.message}")
-                        snackbarHostState.showSnackbar("Failed to update tile server")
+                        try {
+                            tileServerRepo.updateCurrentTileServer(tileServer)
+                        } catch (e: Exception) {
+                            println("POST request failed: ${e.message}")
+                            snackbarHostState.showSnackbar("Failed to update tile server")
+                            return@sendingMessage
+                        }
+                        connection.send(device, DropTileCache())
+
+                        // todo: tell watch to dump tile cache
+                    } catch (t: TimeoutCancellationException) {
+                        snackbarHostState.showSnackbar("Timed out clearing tile cache")
+                        return@sendingMessage
+                    } catch (t: Throwable) {
+                        snackbarHostState.showSnackbar("Failed to send to selected device")
                         return@sendingMessage
                     }
-                    connection.send(device, DropTileCache())
-
-                    // todo: tell watch to dump tile cache
-                } catch (t: TimeoutCancellationException) {
-                    snackbarHostState.showSnackbar("Timed out clearing tile cache")
-                    return@sendingMessage
-                } catch (t: Throwable) {
-                    snackbarHostState.showSnackbar("Failed to send to selected device")
-                    return@sendingMessage
+                    snackbarHostState.showSnackbar("Tile server updated")
                 }
-                snackbarHostState.showSnackbar("Tile server updated")
             }
         }
     }
