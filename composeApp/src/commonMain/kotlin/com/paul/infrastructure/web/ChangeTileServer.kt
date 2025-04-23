@@ -9,3 +9,9 @@ import kotlinx.serialization.Serializable
 data class ChangeTileServer(
     val tileServer: TileServerInfo,
 )
+
+@Serializable
+@Resource("/changeAuthToken")
+data class ChangeAuthToken(
+    val authToken: String,
+)

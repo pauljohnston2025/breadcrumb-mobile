@@ -1,37 +1,31 @@
 package com.paul.viewmodels
 
-import io.github.aakira.napier.Napier
 import androidx.compose.material.SnackbarHostState
 import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.paul.domain.TileServerInfo
 import com.paul.infrastructure.connectiq.IConnection
+import com.paul.infrastructure.repositories.ITileRepository
 import com.paul.infrastructure.repositories.TileServerRepo
-import com.paul.infrastructure.web.ChangeTileServer
 import com.paul.infrastructure.web.WebServerController
 import com.paul.protocol.todevice.DropTileCache
-import io.ktor.client.plugins.resources.post
-import io.ktor.client.request.setBody
-import io.ktor.http.ContentType
-import io.ktor.http.contentType
-import io.ktor.http.isSuccess
+import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.launch
-import kotlinx.serialization.json.Json
 
 
 class Settings(
     private val deviceSelector: DeviceSelector,
     private val connection: IConnection,
     private val snackbarHostState: SnackbarHostState,
-    private val webServerController: WebServerController
+    webServerController: WebServerController,
+    tileRepo: ITileRepository,
 ) : ViewModel() {
 
-    val tileServerRepo = TileServerRepo(webServerController)
+    val tileServerRepo = TileServerRepo(webServerController, tileRepo)
 
     val sendingMessage: MutableState<String> = mutableStateOf("")
 
@@ -100,6 +94,17 @@ class Settings(
                 launch(Dispatchers.Main) {
                     tileServerRepo.rollBackEnabled(oldVal)
                 }
+            }
+        }
+    }
+
+    fun onAuthKeyChange(newVal: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                tileServerRepo.updateAuthToken(newVal)
+            } catch (t: Throwable) {
+                Napier.d("failed to update tile server auth token: $t")
+                snackbarHostState.showSnackbar("Failed to update tile server auth token")
             }
         }
     }

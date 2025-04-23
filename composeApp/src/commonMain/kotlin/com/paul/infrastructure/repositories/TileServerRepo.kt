@@ -2,6 +2,7 @@ package com.paul.infrastructure.repositories
 
 import com.paul.domain.ServerType
 import com.paul.domain.TileServerInfo
+import com.paul.infrastructure.web.ChangeAuthToken
 import com.paul.infrastructure.web.ChangeTileServer
 import com.paul.infrastructure.web.KtorClient
 import com.paul.infrastructure.web.WebServerController
@@ -17,9 +18,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.json.Json
 
-class TileServerRepo(private val webServerController: WebServerController) {
+class TileServerRepo(
+    private val webServerController: WebServerController,
+    private val tileRepo: ITileRepository, // the one running for the maps page (we update the webserver one through web calls)
+) {
     companion object {
         val TILE_SERVER_KEY = "TILE_SERVER"
+        val AUTH_TOKEN_KEY = "AUTH_TOKEN"
         val CUSTOM_SERVERS_KEY = "CUSTOM_SERVERS_KEY"
         val TILE_SERVER_ENABLED_KEY = "TILE_SERVER_ENABLED_KEY"
         val settings: Settings = Settings()
@@ -46,6 +51,15 @@ class TileServerRepo(private val webServerController: WebServerController) {
                 return defaultTileServer
             }
         }
+
+        fun getAuthTokenOnStart(): String {
+            val authToken = settings.getStringOrNull(CUSTOM_SERVERS_KEY)
+            if (authToken == null) {
+                return ""
+            }
+
+            return authToken
+        }
     }
 
     private val client = KtorClient.client // Get the singleton client instance
@@ -53,6 +67,7 @@ class TileServerRepo(private val webServerController: WebServerController) {
         defaultTileServer
     )
     private val tileServerEnabled: MutableStateFlow<Boolean> = MutableStateFlow(true)
+    private val currentAuthToken: MutableStateFlow<String> = MutableStateFlow("")
 
     fun currentServerFlow(): StateFlow<TileServerInfo> {
         return currentTileServer.asStateFlow()
@@ -60,6 +75,10 @@ class TileServerRepo(private val webServerController: WebServerController) {
 
     fun tileServerEnabledFlow(): Flow<Boolean> {
         return tileServerEnabled
+    }
+
+    fun authTokenFlow(): Flow<String> {
+        return currentAuthToken
     }
 
     fun availableServersFlow(): Flow<List<TileServerInfo>> {
@@ -89,6 +108,17 @@ class TileServerRepo(private val webServerController: WebServerController) {
         TileServerInfo(ServerType.ESRI, "Esri - World Physical Map", "https://server.arcgisonline.com/arcgis/rest/services/World_Physical_Map/MapServer/tile/{z}/{y}/{x}", 0, 8),
         TileServerInfo(ServerType.OPENSTREETMAP, "Open Street Map - Cyclosm", "https://a.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png", 0, 12),
         TileServerInfo(ServerType.OPENSTREETMAP, "Open Street Map", "https://tile.openstreetmap.org/{z}/{x}/{y}.png", 0, 12),
+        TileServerInfo(ServerType.STADIA, "Stadia - Alidade Smooth (auth required)", "https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}.png?api_key={authToken}", 0, 20),
+        TileServerInfo(ServerType.STADIA, "Stadia - Alidade Smooth Dark (auth required)", "https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}.png?api_key={authToken}", 0, 20),
+        TileServerInfo(ServerType.STADIA, "Stadia - Outdoors (auth required)", "https://tiles.stadiamaps.com/tiles/outdoors/{z}/{x}/{y}.png?api_key={authToken}", 0, 20),
+        TileServerInfo(ServerType.STADIA, "Stadia - Stamen Toner (auth required)", "https://tiles.stadiamaps.com/tiles/stamen_toner/{z}/{x}/{y}.png?api_key={authToken}", 0, 20),
+        TileServerInfo(ServerType.STADIA, "Stadia - Stamen Toner Lite (auth required)", "https://tiles.stadiamaps.com/tiles/stamen_toner_lite/{z}/{x}/{y}.png?api_key={authToken}", 0, 20),
+        TileServerInfo(ServerType.STADIA, "Stadia - Stamen Terrain (auth required)", "https://tiles.stadiamaps.com/tiles/stamen_terrain/{z}/{x}/{y}.png?api_key={authToken}", 0, 20),
+        TileServerInfo(ServerType.STADIA, "Stadia - Stamen Watercolor (auth required)", "https://tiles.stadiamaps.com/tiles/stamen_watercolor/{z}/{x}/{y}.jpg?api_key={authToken}", 0, 16),
+        TileServerInfo(ServerType.STADIA, "Stadia - OSM Bright (auth required)", "https://tiles.stadiamaps.com/tiles/osm_bright/{z}/{x}/{y}.png?api_key={authToken}", 0, 20),
+        TileServerInfo(ServerType.CARTO, "Carto - Voyager", "https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png", 0, 20),
+        TileServerInfo(ServerType.CARTO, "Carto - Dark Matter", "https://a.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png", 0, 20),
+        TileServerInfo(ServerType.CARTO, "Carto - Light All", "https://a.basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}.png", 0, 20),
     ))
     // @formatter:on
 
@@ -104,20 +134,38 @@ class TileServerRepo(private val webServerController: WebServerController) {
         val servers = getCustomServers()
         val newList = availableServers.value.toMutableList()
         servers.forEach { newList.add(it) }
-        availableServers.tryEmit(newList.toList())
-        currentTileServer.tryEmit(getTileServerOnStart())
+        availableServers.value = newList.toList()
+        currentTileServer.value = getTileServerOnStart()
+        currentAuthToken.value = getAuthTokenOnStart()
 
         val enabled = settings.getBooleanOrNull(TILE_SERVER_ENABLED_KEY)
         // null check for anyone who has never set the setting, defaults to enabled
-        tileServerEnabled.tryEmit(enabled == null || enabled)
+        tileServerEnabled.value = (enabled == null || enabled)
     }
 
     suspend fun updateCurrentTileServer(tileServer: TileServerInfo) {
         currentTileServer.emit(tileServer)
-        settings.putString(TILE_SERVER_KEY, tileServer.url)
+        settings.putString(TILE_SERVER_KEY, Json.encodeToString(tileServer))
+
+        tileRepo.setTileServer(tileServer)
 
         // should probably be driven from event from currentServerFlow, but oh well
         val req = ChangeTileServer(tileServer = tileServer)
+        val response = client.post(req) {
+            contentType(ContentType.Application.Json) // Set content type
+            setBody(req)
+        }
+        response.status.isSuccess()
+    }
+
+    suspend fun updateAuthToken(authToken: String) {
+        currentAuthToken.emit(authToken)
+        settings.putString(AUTH_TOKEN_KEY, authToken)
+
+        tileRepo.setAuthToken(authToken)
+
+        // should probably be driven from event from currentServerFlow, but oh well
+        val req = ChangeAuthToken(authToken = authToken)
         val response = client.post(req) {
             contentType(ContentType.Application.Json) // Set content type
             setBody(req)

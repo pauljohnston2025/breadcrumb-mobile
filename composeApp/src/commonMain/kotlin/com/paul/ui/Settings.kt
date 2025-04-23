@@ -11,6 +11,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.paul.composables.LoadingOverlay
 import com.paul.domain.ServerType
@@ -244,6 +245,7 @@ fun Settings(
     val currentTileServer = viewModel.tileServerRepo.currentServerFlow().collectAsState(TileServerRepo.defaultTileServer)
     val availableServers = viewModel.tileServerRepo.availableServersFlow().collectAsState(listOf(TileServerRepo.defaultTileServer))
     val tileServerEnabled = viewModel.tileServerRepo.tileServerEnabledFlow().collectAsState(true)
+    val authTokenFlow = viewModel.tileServerRepo.authTokenFlow().collectAsState("")
 
     // --- Call the Add Custom Server Dialog ---
     AddCustomServerDialog(
@@ -345,6 +347,15 @@ fun Settings(
             if (tileServerEnabled.value)
             {
 
+                AuthTokenEditor(
+                    currentAuthToken = authTokenFlow.value,
+                    onAuthTokenChange = { updatedToken ->
+                        viewModel.onAuthKeyChange(updatedToken)
+                    },
+                    enabled = true,
+                    obscureText = false // Set to true if you want dots/asterisks
+                )
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -441,5 +452,74 @@ fun SettingRow(label: String, content: @Composable () -> Unit) {
     ) {
         Text(label, style = MaterialTheme.typography.body1)
         content()
+    }
+}
+
+/**
+ * A Composable Row that displays an OutlinedTextField for editing an auth key.
+ *
+ * @param modifier Optional Modifier for the containing Row.
+ * @param currentAuthToken The current value of the auth key to display initially.
+ * @param onAuthTokenChange Lambda function invoked with the new key string whenever the user types in the TextField.
+ * @param label Text label to display for the input field (defaults to "Auth Key").
+ * @param enabled Controls the enabled state of the TextField.
+ * @param obscureText Set to true to treat the input like a password field (optional).
+ */
+@Composable
+fun AuthTokenEditor(
+    modifier: Modifier = Modifier,
+    currentAuthToken: String,
+    onAuthTokenChange: (newKey: String) -> Unit,
+    label: String = "Auth Token",
+    enabled: Boolean = true,
+    obscureText: Boolean = false // Set to true to hide the key like a password
+) {
+    // Local state to hold the text field value, initialized with the current key
+    // Use a key in remember to update local state if the external currentAuthToken changes
+    var textFieldValue by remember(currentAuthToken) { mutableStateOf(currentAuthToken) }
+
+    // Alternative using LaunchedEffect for synchronization (more robust if external changes are frequent):
+    /*
+    var textFieldValue by remember { mutableStateOf(currentAuthToken) }
+    LaunchedEffect(currentAuthToken) {
+        if (textFieldValue != currentAuthToken) { // Only update if different
+            textFieldValue = currentAuthToken
+        }
+    }
+    */
+
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        // Use Start arrangement if you want label close to text field,
+        // or SpaceBetween if you want them at opposite ends (adjust TextField width accordingly)
+        horizontalArrangement = Arrangement.spacedBy(8.dp) // Add some space
+        // horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        // Label on the left (optional, as OutlinedTextField has its own label)
+        Text(
+            text = "$label:", // Add colon for clarity if using external label
+            style = MaterialTheme.typography.body2,
+            modifier = Modifier.padding(end = 8.dp) // Add padding if using external label
+        )
+
+        OutlinedTextField(
+            value = textFieldValue,
+            onValueChange = { newValue ->
+                // Update the local state first
+                textFieldValue = newValue
+                // Then call the callback to notify the parent/ViewModel
+                onAuthTokenChange(newValue)
+            },
+            modifier = Modifier.weight(1f), // Allow TextField to take available space
+            label = { Text(label) }, // Use TextField's built-in label
+            singleLine = true,
+            enabled = enabled,
+            visualTransformation = if (obscureText) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+            keyboardOptions = KeyboardOptions(
+                // Suggest ASCII or Password based on obscurity, adjust as needed
+                keyboardType = if (obscureText) KeyboardType.Password else KeyboardType.Ascii
+            )
+        )
     }
 }

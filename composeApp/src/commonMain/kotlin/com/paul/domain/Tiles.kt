@@ -9,6 +9,8 @@ enum class ServerType {
     GOOGLE,
     OPENTOPOMAP,
     OPENSTREETMAP,
+    STADIA,
+    CARTO,
 }
 
 @Serializable

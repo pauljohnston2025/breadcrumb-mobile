@@ -165,7 +165,6 @@ val listOptionsMapping: Map<String, List<ListOption>> = mapOf(
 )
 
 val labelOverrides: Map<String, String> = mapOf(
-)
     "zoomAtPaceMode" to "Mode",
     "offTrackAlertsDistanceM" to "Off Track Alert Distance (m)",
     "offTrackAlertsMaxReportIntervalS" to "Max Report Interval (s)",

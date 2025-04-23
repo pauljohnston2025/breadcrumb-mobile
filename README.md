@@ -28,6 +28,10 @@ Powered by Esri: https://www.esri.com
 OpenStreetMap: https://openstreetmap.org/copyright  
 OpenTopoMap: https://opentopomap.org/about  
 Google: https://cloud.google.com/maps-platform/terms https://policies.google.com/privacy  
+Carto: https://carto.com/attribution
+&copy; <a href="https://stadiamaps.com/" target="_blank">Stadia Maps</a>
+&copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a>
+&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>
 
 ---
 

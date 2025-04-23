@@ -148,6 +148,11 @@ class WebServerService(
                 call.respond(HttpStatusCode.OK)
             }
 
+            post<ChangeAuthToken> { params ->
+                tileGetter.setAuthToken(params.authToken)
+                call.respond(HttpStatusCode.OK)
+            }
+
             resourcesGet<CheckStatusRequest>  { params ->
                 call.respond(HttpStatusCode.OK)
             }

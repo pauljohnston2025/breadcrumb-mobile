@@ -70,7 +70,8 @@ fun App(
                 deviceSelector,
                 connection,
                 scaffoldState.snackbarHostState,
-                webServerController
+                webServerController,
+                tileRepo
             )
         }
 

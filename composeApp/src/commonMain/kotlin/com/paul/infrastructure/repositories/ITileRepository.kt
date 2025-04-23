@@ -1,6 +1,8 @@
 package com.paul.infrastructure.repositories
 
+import ch.qos.logback.core.subst.Token
 import com.paul.domain.TileServerInfo
+import com.paul.infrastructure.repositories.TileServerRepo.Companion.getAuthTokenOnStart
 import com.paul.infrastructure.repositories.TileServerRepo.Companion.getTileServerOnStart
 import com.paul.infrastructure.service.IFileHelper
 import com.paul.infrastructure.web.KtorClient
@@ -25,6 +27,7 @@ abstract class ITileRepository(private val fileHelper: IFileHelper) {
     private val client = KtorClient.client // Get the singleton client instance
 
     private var tileServer = getTileServerOnStart()
+    private var authToken = getAuthTokenOnStart()
 
     fun currentTileServer(): TileServerInfo {
         return tileServer
@@ -34,6 +37,10 @@ abstract class ITileRepository(private val fileHelper: IFileHelper) {
         this.tileServer = tileServer
         // todo: nuke local tile cache?
         // maybe a tile cache per url?
+    }
+
+    fun setAuthToken(authToken: String) {
+        this.authToken = authToken
     }
 
     fun erroredTile(req: LoadTileRequest): LoadTileResponse {
@@ -105,6 +112,7 @@ abstract class ITileRepository(private val fileHelper: IFileHelper) {
             .replace("{x}", "${x}")
             .replace("{y}", "${y}")
             .replace("{z}", "${z}")
+            .replace("{authToken}", this.authToken)
         Napier.d("Loading tile $tileUrl")
 
         if (z < tileServer.tileLayerMin || z > tileServer.tileLayerMax) {

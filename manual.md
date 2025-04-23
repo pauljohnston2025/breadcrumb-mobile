@@ -45,6 +45,7 @@ The phone hosts a tile server for the watch to query tiles from. The tiles downl
 Tile Server Enabled - enable/disable the tile server. You may want to disable the tile server if you are using a templated url on the watch, and not using the companion app to host offline tiles. This will remove some notifications, and not start the tile server process.  
 Add Custom Server - Manually configure a tile server for use on the companion app, this tile server will be added to the  'Select Server' dropdown.  
 Select Server - Select the tile server you wsh the companion app to serve tiles from.
+Auth Token - will be used for any tile server that specifies '{authToken}' in the template url.
 
 ---
 
