@@ -209,6 +209,8 @@ fun DeviceSettings(
                                 }
                                 val tileUrlProp = findProp("tileUrl")
                                 if (tileUrlProp != null) PropertyEditorResolver(tileUrlProp)
+                                val authTokenProp = findProp("authToken")
+                                if (authTokenProp != null) PropertyEditorResolver(authTokenProp)
                                 val tileSizeProp = findProp("tileSize")
                                 if (tileSizeProp != null) PropertyEditorResolver(tileSizeProp)
                                 val fullTileSizeProp = findProp("fullTileSize")

@@ -150,11 +150,22 @@ val listOptionsMapping: Map<String, List<ListOption>> = mapOf(
         ListOption(15, "Esri - World Navigation Charts"),
         ListOption(16, "Esri - World Physical Map"),
         ListOption(17, "Open Street Map - Cyclosm"),
+        ListOption(18, "Stadia - Alidade Smooth (auth required)"),
+        ListOption(19, "Stadia - Alidade Smooth Dark (auth required)"),
+        ListOption(20, "Stadia - Outdoors (auth required)"),
+        ListOption(21, "Stadia - Stamen Toner (auth required)"),
+        ListOption(22, "Stadia - Stamen Toner Lite (auth required)"),
+        ListOption(23, "Stadia - Stamen Terrain (auth required)"),
+        ListOption(24, "Stadia - Stamen Watercolor (auth required)"),
+        ListOption(25, "Stadia - OSM Bright (auth required)"),
+        ListOption(26, "Carto - Voyager"),
+        ListOption(27, "Carto - Dark Matter"),
+        ListOption(28, "Carto - Dark Light All"),
     )
 )
 
 val labelOverrides: Map<String, String> = mapOf(
-    "zoomAtPaceSpeedMPS" to "Speed To Zoom At (mps)",
+)
     "zoomAtPaceMode" to "Mode",
     "offTrackAlertsDistanceM" to "Off Track Alert Distance (m)",
     "offTrackAlertsMaxReportIntervalS" to "Max Report Interval (s)",
@@ -278,6 +289,7 @@ class DeviceSettings(
                     )
 
                     // --- Strings ---
+                    "authToken",
                     "tileUrl" -> EditableProperty(
                         key,
                         PropertyType.STRING,
