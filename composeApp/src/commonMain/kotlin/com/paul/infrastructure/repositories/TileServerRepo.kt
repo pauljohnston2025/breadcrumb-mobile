@@ -53,7 +53,7 @@ class TileServerRepo(
         }
 
         fun getAuthTokenOnStart(): String {
-            val authToken = settings.getStringOrNull(CUSTOM_SERVERS_KEY)
+            val authToken = settings.getStringOrNull(AUTH_TOKEN_KEY)
             if (authToken == null) {
                 return ""
             }
@@ -144,9 +144,6 @@ class TileServerRepo(
     }
 
     suspend fun updateCurrentTileServer(tileServer: TileServerInfo) {
-        currentTileServer.emit(tileServer)
-        settings.putString(TILE_SERVER_KEY, Json.encodeToString(tileServer))
-
         tileRepo.setTileServer(tileServer)
 
         // should probably be driven from event from currentServerFlow, but oh well
@@ -156,12 +153,12 @@ class TileServerRepo(
             setBody(req)
         }
         response.status.isSuccess()
+
+        currentTileServer.emit(tileServer)
+        settings.putString(TILE_SERVER_KEY, Json.encodeToString(tileServer))
     }
 
     suspend fun updateAuthToken(authToken: String) {
-        currentAuthToken.emit(authToken)
-        settings.putString(AUTH_TOKEN_KEY, authToken)
-
         tileRepo.setAuthToken(authToken)
 
         // should probably be driven from event from currentServerFlow, but oh well
@@ -171,6 +168,9 @@ class TileServerRepo(
             setBody(req)
         }
         response.status.isSuccess()
+
+        currentAuthToken.emit(authToken)
+        settings.putString(AUTH_TOKEN_KEY, authToken)
     }
 
     suspend fun onAddCustomServer(tileServer: TileServerInfo) {

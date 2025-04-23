@@ -40,7 +40,7 @@ Configure the app settings
 
 ### Phone Hosted Tile Server
 
-The phone hosts a tile server for the watch to query tiles from. The tiles downloaded are cached locally on the phone for use with offline map support.
+The phone hosts a tile server for the watch to query tiles from. The tiles downloaded are cached locally on the phone for use with offline map support. To stop the tile server (and stop getting the 'tile server running' notifications), you need to close the app, not just background it. ie. open recent apps draw on android and swipe the app away to close it.    
 
 Tile Server Enabled - enable/disable the tile server. You may want to disable the tile server if you are using a templated url on the watch, and not using the companion app to host offline tiles. This will remove some notifications, and not start the tile server process.  
 Add Custom Server - Manually configure a tile server for use on the companion app, this tile server will be added to the  'Select Server' dropdown.  

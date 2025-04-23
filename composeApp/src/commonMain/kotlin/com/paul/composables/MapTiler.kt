@@ -69,7 +69,7 @@ fun MapTilerComposable(
     val visibleTiles by remember(currentMapCenterGeo, currentZoomLevel, viewportSize) {
         derivedStateOf {
             if (viewportSize == IntSize.Zero) emptyList() else {
-                calculateVisibleTiles(currentMapCenterGeo, currentZoomLevel, viewportSize)
+                calculateVisibleTiles(currentMapCenterGeo, currentZoomLevel, viewportSize, viewModel.tileServerRepository.currentServerFlow().value.id)
             }
         }
     }
@@ -315,7 +315,8 @@ fun MapTilerComposable(
 private fun calculateVisibleTiles(
     mapCenterGeo: GeoPosition, // Use state from VM
     zoom: Int,                 // Use state from VM
-    viewportSize: IntSize
+    viewportSize: IntSize,
+    serverId: String
 ): List<TileInfo> { // Keep returning TileInfo for now
     // ... (implementation remains the same, calculates offset based on passed center/zoom) ...
     if (viewportSize == IntSize.Zero) return emptyList()
@@ -341,7 +342,7 @@ private fun calculateVisibleTiles(
     val endY = (maxTileY + buffer).coerceAtMost(n - 1)
     for (x in startX..endX) {
         for (y in startY..endY) {
-            val tileId = TileId(x, y, zoom)
+            val tileId = TileId(x, y, zoom, serverId)
             val tileTopLeftGeo = worldPixelToGeo(x.toDouble() / n, y.toDouble() / n)
             // This screenOffset is calculated based on the *current* VM state
             val screenOffset = geoToScreenPixel(tileTopLeftGeo, mapCenterGeo, zoom, viewportSize)

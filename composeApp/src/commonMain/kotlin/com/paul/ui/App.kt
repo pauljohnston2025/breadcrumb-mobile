@@ -221,6 +221,7 @@ fun App(
                     }
 
                     composable(Screen.Map.route) {
+                        mapViewModel.refresh() // make sure the latest tile server changes are applied
                         MapScreen(mapViewModel)
                     }
 

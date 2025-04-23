@@ -21,6 +21,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update // Import update extension
 import kotlinx.coroutines.launch
 import kotlin.coroutines.cancellation.CancellationException
@@ -29,7 +31,7 @@ import kotlin.math.min
 
 class MapViewModel(
     private val tileRepository: ITileRepository,
-    private val tileServerRepository: TileServerRepo,
+    val tileServerRepository: TileServerRepo,
     private val snackbarHostState: SnackbarHostState,
     private val navController: NavController,
 ) : ViewModel() {
@@ -69,10 +71,26 @@ class MapViewModel(
 // val loadingTilesState: StateFlow<Set<TileId>> = _loadingTilesState
 
     private val loadingJobs = mutableMapOf<TileId, Job>() // Still needed for cancellation
-    val isActive = true;
+    val isActive = true
+    private var currentVisibleTiles: Set<TileId> = setOf()
+
+    init {
+        viewModelScope.launch(Dispatchers.IO) {
+            tileServerRepository.currentServerFlow().onEach { refresh() }.collect()
+            tileServerRepository.authTokenFlow().onEach { refresh() }.collect()
+        }
+    }
+
+    fun refresh()
+    {
+        val serverId = tileServerRepository.currentServerFlow().value.id
+        currentVisibleTiles = currentVisibleTiles.map { it.copy(serverId=serverId) }.toSet()
+        requestTilesForViewport(currentVisibleTiles)
+    }
 
     // Function called by Composable
     fun requestTilesForViewport(visibleTileIds: Set<TileId>) {
+        currentVisibleTiles = visibleTileIds
         // 1. Cancel jobs for tiles no longer needed
         val jobsToCancel = loadingJobs.filterKeys { it !in visibleTileIds }
         jobsToCancel.forEach { (_, job) -> job.cancel() }
@@ -196,19 +214,6 @@ class MapViewModel(
         if (_currentRoute.value != null) {
             _isElevationProfileVisible.update { !it }
         }
-    }
-
-    fun setTileServer(serverInfo: TileServerInfo) {
-        // ... (no changes needed here for profile)
-        viewModelScope.launch(Dispatchers.IO) {
-            tileServerRepository.updateCurrentTileServer(serverInfo)
-        }
-    }
-
-    suspend fun provideTileData(x: Int, y: Int, z: Int): ByteArray? {
-        return viewModelScope.async(Dispatchers.IO) {
-            tileRepository.getTile(x, y, z)
-        }.await()
     }
 
     // Called by the user to start seeding an area

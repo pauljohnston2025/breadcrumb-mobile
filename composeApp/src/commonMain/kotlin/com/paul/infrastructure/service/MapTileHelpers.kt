@@ -9,7 +9,7 @@ import kotlin.math.*
 data class GeoPosition(val latitude: Double, val longitude: Double)
 
 // Tile identifier
-data class TileId(val x: Int, val y: Int, val z: Int)
+data class TileId(val x: Int, val y: Int, val z: Int, val serverId: String)
 
 // Information about a tile to be displayed
 data class TileInfo(
