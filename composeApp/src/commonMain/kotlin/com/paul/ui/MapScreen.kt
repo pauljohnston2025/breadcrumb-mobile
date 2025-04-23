@@ -1,7 +1,6 @@
 package com.paul.ui
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -45,7 +44,6 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.paul.composables.MapTilerComposable
-import com.paul.infrastructure.service.GeoPosition
 import com.paul.protocol.todevice.Point
 import com.paul.protocol.todevice.Route
 import com.paul.viewmodels.MapViewModel
@@ -88,6 +86,10 @@ fun MapScreen(viewModel: MapViewModel) {
             ) {
                 // Optional: Button to clear route display
                 if (currentRoute != null) {
+//                    Button(onClick = { viewModel.startSeedingArea() }) {
+//                        Text("Cache Current Area")
+//                    }
+//                    Spacer(Modifier.height(8.dp)) // Space between buttons
                     Button(onClick = { viewModel.clearRoute() }) {
                         Text("Clear Route")
                     }

@@ -56,20 +56,49 @@ fun MapTilerComposable(
     var viewportSize by remember { mutableStateOf(IntSize.Zero) }
 
     // Read state from ViewModel
+    val initialMapCenterPoint by viewModel.mapCenter.collectAsState()
     val mapCenterPoint by viewModel.mapCenter.collectAsState()
     val currentZoomLevel by viewModel.mapZoom.collectAsState()
 
-    // Convert ViewModel center Point to GeoPosition for calculations
-    val currentMapCenterGeo = remember(mapCenterPoint) {
-        GeoPosition(mapCenterPoint.latitude.toDouble(), mapCenterPoint.longitude.toDouble())
+    // --- LOCAL state for map center during interaction ---
+    var localMapCenterGeo by remember {
+        mutableStateOf(
+            GeoPosition(
+                initialMapCenterPoint.latitude.toDouble(),
+                initialMapCenterPoint.longitude.toDouble()
+            )
+        )
+    }
+
+    // Effect to update LOCAL state if ViewModel state changes externally
+    LaunchedEffect(initialMapCenterPoint) {
+        val vmGeo = GeoPosition(
+            initialMapCenterPoint.latitude.toDouble(),
+            initialMapCenterPoint.longitude.toDouble()
+        )
+        // Basic reset. Consider adding a threshold check if needed.
+        if (localMapCenterGeo != vmGeo) { // Avoid self-update from onDragEnd
+            localMapCenterGeo = vmGeo
+        }
+    }
+    val viewModelMapCenterGeo = remember(initialMapCenterPoint) {
+        GeoPosition(
+            initialMapCenterPoint.latitude.toDouble(),
+            initialMapCenterPoint.longitude.toDouble()
+        )
     }
 
     val tileCache by viewModel.tileCacheState.collectAsState()
 
-    val visibleTiles by remember(currentMapCenterGeo, currentZoomLevel, viewportSize) {
+    val visibleTiles by remember(viewModelMapCenterGeo, currentZoomLevel, viewportSize) {
         derivedStateOf {
             if (viewportSize == IntSize.Zero) emptyList() else {
-                calculateVisibleTiles(currentMapCenterGeo, currentZoomLevel, viewportSize, viewModel.tileServerRepository.currentServerFlow().value.id)
+                calculateVisibleTiles(
+                    viewModelMapCenterGeo,
+                    currentZoomLevel,
+                    viewportSize,
+                    viewModel.tileServerRepository.currentServerFlow().value.id
+                )
             }
         }
     }
@@ -175,8 +204,8 @@ fun MapTilerComposable(
                         // Update VM only on drag end
                         viewModel.centerMapOn(
                             Point(
-                                currentMapCenterGeo.latitude.toFloat(),
-                                currentMapCenterGeo.longitude.toFloat(),
+                                localMapCenterGeo.latitude.toFloat(), // Use local state
+                                localMapCenterGeo.longitude.toFloat(), // Use local state
                                 0f
                             )
                         )
@@ -192,18 +221,12 @@ fun MapTilerComposable(
                         )
                         val newCenter = screenPixelToGeo(
                             draggedToScreen,
-                            currentMapCenterGeo,
+                            localMapCenterGeo,
                             currentZoomLevel,
                             viewportSize
                         )
-
-                        viewModel.centerMapOn(
-                            Point(
-                                newCenter.latitude.toFloat(),
-                                newCenter.longitude.toFloat(),
-                                0f
-                            )
-                        )
+                        // --- Update LOCAL state directly ---
+                        localMapCenterGeo = newCenter
 
                     }
                 )
@@ -213,16 +236,6 @@ fun MapTilerComposable(
             clipRect {
                 // --- Draw Tiles ---
                 visibleTiles.forEach { tileInfo ->
-                    // Use currentMapCenterGeo and currentZoomLevel from VM state for tile pos
-                    val screenOffset = geoToScreenPixel(
-                        worldPixelToGeo(
-                            tileInfo.id.x.toDouble() / (1 shl currentZoomLevel),
-                            tileInfo.id.y.toDouble() / (1 shl currentZoomLevel)
-                        ),
-                        currentMapCenterGeo,
-                        currentZoomLevel,
-                        viewportSize
-                    )
                     val tileId = tileInfo.id
                     val imageBitmap = tileCache[tileId]
                     if (tileCache.containsKey(tileId)) {
@@ -235,8 +248,14 @@ fun MapTilerComposable(
                         } else { /* Draw Error */
                             drawRect(
                                 color = Color.DarkGray.copy(alpha = 0.5f),
-                                topLeft = Offset(tileInfo.screenOffset.x.toFloat(), tileInfo.screenOffset.y.toFloat()),
-                                size = androidx.compose.ui.geometry.Size(tileInfo.size.width.toFloat(), tileInfo.size.height.toFloat())
+                                topLeft = Offset(
+                                    tileInfo.screenOffset.x.toFloat(),
+                                    tileInfo.screenOffset.y.toFloat()
+                                ),
+                                size = androidx.compose.ui.geometry.Size(
+                                    tileInfo.size.width.toFloat(),
+                                    tileInfo.size.height.toFloat()
+                                )
                                 // You could draw a small spinner graphic here too
                             )
                         }
@@ -250,12 +269,12 @@ fun MapTilerComposable(
                 routeToDisplay?.let { route ->
                     if (route.route.size >= 2) {
                         val path = Path()
-                        // Use currentMapCenterGeo and currentZoomLevel from VM state
+                        // Use viewModelMapCenterGeo and currentZoomLevel from VM state
                         val startPoint = geoToScreenPixel(
                             GeoPosition(
                                 route.route.first().latitude.toDouble(),
                                 route.route.first().longitude.toDouble()
-                            ), currentMapCenterGeo, currentZoomLevel, viewportSize
+                            ), viewModelMapCenterGeo, currentZoomLevel, viewportSize
                         )
                         path.moveTo(startPoint.x.toFloat(), startPoint.y.toFloat())
                         route.route.drop(1).forEach { point ->
@@ -263,7 +282,7 @@ fun MapTilerComposable(
                                 GeoPosition(
                                     point.latitude.toDouble(),
                                     point.longitude.toDouble()
-                                ), currentMapCenterGeo, currentZoomLevel, viewportSize
+                                ), viewModelMapCenterGeo, currentZoomLevel, viewportSize
                             )
                             path.lineTo(screenPoint.x.toFloat(), screenPoint.y.toFloat())
                         }
