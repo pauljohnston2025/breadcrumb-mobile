@@ -9,6 +9,7 @@ import com.paul.domain.TileServerInfo
 import com.paul.infrastructure.connectiq.IConnection
 import com.paul.infrastructure.repositories.ITileRepository
 import com.paul.infrastructure.repositories.TileServerRepo
+import com.paul.infrastructure.web.TileType
 import com.paul.infrastructure.web.WebServerController
 import com.paul.protocol.todevice.DropTileCache
 import io.github.aakira.napier.Napier
@@ -29,6 +30,49 @@ class Settings(
 
     val sendingMessage: MutableState<String> = mutableStateOf("")
 
+    fun onTileTypeSelected(tileType: TileType) {
+        viewModelScope.launch(Dispatchers.IO) {
+            if (!tileServerRepo.currentlyEnabled()) {
+                sendingMessage("Setting tile type") {
+                    try {
+                        tileServerRepo.updateCurrentTileType(tileType)
+                    } catch (e: Exception) {
+                        Napier.d("tile type update failed: ${e.message}")
+                        snackbarHostState.showSnackbar("Failed to update tile type")
+                        return@sendingMessage
+                    }
+                }
+                return@launch
+            }
+            // we also need to tell the watch about the changes
+            val device = deviceSelector.currentDevice()
+            if (device == null) {
+                snackbarHostState.showSnackbar("no devices selected")
+                return@launch
+            }
+
+            sendingMessage("Setting tile server") {
+                try {
+                    try {
+                        tileServerRepo.updateCurrentTileType(tileType)
+                    } catch (e: Exception) {
+                        Napier.d("POST request failed: ${e.message}")
+                        snackbarHostState.showSnackbar("Failed to update tile type")
+                        return@sendingMessage
+                    }
+                    connection.send(device, DropTileCache())
+                } catch (t: TimeoutCancellationException) {
+                    snackbarHostState.showSnackbar("Timed out clearing tile cache")
+                    return@sendingMessage
+                } catch (t: Throwable) {
+                    snackbarHostState.showSnackbar("Failed to send to selected device")
+                    return@sendingMessage
+                }
+                snackbarHostState.showSnackbar("Tile type updated")
+            }
+        }
+    }
+
     fun onServerSelected(tileServer: TileServerInfo) {
         viewModelScope.launch(Dispatchers.IO) {
             if (!tileServerRepo.currentlyEnabled()) {
@@ -47,7 +91,6 @@ class Settings(
             // we also need to tell the watch about the changes
             val device = deviceSelector.currentDevice()
             if (device == null) {
-                // todo make this a toast or something better for the user
                 snackbarHostState.showSnackbar("no devices selected")
                 return@launch
             }
@@ -62,8 +105,6 @@ class Settings(
                         return@sendingMessage
                     }
                     connection.send(device, DropTileCache())
-
-                    // todo: tell watch to dump tile cache
                 } catch (t: TimeoutCancellationException) {
                     snackbarHostState.showSnackbar("Timed out clearing tile cache")
                     return@sendingMessage

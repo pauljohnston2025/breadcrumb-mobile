@@ -60,6 +60,6 @@ class TileRepository(
 
         val tile = MapTile(req.x, req.y, req.z, colourData)
 
-        return LoadTileResponse(tile.colourString())
+        return LoadTileResponse(tileType.value.toInt(), tile.colourString(tileType))
     }
 }

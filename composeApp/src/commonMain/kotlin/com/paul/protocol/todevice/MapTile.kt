@@ -1,5 +1,7 @@
 package com.paul.protocol.todevice
 
+import com.paul.infrastructure.web.TileType
+import okio.ByteString.Companion.toByteString
 import kotlin.random.Random
 
 data class Colour(
@@ -14,9 +16,8 @@ data class Colour(
     val red: UByte,
     val green: UByte,
     val blue: UByte,
-)
-{
-    fun asCharColour(): Byte {
+) {
+    fun as64Colour(): Byte {
         return HardCodedColourPalette().convertColourToPalette(this)
 //        // not the best conversion, but ok for now
 //        val colour =  ((Math.round(red.toInt() / 255.0f) * 3) shl 4) or
@@ -28,6 +29,14 @@ data class Colour(
 //        return colour.toByte()
     }
 
+    fun isCloseToWhite(): Boolean {
+        return HardCodedColourPalette().isCloseToWhite(this)
+    }
+
+    fun as24BitColour(): List<UByte> {
+        return listOf(red, green, blue)
+    }
+
     fun asPackedColour(): Int {
         // not the best conversion, but ok for now
         val colour = (red.toInt() shl 16) or (green.toInt() shl 8) or blue.toInt()
@@ -35,7 +44,7 @@ data class Colour(
     }
 
     companion object {
-        fun random() : Colour {
+        fun random(): Colour {
             return Colour(
                 Random.nextInt(0, 255).toUByte(),
                 Random.nextInt(0, 255).toUByte(),
@@ -60,11 +69,56 @@ class MapTile(
         data.add(x)
         data.add(y)
         data.add(z)
-        data.add(colourString())
+        data.add(colourString(TileType.TILE_DATA_TYPE_64_COLOUR))
         return data
     }
 
-    fun colourString(): String {
+    fun colourString(tileType: TileType): String {
+        return when (tileType) {
+            TileType.TILE_DATA_TYPE_64_COLOUR -> colourString64Colour()
+            TileType.TILE_DATA_TYPE_BASE64_FULL_COLOUR -> fullColourStringBase64()
+            TileType.TILE_DATA_TYPE_BLACK_AND_WHITE -> blackAndWhiteColourString()
+        }
+    }
+
+    @OptIn(ExperimentalUnsignedTypes::class)
+    fun fullColourStringBase64(): String {
+        var bytes = mutableListOf<UByte>()
+        // testing data
+        for (colour in pixelData) {
+            bytes.addAll(colour.as24BitColour())
+        }
+        return bytes.toUByteArray().toByteArray().toByteString().base64()
+    }
+
+    fun blackAndWhiteColourString(): String {
+
+        var str = ""
+        var colourByte = 0x00
+        var bit = 0
+        for (colour in pixelData) {
+            val colourBit = if (colour.isCloseToWhite()) 1 else 0
+            colourByte = colourByte or (colourBit shl bit)
+            bit++
+            if (bit >= 6) {
+                val byteVal = ((colourByte or 0x40) and 0x7F).toByte()
+                val char = byteArrayOf(byteVal).decodeToString()
+                str += char
+                bit = 0
+                colourByte = 0x00
+            }
+        }
+        // add the last byte in
+        if (bit != 0) {
+            val byteVal = ((colourByte or 0x40) and 0x7F).toByte()
+            val char = byteArrayOf(byteVal).decodeToString()
+            str += char
+        }
+
+        return str
+    }
+
+    fun colourString64Colour(): String {
         // monkey c is a really annoying encoding, it does not allow sending a raw byte array
         // you can send strings, but they have to be valid utf8, fortunately we are not using the
         // top 2 bits in our encoding yet (so all our values are in the ascii range)
@@ -77,7 +131,7 @@ class MapTile(
         var str = "";
         // testing data
         for (colour in pixelData) {
-            val colourByte = colour.asCharColour()
+            val colourByte = colour.as64Colour()
 //            Napier.d("colour byte is: " + colourByte.toInt())
             // we also cannot send all 0's since its the null terminator
             // so we will set the second highest bit
@@ -86,18 +140,6 @@ class MapTile(
             str += char
         }
         return str
-    }
-
-    fun colourList(): List<Int> {
-        val res = mutableListOf<Int>();
-        for (colour in pixelData) {
-            val colourInt = colour.asPackedColour()
-//            Napier.d("colour byte is: " + colourByte.toInt())
-            // we also cannot send all 0's since its the null terminator
-            // so we will set the second highest bit
-            res.add(colourInt)
-        }
-        return res
     }
 }
 
@@ -195,7 +237,8 @@ class HardCodedColourPalette {
 
         for (i in palette.indices) {
             val paletteColor = palette[i]
-            val distance = colorDistance(red, green, blue, paletteColor.r, paletteColor.g, paletteColor.b)
+            val distance =
+                colorDistance(red, green, blue, paletteColor.r, paletteColor.g, paletteColor.b)
 
             if (distance < minDistance) {
                 minDistance = distance
@@ -224,9 +267,21 @@ class HardCodedColourPalette {
     }
 
     fun convertColourToPalette(colour: Colour): Byte {
-        val packedColor = rgbTo6Bit(colour.red.toInt(), colour.green.toInt(), colour.blue.toInt(), colorPalette64)
+        val packedColor =
+            rgbTo6Bit(colour.red.toInt(), colour.green.toInt(), colour.blue.toInt(), colorPalette64)
 //        Napier.d("Packed color (6-bit): 0x${String.format("%02X", packedColor)}")
         return packedColor
+    }
+
+    fun isCloseToWhite(colour: Colour): Boolean {
+        // we want to consider even very bright grays as white, so the bottom approach is slightly better for stamen toner maps
+//        val white = RGBColor(255, 255, 255)
+//        val black = RGBColor(0, 0, 0)
+//        val bWColorPalette = listOf(black, white);
+//        val paletteIndex = findNearestColorIndex(colour.red.toInt(), colour.green.toInt(), colour.blue.toInt(), bWColorPalette)
+//        return paletteIndex == 1
+
+        return colour.red.toInt() > 200 && colour.green.toInt() > 200 && colour.blue.toInt() > 200
     }
 }
 

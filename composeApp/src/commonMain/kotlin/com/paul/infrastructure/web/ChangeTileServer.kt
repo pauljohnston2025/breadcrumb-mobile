@@ -15,3 +15,9 @@ data class ChangeTileServer(
 data class ChangeAuthToken(
     val authToken: String,
 )
+
+@Serializable
+@Resource("/changeTileType")
+data class ChangeTileType(
+    val tileType: TileType,
+)

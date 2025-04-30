@@ -75,9 +75,9 @@ val RequestLogging = createApplicationPlugin(name = "RequestLogging") {
             "$name: ${values.joinToString()}"
         }
         val responseType = call.response.responseType
-//        Napier.d("Outgoing response - Method: $method, Path: $path\n  Status: $statusCode\n  Headers:\n" +
-//                "    $headers\n  Duration: $duration ms\n  ResponseType: $responseType\n  Response: $responseObject", tag = "WebserverService")
-        Napier.d("Outgoing response - Method: $method Status: $statusCode", tag = "WebserverService")
+        Napier.d("Outgoing response - Method: $method, Path: $path\n  Status: $statusCode\n  Headers:\n" +
+                "    $headers\n  Duration: $duration ms\n  ResponseType: $responseType\n  Response: $responseObject", tag = "WebserverService")
+//        Napier.d("Outgoing response - Method: $method Status: $statusCode", tag = "WebserverService")
     }
 }
 
@@ -150,6 +150,11 @@ class WebServerService(
 
             post<ChangeAuthToken> { params ->
                 tileGetter.setAuthToken(params.authToken)
+                call.respond(HttpStatusCode.OK)
+            }
+
+            post<ChangeTileType> { params ->
+                tileGetter.updateTileType(params.tileType)
                 call.respond(HttpStatusCode.OK)
             }
 

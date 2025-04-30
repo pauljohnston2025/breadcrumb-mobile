@@ -4,7 +4,9 @@ import com.paul.domain.ServerType
 import com.paul.domain.TileServerInfo
 import com.paul.infrastructure.web.ChangeAuthToken
 import com.paul.infrastructure.web.ChangeTileServer
+import com.paul.infrastructure.web.ChangeTileType
 import com.paul.infrastructure.web.KtorClient
+import com.paul.infrastructure.web.TileType
 import com.paul.infrastructure.web.WebServerController
 import com.russhwolf.settings.Settings
 import io.ktor.client.plugins.resources.post
@@ -24,11 +26,13 @@ class TileServerRepo(
 ) {
     companion object {
         val TILE_SERVER_KEY = "TILE_SERVER"
+        val TILE_TYPE_KEY = "TILE_TYPE"
         val AUTH_TOKEN_KEY = "AUTH_TOKEN"
         val CUSTOM_SERVERS_KEY = "CUSTOM_SERVERS_KEY"
         val TILE_SERVER_ENABLED_KEY = "TILE_SERVER_ENABLED_KEY"
         val settings: Settings = Settings()
 
+        val defaultTileType = TileType.TILE_DATA_TYPE_64_COLOUR
         val defaultTileServer = TileServerInfo(
             ServerType.OPENTOPOMAP,
             "Open Topo Map",
@@ -52,6 +56,21 @@ class TileServerRepo(
             }
         }
 
+        fun getTileTypeOnStart(): TileType {
+            val tileType = settings.getStringOrNull(TILE_TYPE_KEY)
+
+            if (tileType == null) {
+                return defaultTileType
+            }
+
+            return try {
+                Json.decodeFromString<TileType>(tileType)
+            } catch (t: Throwable) {
+                // bad encoding, maybe we changed it
+                return defaultTileType
+            }
+        }
+
         fun getAuthTokenOnStart(): String {
             val authToken = settings.getStringOrNull(AUTH_TOKEN_KEY)
             if (authToken == null) {
@@ -66,11 +85,18 @@ class TileServerRepo(
     private val currentTileServer: MutableStateFlow<TileServerInfo> = MutableStateFlow(
         defaultTileServer
     )
+    private val currentTileType: MutableStateFlow<TileType> = MutableStateFlow(
+        defaultTileType
+    )
     private val tileServerEnabled: MutableStateFlow<Boolean> = MutableStateFlow(true)
     private val currentAuthToken: MutableStateFlow<String> = MutableStateFlow("")
 
     fun currentServerFlow(): StateFlow<TileServerInfo> {
         return currentTileServer.asStateFlow()
+    }
+
+    fun currentTileTypeFlow(): StateFlow<TileType> {
+        return currentTileType.asStateFlow()
     }
 
     fun tileServerEnabledFlow(): Flow<Boolean> {
@@ -85,7 +111,12 @@ class TileServerRepo(
         return availableServers
     }
 
+    fun availableTileTypesFlow(): Flow<List<TileType>> {
+        return availableTileTypes
+    }
+
     // @formatter:off
+    val availableTileTypes = MutableStateFlow(TileType.entries)
     val availableServers = MutableStateFlow(listOf(
         TileServerInfo(ServerType.OPENTOPOMAP, "Open Topo Map", "https://a.tile.opentopomap.org/{z}/{x}/{y}.png", 0, 15),
         TileServerInfo(ServerType.GOOGLE, "Google - Hybrid", "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}", 0, 20),
@@ -136,6 +167,7 @@ class TileServerRepo(
         servers.forEach { newList.add(it) }
         availableServers.value = newList.toList()
         currentTileServer.value = getTileServerOnStart()
+        currentTileType.value = getTileTypeOnStart()
         currentAuthToken.value = getAuthTokenOnStart()
 
         val enabled = settings.getBooleanOrNull(TILE_SERVER_ENABLED_KEY)
@@ -160,6 +192,25 @@ class TileServerRepo(
 
         currentTileServer.emit(tileServer)
         settings.putString(TILE_SERVER_KEY, Json.encodeToString(tileServer))
+    }
+
+    suspend fun updateCurrentTileType(tileType: TileType) {
+        tileRepo.updateTileType(tileType) // app map view
+
+        if (currentlyEnabled()) {
+            // webserver
+            // should probably be driven from event from currentTypeFlow, but oh well
+            val req = ChangeTileType(tileType = tileType)
+            val response = client.post(req) {
+                contentType(ContentType.Application.Json) // Set content type
+                setBody(req)
+            }
+            response.status.isSuccess()
+        }
+
+
+        currentTileType.emit(tileType)
+        settings.putString(TILE_TYPE_KEY, Json.encodeToString(tileType))
     }
 
     suspend fun updateAuthToken(authToken: String) {

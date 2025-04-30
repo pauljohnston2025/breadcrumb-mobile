@@ -4,10 +4,12 @@ import ch.qos.logback.core.subst.Token
 import com.paul.domain.TileServerInfo
 import com.paul.infrastructure.repositories.TileServerRepo.Companion.getAuthTokenOnStart
 import com.paul.infrastructure.repositories.TileServerRepo.Companion.getTileServerOnStart
+import com.paul.infrastructure.repositories.TileServerRepo.Companion.getTileTypeOnStart
 import com.paul.infrastructure.service.IFileHelper
 import com.paul.infrastructure.web.KtorClient
 import com.paul.infrastructure.web.LoadTileRequest
 import com.paul.infrastructure.web.LoadTileResponse
+import com.paul.infrastructure.web.TileType
 import com.paul.infrastructure.web.platformInfo
 import com.paul.protocol.todevice.Colour
 import com.paul.protocol.todevice.MapTile
@@ -28,6 +30,7 @@ abstract class ITileRepository(private val fileHelper: IFileHelper) {
 
     private var tileServer = getTileServerOnStart()
     private var authToken = getAuthTokenOnStart()
+    protected var tileType = getTileTypeOnStart()
 
     fun currentTileServer(): TileServerInfo {
         return tileServer
@@ -43,6 +46,10 @@ abstract class ITileRepository(private val fileHelper: IFileHelper) {
         this.authToken = authToken
     }
 
+    fun updateTileType(tileType: TileType) {
+        this.tileType = tileType
+    }
+
     fun erroredTile(req: LoadTileRequest): LoadTileResponse {
         val colourData = List(req.tileSize * req.tileSize) {
             Colour(
@@ -52,7 +59,7 @@ abstract class ITileRepository(private val fileHelper: IFileHelper) {
             )
         }
         val tile = MapTile(req.x, req.y, req.z, colourData)
-        return LoadTileResponse(tile.colourString())
+        return LoadTileResponse(tileType.value.toInt(), tile.colourString(tileType))
     }
 
     abstract suspend fun getWatchTile(req: LoadTileRequest): LoadTileResponse

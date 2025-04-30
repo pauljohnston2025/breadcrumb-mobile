@@ -264,13 +264,18 @@ fun Settings(
     viewModel: SettingsViewModel,
 ) {
     var expanded by remember { mutableStateOf(false) }
+    var tileTypeExpanded by remember { mutableStateOf(false) }
     var showAddDialog by remember { mutableStateOf(false) }
     var serverToDelete by remember { mutableStateOf<TileServerInfo?>(null) }
     val showDeleteConfirmDialog = serverToDelete != null
     val currentTileServer = viewModel.tileServerRepo.currentServerFlow()
         .collectAsState(TileServerRepo.defaultTileServer)
+    val currentTileType = viewModel.tileServerRepo.currentTileTypeFlow()
+        .collectAsState(TileServerRepo.defaultTileType)
     val availableServers = viewModel.tileServerRepo.availableServersFlow()
         .collectAsState(listOf(TileServerRepo.defaultTileServer))
+    val availableTileTypes = viewModel.tileServerRepo.availableTileTypesFlow()
+        .collectAsState(listOf(TileServerRepo.defaultTileType))
     val tileServerEnabled = viewModel.tileServerRepo.tileServerEnabledFlow().collectAsState(true)
     val authTokenFlow = viewModel.tileServerRepo.authTokenFlow().collectAsState("")
 
@@ -371,6 +376,47 @@ fun Settings(
                 )
             }
 
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                ExposedDropdownMenuBox(
+                    expanded = tileTypeExpanded,
+                    onExpandedChange = { tileTypeExpanded = !tileTypeExpanded },
+                    modifier = Modifier.weight(1.5f)
+                ) {
+                    OutlinedTextField(
+                        value = currentTileType.value.label(),
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Tile Type") },
+                        trailingIcon = {
+                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = tileTypeExpanded)
+                        },
+                        colors = ExposedDropdownMenuDefaults.textFieldColors(),
+                        modifier = Modifier.fillMaxWidth() // Just standard modifiers
+                    )
+
+                    ExposedDropdownMenu(
+                        expanded = tileTypeExpanded,
+                        onDismissRequest = { tileTypeExpanded = false }
+                    ) {
+                        availableTileTypes.value.forEach { tileType ->
+                            DropdownMenuItem(
+                                onClick = {
+                                    viewModel.onTileTypeSelected(tileType)
+                                    tileTypeExpanded = false
+                                }
+                            ) {
+                                Text(tileType.label())
+
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+                }
+            }
+
             Text(
                 text = "Tile Server (map view and phone hosted):",
                 style = MaterialTheme.typography.body1,
@@ -378,6 +424,8 @@ fun Settings(
                 // You might want TextAligh.Start if your parent Column is CenterHorizontally
                 // textAlign = TextAlign.Start
             )
+
+
 
             AuthTokenEditor(
                 currentAuthToken = authTokenFlow.value,
