@@ -4,13 +4,15 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.Button
 import androidx.compose.material.Icon
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -19,6 +21,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -29,6 +32,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.dp
 import com.paul.infrastructure.service.GeoPosition
 import com.paul.infrastructure.service.TileId
 import com.paul.infrastructure.service.TileInfo
@@ -303,7 +307,11 @@ fun MapTilerComposable(
         }
 
         // --- Simple Zoom Buttons ---
-        Row( /* ... */) {
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(8.dp)
+        ) {
             Button(
                 onClick = {
                     viewModel.setMapZoom(
@@ -315,7 +323,7 @@ fun MapTilerComposable(
                 },
                 enabled = currentZoomLevel < maxZoom
             ) {
-                Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Zoom In")
+                Icon(Icons.Default.Add, contentDescription = "Zoom In")
             }
             Button(
                 onClick = {
@@ -328,7 +336,7 @@ fun MapTilerComposable(
                 },
                 enabled = currentZoomLevel > minZoom
             ) {
-                Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Zoom Out")
+                Icon(Icons.Default.Remove, contentDescription = "Zoom Out")
             }
         }
     }

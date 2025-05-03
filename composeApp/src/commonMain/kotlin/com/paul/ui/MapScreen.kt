@@ -15,11 +15,16 @@ import androidx.compose.material.Button
 import androidx.compose.material.ButtonDefaults
 import androidx.compose.material.Icon
 import androidx.compose.material.LinearProgressIndicator
+import androidx.compose.material.LocalContentAlpha
+import androidx.compose.material.LocalContentColor
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.OutlinedButton
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Downloading
+import androidx.compose.material.icons.filled.Terrain
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -90,44 +95,33 @@ fun MapScreen(viewModel: MapViewModel) {
                 routeToDisplay = currentRoute
             )
 
-            // --- Map Overlays / Buttons ---
             Column(
                 modifier = Modifier
-                    .align(Alignment.TopEnd) // Group buttons top-right
+                    .align(Alignment.BottomStart)
                     .padding(8.dp)
             ) {
-                // Optional: Button to clear route display
                 if (currentRoute != null) {
                     Button(onClick = { viewModel.clearRoute() }) {
-                        Text("Clear Route")
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Clear route",
+                            modifier = Modifier.size(ButtonDefaults.IconSize),
+                        )
                     }
-                    Spacer(Modifier.height(8.dp)) // Space between buttons
-                    // --- Toggle Elevation Profile Button ---
-                    // Use OutlinedButton or IconButton for less emphasis than Clear maybe
-                    OutlinedButton(
+                    Button(
                         onClick = { viewModel.toggleElevationProfileVisibility() }
                     ) {
                         Icon(
-                            Icons.Default.MoreVert, // Chart icon
+                            Icons.Default.Terrain,
                             contentDescription = if (isElevationProfileVisible) "Hide Elevation Profile" else "Show Elevation Profile",
-                            modifier = Modifier.size(ButtonDefaults.IconSize)
+                            modifier = Modifier.size(ButtonDefaults.IconSize),
+                            tint = if (isElevationProfileVisible) LocalContentColor.current.copy(
+                                alpha = 1f
+                            ) else LocalContentColor.current.copy(alpha = 0.5f)
                         )
-                        Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-                        Text(if (isElevationProfileVisible) "Hide Elevation Profile" else "Show Elevation Profile")
                     }
                 }
             }
-            // You could also place the profile toggle button elsewhere, e.g., BottomStart:
-            /*
-            if (currentRoute != null) {
-                Button(
-                    onClick = { viewModel.toggleElevationProfileVisibility() },
-                    modifier = Modifier.align(Alignment.BottomStart).padding(8.dp)
-                ) {
-                    Text(if (isElevationProfileVisible) "Hide Profile" else "Show Profile")
-                }
-            }
-            */
         } // --- End of Map Box ---
 
 
@@ -137,9 +131,20 @@ fun MapScreen(viewModel: MapViewModel) {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 8.dp)
+                .align(Alignment.CenterHorizontally)
         ) {
             if (isSeeding) {
-                Text("Caching map area (zlayer: $zSeedingProgress)...") // Updated text slightly
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.Downloading,
+                        contentDescription = "Caching map area",
+                        modifier = Modifier.size(ButtonDefaults.IconSize),
+                    )
+                    Text("Caching map area (zlayer: $zSeedingProgress)...") // Updated text slightly
+                }
                 LinearProgressIndicator(
                     progress = seedingProgress,
                     modifier = Modifier
@@ -149,52 +154,65 @@ fun MapScreen(viewModel: MapViewModel) {
             } else {
                 // Add Button or UI to trigger seeding
                 // --- Cache Current Area Button ---
-                Button(onClick = {
-                    // Get bounds and zoom from user input or map viewport
-                    // Example fixed values:
-                    if (viewportSize != IntSize.Zero) {
-                        // 1. Get current map state from ViewModel
-                        val centerPoint = viewModel.mapCenter.value
-                        val centerGeo = GeoPosition(
-                            centerPoint.latitude.toDouble(),
-                            centerPoint.longitude.toDouble()
-                        )
-                        val currentZoom = viewModel.mapZoom.value
+                Button(
+                    onClick = {
+                        // Get bounds and zoom from user input or map viewport
+                        // Example fixed values:
+                        if (viewportSize != IntSize.Zero) {
+                            // 1. Get current map state from ViewModel
+                            val centerPoint = viewModel.mapCenter.value
+                            val centerGeo = GeoPosition(
+                                centerPoint.latitude.toDouble(),
+                                centerPoint.longitude.toDouble()
+                            )
+                            val currentZoom = viewModel.mapZoom.value
 
-                        // 2. Calculate viewport corners' geographic coordinates
-                        val topLeftGeo =
-                            screenPixelToGeo(IntOffset(0, 0), centerGeo, currentZoom, viewportSize)
-                        val bottomRightGeo = screenPixelToGeo(
-                            IntOffset(viewportSize.width, viewportSize.height),
-                            centerGeo,
-                            currentZoom,
-                            viewportSize
-                        )
+                            // 2. Calculate viewport corners' geographic coordinates
+                            val topLeftGeo =
+                                screenPixelToGeo(
+                                    IntOffset(0, 0),
+                                    centerGeo,
+                                    currentZoom,
+                                    viewportSize
+                                )
+                            val bottomRightGeo = screenPixelToGeo(
+                                IntOffset(viewportSize.width, viewportSize.height),
+                                centerGeo,
+                                currentZoom,
+                                viewportSize
+                            )
 
-                        // 3. Determine zoom range (e.g., current to current + 2, or up to max)
-                        //    Make sure minZoom is at least the current zoom level
-                        val tilServer = viewModel.tileServerRepository.currentServerFlow().value
-                        val minSeedZoom = tilServer.tileLayerMin
-                        val maxSeedZoom = tilServer.tileLayerMax
+                            // 3. Determine zoom range (e.g., current to current + 2, or up to max)
+                            //    Make sure minZoom is at least the current zoom level
+                            val tilServer = viewModel.tileServerRepository.currentServerFlow().value
+                            val minSeedZoom = tilServer.tileLayerMin
+                            val maxSeedZoom = tilServer.tileLayerMax
 
-                        // 4. Call ViewModel function
-                        viewModel.startSeedingArea(
-                            minLat = bottomRightGeo.latitude.toFloat(), // Min lat is bottom
-                            maxLat = topLeftGeo.latitude.toFloat(),     // Max lat is top
-                            minLon = topLeftGeo.longitude.toFloat(),    // Min lon is left
-                            maxLon = bottomRightGeo.longitude.toFloat(), // Max lon is right
-                            minZoom = minSeedZoom,
-                            maxZoom = maxSeedZoom
-                        )
-                    } else {
-                        // Optional: Show a message if size is not ready
-                        // scope.launch { snackbarHostState.showSnackbar("Map not ready yet") }
-                        Napier.d("Viewport size not available yet.")
-                    }
-                }) {
+                            // 4. Call ViewModel function
+                            viewModel.startSeedingArea(
+                                minLat = bottomRightGeo.latitude.toFloat(), // Min lat is bottom
+                                maxLat = topLeftGeo.latitude.toFloat(),     // Max lat is top
+                                minLon = topLeftGeo.longitude.toFloat(),    // Min lon is left
+                                maxLon = bottomRightGeo.longitude.toFloat(), // Max lon is right
+                                minZoom = minSeedZoom,
+                                maxZoom = maxSeedZoom
+                            )
+                        } else {
+                            // Optional: Show a message if size is not ready
+                            // scope.launch { snackbarHostState.showSnackbar("Map not ready yet") }
+                            Napier.d("Viewport size not available yet.")
+                        }
+                    },
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                ) {
+                    Icon(
+                        Icons.Default.Download,
+                        contentDescription = "Download map area",
+                        modifier = Modifier.size(ButtonDefaults.IconSize),
+                    )
                     Text("Download Current Map Area")
+
                 }
-                Spacer(Modifier.height(8.dp)) // Space between buttons
             }
 
             // --- Elevation Profile Area ---
