@@ -88,8 +88,7 @@ fun DeviceSettings(
 ) {
 
     BackHandler {
-        if (deviceSettings.settingsSaving.value)
-        {
+        if (deviceSettings.settingsSaving.value) {
             // prevent back handler when we are trying to do things, todo cancel the job we are trying to do
             return@BackHandler
         }
@@ -150,7 +149,11 @@ fun DeviceSettings(
                 val scaleProp = findProp("scale")
                 if (scaleProp != null) item(key = scaleProp.id) { PropertyEditorResolver(scaleProp) }
                 val recalculateItervalSProp = findProp("recalculateItervalS")
-                if (recalculateItervalSProp != null) item(key = recalculateItervalSProp.id) { PropertyEditorResolver(recalculateItervalSProp) }
+                if (recalculateItervalSProp != null) item(key = recalculateItervalSProp.id) {
+                    PropertyEditorResolver(
+                        recalculateItervalSProp
+                    )
+                }
                 val renderModeProp = findProp("renderMode")
                 if (renderModeProp != null) item(key = renderModeProp.id) {
                     PropertyEditorResolver(
@@ -215,9 +218,13 @@ fun DeviceSettings(
                                 val tileSizeProp = findProp("tileSize")
                                 if (tileSizeProp != null) PropertyEditorResolver(tileSizeProp)
                                 val fullTileSizeProp = findProp("fullTileSize")
-                                if (fullTileSizeProp != null) PropertyEditorResolver(fullTileSizeProp)
+                                if (fullTileSizeProp != null) PropertyEditorResolver(
+                                    fullTileSizeProp
+                                )
                                 val scaledTileSizeProp = findProp("scaledTileSize")
-                                if (scaledTileSizeProp != null) PropertyEditorResolver(scaledTileSizeProp)
+                                if (scaledTileSizeProp != null) PropertyEditorResolver(
+                                    scaledTileSizeProp
+                                )
                                 val tileLayerMaxProp = findProp("tileLayerMax")
                                 if (tileLayerMaxProp != null) PropertyEditorResolver(
                                     tileLayerMaxProp
@@ -246,8 +253,11 @@ fun DeviceSettings(
                                 if (fixedLatProp != null) PropertyEditorResolver(fixedLatProp)
                                 val fixedLonProp = findProp("fixedLongitude")
                                 if (fixedLonProp != null) PropertyEditorResolver(fixedLonProp)
-                                val scaleRestrictedToTileLayersProp = findProp("scaleRestrictedToTileLayers")
-                                if (scaleRestrictedToTileLayersProp != null) PropertyEditorResolver(scaleRestrictedToTileLayersProp)
+                                val scaleRestrictedToTileLayersProp =
+                                    findProp("scaleRestrictedToTileLayers")
+                                if (scaleRestrictedToTileLayersProp != null) PropertyEditorResolver(
+                                    scaleRestrictedToTileLayersProp
+                                )
                             }
                         }
                     }
@@ -262,9 +272,13 @@ fun DeviceSettings(
                 distProp?.let { distProp ->
                     item(key = distProp.id) { PropertyEditorResolver(distProp) }
                 }
-                val intervalProp = findProp("offTrackAlertsMaxReportIntervalS")
-                intervalProp?.let { intervalProp ->
-                    item(key = intervalProp.id) { PropertyEditorResolver(intervalProp) }
+                val offTrackCheckIntervalSProp = findProp("offTrackCheckIntervalS")
+                offTrackCheckIntervalSProp?.let { offTrackCheckIntervalSProp ->
+                    item(key = offTrackCheckIntervalSProp.id) {
+                        PropertyEditorResolver(
+                            offTrackCheckIntervalSProp
+                        )
+                    }
                 }
                 drawLineToClosestPointProp?.let { toggleProp ->
                     item(key = toggleProp.id) { PropertyEditorResolver(toggleProp) }
@@ -282,8 +296,12 @@ fun DeviceSettings(
                         ) {
                             // Inner Column for the settings
                             Column {
-                               val alertTypeProp = findProp("alertType")
-                               if (alertTypeProp != null) PropertyEditorResolver(alertTypeProp)
+                                val alertIntervalProp = findProp("offTrackAlertsMaxReportIntervalS")
+                                if (alertIntervalProp != null) PropertyEditorResolver(
+                                    alertIntervalProp
+                                )
+                                val alertTypeProp = findProp("alertType")
+                                if (alertTypeProp != null) PropertyEditorResolver(alertTypeProp)
                             }
                         }
                     }

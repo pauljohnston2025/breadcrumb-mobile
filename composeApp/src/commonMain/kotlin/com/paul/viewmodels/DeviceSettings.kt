@@ -168,6 +168,7 @@ val labelOverrides: Map<String, String> = mapOf(
     "zoomAtPaceMode" to "Mode",
     "offTrackAlertsDistanceM" to "Off Track Alert Distance (m)",
     "offTrackAlertsMaxReportIntervalS" to "Max Report Interval (s)",
+    "offTrackCheckIntervalS" to "Max Check Interval (s)",
     "tileSize" to "Tile Size (pixels)",
     "drawLineToClosestPoint" to "Draw Line To Closest Point",
 )
@@ -237,6 +238,7 @@ class DeviceSettings(
                     "maxPendingWebRequests",
                     "offTrackAlertsDistanceM",
                     "offTrackAlertsMaxReportIntervalS",
+                    "offTrackCheckIntervalS",
                     "disableMapsFailureCount",
                     "routeMax" -> EditableProperty(
                         key,
