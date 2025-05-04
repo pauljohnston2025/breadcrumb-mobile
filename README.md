@@ -1,5 +1,7 @@
 The companion app for loading gpx routes onto garmin watches that are using https://github.com/pauljohnston2025/breadcrumb-garmin.
 
+Donations are always welcome, but not required: https://www.paypal.com/paypalme/pauljohnston2025
+
 Supports 
 * Share gpx file from other apps
 * Share google directions
