@@ -211,7 +211,7 @@ private fun TileListItem(
             .padding(start = 8.dp)
             .fillMaxWidth()
     ) {
-        Column {
+        Column(modifier = Modifier.weight(1f)) {
             val name = tileServerRepo.nameFromId(tileServer)
             Text(
                 text = if (name != null && name.isNotBlank()) name else "<No Name> ($tileServer)",
@@ -226,7 +226,6 @@ private fun TileListItem(
             )
         }
 
-        Spacer(Modifier.weight(1f))
         Row(
             verticalAlignment = Alignment.CenterVertically, // Center buttons vertically within this row
             horizontalArrangement = Arrangement.End // Arrange buttons closely together at the end
