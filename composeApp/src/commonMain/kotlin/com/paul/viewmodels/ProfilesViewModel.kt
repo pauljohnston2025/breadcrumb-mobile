@@ -35,12 +35,31 @@ class ProfilesViewModel(
     val navController: NavController
 ) : ViewModel() {
     val sendingMessage: MutableState<String> = mutableStateOf("")
+
+    private val _creatingProfile = MutableStateFlow<Boolean>(false)
+    val creatingProfile: StateFlow<Boolean> = _creatingProfile.asStateFlow()
+
     private val _editingProfile = MutableStateFlow<Profile?>(null)
     val editingProfile: StateFlow<Profile?> = _editingProfile.asStateFlow()
 
     // State for controlling the delete confirmation dialog
     private val _deletingProfile = MutableStateFlow<Profile?>(null)
     val deletingProfile: StateFlow<Profile?> = _deletingProfile.asStateFlow()
+
+    fun startCreate() {
+        _creatingProfile.value = true
+    }
+
+    fun cancelCreate() {
+        _creatingProfile.value = false
+    }
+
+    fun confirmCreate(label: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            onCreateProfile(label)
+            _creatingProfile.value = false // Close dialog
+        }
+    }
 
     fun startEditing(profile: Profile) {
         _editingProfile.value = profile
@@ -50,9 +69,18 @@ class ProfilesViewModel(
         _editingProfile.value = null
     }
 
-    fun confirmEdit(profileId: String, newName: String) {
+    fun confirmEdit(profileId: String, label: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            profileRepo.removeProfile(profileId)
+            profileRepo.get(profileId)?.let { profile ->
+                profileRepo.updateProfile(
+                    profile.copy(
+                        profileSettings = profile.profileSettings.copy(
+                            label = label
+                        )
+                    )
+                )
+            }
+
             _editingProfile.value = null // Close dialog
         }
     }

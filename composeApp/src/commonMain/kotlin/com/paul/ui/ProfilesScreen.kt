@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.runtime.*
@@ -33,6 +34,7 @@ fun ProfilesScreen(viewModel: ProfilesViewModel, navController: NavController) {
 
     val profiles by viewModel.profileRepo.availableProfilesFlow().collectAsState()
     val profileBeingEdited by viewModel.editingProfile.collectAsState()
+    val profileBeingCreated by viewModel.creatingProfile.collectAsState()
     val profileBeingDeleted by viewModel.deletingProfile.collectAsState()
 // Box allows stacking the sending overlay
     Box(
@@ -45,10 +47,11 @@ fun ProfilesScreen(viewModel: ProfilesViewModel, navController: NavController) {
                 .fillMaxSize()
                 .padding(16.dp)
         ) {
-            // Maybe add a button to create a new profile? (Optional)
-            // Button(onClick = { /* TODO: Navigate to profile creation */ }) { Text("Create New Profile") }
-            // Spacer(Modifier.height(16.dp))
-
+            Button(onClick = { viewModel.startCreate() }, Modifier.align(Alignment.CenterHorizontally)) {
+                Icon(Icons.Default.Add, contentDescription = "Add Profile")
+                Text("Create New Profile")
+            }
+            Spacer(Modifier.height(16.dp))
             ProfilesListSection(
                 profiles = profiles,
                 onEditClick = { viewModel.startEditing(it) },
@@ -61,8 +64,25 @@ fun ProfilesScreen(viewModel: ProfilesViewModel, navController: NavController) {
         profileBeingEdited?.let { profile ->
             EditProfileDialog(
                 profile = profile,
-                onConfirm = { newName -> viewModel.confirmEdit(profile.profileSettings.id, newName) },
+                onConfirm = { newName ->
+                    viewModel.confirmEdit(
+                        profile.profileSettings.id,
+                        newName
+                    )
+                },
                 onDismiss = { viewModel.cancelEditing() }
+            )
+        }
+
+        // Create Dialog
+        if (profileBeingCreated) {
+            CreateProfileDialog(
+                onConfirm = { newName ->
+                    viewModel.confirmCreate(
+                        newName
+                    )
+                },
+                onDismiss = { viewModel.cancelCreate() }
             )
         }
 
@@ -193,6 +213,38 @@ private fun EditProfileDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Edit Profile Name") },
+        text = {
+            Column { // Use column in case you add more fields later
+                OutlinedTextField(
+                    value = currentName,
+                    onValueChange = { currentName = it },
+                    label = { Text("Profile Name") },
+                    singleLine = true
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(currentName) },
+                enabled = currentName.isNotBlank() // Optionally disable if name is empty
+            ) { Text("Save") }
+        },
+        dismissButton = {
+            Button(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+@Composable
+private fun CreateProfileDialog(
+    onConfirm: (newName: String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var currentName by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Create Profile Name") },
         text = {
             Column { // Use column in case you add more fields later
                 OutlinedTextField(
