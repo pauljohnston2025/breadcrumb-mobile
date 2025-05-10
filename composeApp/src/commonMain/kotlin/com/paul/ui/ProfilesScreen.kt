@@ -228,7 +228,7 @@ private fun ProfileListItem(
             horizontalArrangement = Arrangement.End // Arrange buttons closely together at the end
         ) {
             IconButton(onClick = onEditClick) {
-                Icon(Icons.Default.Edit, contentDescription = "Edit Profile Name")
+                Icon(Icons.Default.Edit, contentDescription = "Edit Profile")
             }
             IconButton(onClick = onApplyClick) {
                 Icon(Icons.Default.PlayArrow, contentDescription = "Apply Profile")
@@ -259,7 +259,7 @@ private fun EditProfileDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Edit Profile Name") },
+        title = { Text("Edit Profile") },
         text = {
             Column { // Use column in case you add more fields later
                 OutlinedTextField(
@@ -358,7 +358,7 @@ private fun ImportProfileDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Paste Json Here") },
+        title = { Text("Import Profile") },
         text = {
             Column { // Use column in case you add more fields later
                 OutlinedTextField(

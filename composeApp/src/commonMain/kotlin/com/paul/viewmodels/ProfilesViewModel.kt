@@ -171,6 +171,11 @@ class ProfilesViewModel(
 
     fun applyProfile(profile: Profile) {
         viewModelScope.launch(Dispatchers.IO) {
+            val appVersion = getAppVersion()
+            if (appVersion != null && profile.lastKnownDevice.appVersion > appVersion) {
+                snackbarHostState.showSnackbar("Newer profile detected, some settings might not be applied")
+            }
+
             val device = deviceSelector.currentDevice()
             if (device == null) {
                 snackbarHostState.showSnackbar("no devices selected")
@@ -197,7 +202,8 @@ class ProfilesViewModel(
     fun onImportProfile(json: String) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val exportedProfile = Json.decodeFromString<ExportedProfile>(json)
+                val exportedProfile =
+                    Json { ignoreUnknownKeys = true }.decodeFromString<ExportedProfile>(json)
                 if (profileRepo.get(exportedProfile.profileSettings.id) != null) {
 
                     snackbarHostState.showSnackbar("Profile id already exists, skipping")

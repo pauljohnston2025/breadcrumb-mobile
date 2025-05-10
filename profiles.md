@@ -1,0 +1,7 @@
+1. [CustomMap](profile-examples/custom-map.json)
+1. [Hiking Battery Saver](profile-examples/hiking-battery-saver.json)
+1. [Hiking Offline Maps](profile-examples/hiking-offline.json)
+1. [Hiking Online Maps](profile-examples/hiking-online.json)
+1. [Running](profile-examples/running.json)
+1. [Auth On Companion App](profile-examples/stadia-companion-app.json)
+1. [Auth On Watch](profile-examples/stadia-watch.json)

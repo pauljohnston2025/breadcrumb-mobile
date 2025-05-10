@@ -148,10 +148,10 @@ fun DeviceSettings(
                 }
                 val scaleProp = findProp("scale")
                 if (scaleProp != null) item(key = scaleProp.id) { PropertyEditorResolver(scaleProp) }
-                val recalculateItervalSProp = findProp("recalculateItervalS")
-                if (recalculateItervalSProp != null) item(key = recalculateItervalSProp.id) {
+                val recalculateIntervalSProp = findProp("recalculateIntervalS")
+                if (recalculateIntervalSProp != null) item(key = recalculateIntervalSProp.id) {
                     PropertyEditorResolver(
-                        recalculateItervalSProp
+                        recalculateIntervalSProp
                     )
                 }
                 val renderModeProp = findProp("renderMode")

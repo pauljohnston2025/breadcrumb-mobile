@@ -1,0 +1,61 @@
+{
+  "profileSettings": {
+    "id": "cd193265-5cc3-4a9d-8b48-67eb9a1f81dc",
+    "label": "Stadia - Watch",
+    "createdAt": "2025-05-10T12:01:59.410286Z"
+  },
+  "appSettings": {
+    "tileServerEnabled": false,
+    "tileType": "TILE_DATA_TYPE_64_COLOUR",
+    "authToken": "",
+    "tileServerId": "Stadia - Outdoors (auth required)"
+  },
+  "deviceSettings": {
+    "fixedLatitude": 0.0,
+    "trackColour": "FF00FF00",
+    "tileUrl": "https://tiles.stadiamaps.com/tiles/stamen_toner/{z}/{x}/{y}.png?api_key={authToken}",
+    "uiMode": 0,
+    "fullTileSize": 256,
+    "drawLineToClosestPoint": true,
+    "recalculateIntervalS": 5,
+    "authToken": "<WatchAuthTokenRequired>",
+    "routeMax": 3,
+    "normalModeColour": "FF00AAFF",
+    "routesEnabled": true,
+    "tileCachePadding": 0,
+    "zoomAtPaceSpeedMPS": 1.0,
+    "debugColour": "FEFFFFFF",
+    "mode": 0,
+    "zoomAtPaceMode": 3,
+    "tileLayerMin": 0,
+    "displayRouteNames": true,
+    "enableOffTrackAlerts": true,
+    "elevationMode": 0,
+    "offTrackAlertsMaxReportIntervalS": 60,
+    "elevationColour": "FFFF5500",
+    "alertType": 0,
+    "displayLatLong": false,
+    "resetDefaults": false,
+    "scaledTileSize": 192,
+    "metersAroundUser": 500,
+    "mapChoice": 21,
+    "offTrackAlertsDistanceM": 20,
+    "offTrackCheckIntervalS": 30,
+    "renderMode": 0,
+    "fixedLongitude": 0.0,
+    "tileCacheSize": 16,
+    "tileSize": 192,
+    "userColour": "FFFF5500",
+    "uiColour": "FF555555",
+    "mapEnabled": true,
+    "scaleRestrictedToTileLayers": false,
+    "tileLayerMax": 20,
+    "disableMapsFailureCount": 200,
+    "maxPendingWebRequests": 100
+  },
+  "lastKnownDevice": {
+    "appVersion": 12,
+    "name": "Venu 2S"
+  },
+  "customServers": []
+}

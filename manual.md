@@ -50,6 +50,24 @@ Auth Token - will be used for any tile server that specifies '{authToken}' in th
 
 ---
 
+# Profiles Page
+
+Allows saving app and watch settings for later use, and allows quick switching between different settings profiles for different activity types. Profiles can be created from the current settings, or imported from json. See the [profile examples](profiles.md) for importing. When importing from json, you will be prompted for auth tokens for the app and watch when needed (if the tile server requires auth).  
+
+![](images/manual/profiles.png)
+![](images/manual/profile-edit.png)
+![](images/manual/profiles-import-json.png)
+
+Icons can be clicked to do the following:
+
+* Pencil - Edit the profile name and optionally reload the settings from the app or watch to update the profile to the currently configured settings.  
+* Play - Apply the profiles settings to the watch and companion app.
+* Copy - Copy the profile json to clipboard for sharing with other users, or saving for later use. Please ensure no private information such as auth tokens are included when sharing the profile json. 
+* Bin - Delete the profile.
+
+---
+
+
 # Device Settings Page
 
 This page is able to be accessed from two locations, the overview page (by clicking device settings), or the devices page (by clicking the settings cog next to the device). The device settings page is for configuring the on watch settings, it is similar to garmins connectiq settings, but more cusotomized eg. colour pickers. It also supports editing the per route settings (array settings are currently not suported through connectiq settings). For information on each of the settings see [Connect Iq Settings](https://github.com/pauljohnston2025/breadcrumb-garmin/blob/master/settings.md#garmin-settings-connect-iq-store)  

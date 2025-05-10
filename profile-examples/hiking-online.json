@@ -1,0 +1,61 @@
+{
+  "profileSettings": {
+    "id": "6be5d9ca-bfde-46be-987d-1b0a7bb2dcb1",
+    "label": "Hiking (online)",
+    "createdAt": "2025-05-10T11:10:27.887476Z"
+  },
+  "appSettings": {
+    "tileServerEnabled": true,
+    "tileType": "TILE_DATA_TYPE_64_COLOUR",
+    "authToken": "",
+    "tileServerId": "Open Topo Map"
+  },
+  "deviceSettings": {
+    "fixedLatitude": 0.0,
+    "trackColour": "FF00FF00",
+    "tileUrl": "https://a.tile.opentopomap.org/{z}/{x}/{y}.png",
+    "uiMode": 0,
+    "fullTileSize": 256,
+    "drawLineToClosestPoint": true,
+    "recalculateIntervalS": 5,
+    "authToken": "",
+    "routeMax": 3,
+    "normalModeColour": "FF00AAFF",
+    "routesEnabled": true,
+    "tileCachePadding": 0,
+    "zoomAtPaceSpeedMPS": 1.0,
+    "debugColour": "FEFFFFFF",
+    "mode": 0,
+    "zoomAtPaceMode": 3,
+    "tileLayerMin": 0,
+    "displayRouteNames": true,
+    "enableOffTrackAlerts": true,
+    "elevationMode": 0,
+    "offTrackAlertsMaxReportIntervalS": 60,
+    "elevationColour": "FFFF5500",
+    "alertType": 0,
+    "displayLatLong": false,
+    "resetDefaults": false,
+    "scaledTileSize": 192,
+    "metersAroundUser": 500,
+    "mapChoice": 2,
+    "offTrackAlertsDistanceM": 20,
+    "offTrackCheckIntervalS": 30,
+    "renderMode": 0,
+    "fixedLongitude": 0.0,
+    "tileCacheSize": 16,
+    "tileSize": 192,
+    "userColour": "FFFF5500",
+    "uiColour": "FF555555",
+    "mapEnabled": true,
+    "scaleRestrictedToTileLayers": false,
+    "tileLayerMax": 15,
+    "disableMapsFailureCount": 200,
+    "maxPendingWebRequests": 100
+  },
+  "lastKnownDevice": {
+    "appVersion": 12,
+    "name": "Venu 2S"
+  },
+  "customServers": []
+}

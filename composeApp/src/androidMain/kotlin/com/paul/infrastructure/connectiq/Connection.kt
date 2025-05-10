@@ -232,7 +232,7 @@ class Connection(private val context: Context) : IConnection {
 //                "uiMode" to 0,
 //                "fullTileSize" to 256,
 //                "drawLineToClosestPoint" to true,
-//                "recalculateItervalS" to 5,
+//                "recalculateIntervalS" to 5,
 //                "routeMax" to 3,
 //                "normalModeColour" to "FF00AAFF",
 //                "routesEnabled" to true,

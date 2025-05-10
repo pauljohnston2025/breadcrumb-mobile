@@ -231,7 +231,7 @@ class DeviceSettings(
                     "tileLayerMin",
                     "tileCacheSize",
                     "tileCachePadding",
-                    "recalculateItervalS",
+                    "recalculateIntervalS",
                     "maxPendingWebRequests",
                     "offTrackAlertsDistanceM",
                     "offTrackAlertsMaxReportIntervalS",
