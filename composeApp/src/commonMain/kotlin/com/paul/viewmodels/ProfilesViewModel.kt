@@ -8,15 +8,20 @@ import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavController
 import com.benasher44.uuid.uuid4
 import com.paul.domain.AppSettings
+import com.paul.domain.ExportedProfile
+import com.paul.domain.LastKnownDevice
 import com.paul.domain.Profile
 import com.paul.domain.ProfileSettings
 import com.paul.infrastructure.connectiq.IConnection
 import com.paul.infrastructure.repositories.ProfileRepo
 import com.paul.infrastructure.repositories.TileServerRepo
+import com.paul.infrastructure.service.IClipboardHandler
 import com.paul.infrastructure.service.SendMessageHelper
+import com.paul.infrastructure.service.SendMessageHelper.Companion.sendingMessage
 import com.paul.protocol.fromdevice.ProtocolResponse
 import com.paul.protocol.fromdevice.Settings
 import com.paul.protocol.todevice.RequestSettings
+import com.paul.protocol.todevice.SaveSettings
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,6 +29,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
+import kotlinx.serialization.json.Json
 
 
 class ProfilesViewModel(
@@ -32,12 +38,16 @@ class ProfilesViewModel(
     private val snackbarHostState: SnackbarHostState,
     private val tileServerRepo: TileServerRepo,
     val profileRepo: ProfileRepo,
-    val navController: NavController
+    val navController: NavController,
+    val clipboardHandler: IClipboardHandler,
 ) : ViewModel() {
     val sendingMessage: MutableState<String> = mutableStateOf("")
 
     private val _creatingProfile = MutableStateFlow<Boolean>(false)
     val creatingProfile: StateFlow<Boolean> = _creatingProfile.asStateFlow()
+
+    private val _importingProfile = MutableStateFlow<Boolean>(false)
+    val importingProfile: StateFlow<Boolean> = _importingProfile.asStateFlow()
 
     private val _editingProfile = MutableStateFlow<Profile?>(null)
     val editingProfile: StateFlow<Profile?> = _editingProfile.asStateFlow()
@@ -61,6 +71,21 @@ class ProfilesViewModel(
         }
     }
 
+    fun startImport() {
+        _importingProfile.value = true
+    }
+
+    fun cancelImport() {
+        _importingProfile.value = false
+    }
+
+    fun confirmImport(json: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            onImportProfile(json)
+            _importingProfile.value = false // Close dialog
+        }
+    }
+
     fun startEditing(profile: Profile) {
         _editingProfile.value = profile
     }
@@ -69,19 +94,51 @@ class ProfilesViewModel(
         _editingProfile.value = null
     }
 
-    fun confirmEdit(profileId: String, label: String) {
+    fun confirmEdit(
+        profileId: String,
+        label: String,
+        loadWatchSettings: Boolean,
+        loadAppSettings: Boolean
+    ) {
+        val that = this
         viewModelScope.launch(Dispatchers.IO) {
+            _editingProfile.value = null // Close dialog
             profileRepo.get(profileId)?.let { profile ->
+                var deviceSettings: Map<String, Any>? = profile.deviceSettings()
+                var lastKnownDevice = profile.lastKnownDevice
+
+                if (loadWatchSettings) {
+                    deviceSettings = that.loadDeviceSettings()?.settings
+                    val appVersion = getAppVersion()
+                    if (appVersion == null) {
+                        return@launch
+                    }
+
+                    val device = deviceSelector.currentDevice()
+                    if (device == null) {
+                        snackbarHostState.showSnackbar("no devices selected")
+                        return@launch
+                    }
+
+                    lastKnownDevice = LastKnownDevice(appVersion, device.friendlyName)
+                }
+
+                if (deviceSettings == null) {
+                    snackbarHostState.showSnackbar("no device settings")
+                    return@launch
+                }
+
                 profileRepo.updateProfile(
-                    profile.copy(
-                        profileSettings = profile.profileSettings.copy(
+                    Profile.build(
+                        profile.profileSettings.copy(
                             label = label
-                        )
+                        ),
+                        if (loadAppSettings) that.loadAppSettings() else profile.appSettings,
+                        deviceSettings,
+                        lastKnownDevice,
                     )
                 )
             }
-
-            _editingProfile.value = null // Close dialog
         }
     }
 
@@ -102,6 +159,67 @@ class ProfilesViewModel(
         }
     }
 
+    fun exportProfile(profile: Profile) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val exported = profile.export(tileServerRepo)
+            clipboardHandler.copyTextToClipboard(Json {
+                prettyPrint = true
+            }.encodeToString(exported))
+//            snackbarHostState.showSnackbar("Profile copied to clipboard")
+        }
+    }
+
+    fun applyProfile(profile: Profile) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val device = deviceSelector.currentDevice()
+            if (device == null) {
+                snackbarHostState.showSnackbar("no devices selected")
+                return@launch
+            }
+            sendingMessage("Applying settings to device") {
+                connection.send(device, SaveSettings(profile.deviceSettings()))
+            }
+            sendingMessage("Applying app settings") {
+                val tileServer = tileServerRepo.get(profile.appSettings.tileServerId)
+                if (tileServer == null) {
+                    snackbarHostState.showSnackbar("unknown tile server")
+                    return@sendingMessage
+                }
+                tileServerRepo.onTileServerEnabledChange(profile.appSettings.tileServerEnabled)
+                tileServerRepo.updateCurrentTileServer(tileServer)
+                tileServerRepo.updateAuthToken(profile.appSettings.authToken)
+                tileServerRepo.updateCurrentTileType(profile.appSettings.tileType)
+
+            }
+        }
+    }
+
+    fun onImportProfile(json: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val exportedProfile = Json.decodeFromString<ExportedProfile>(json)
+                if (profileRepo.get(exportedProfile.profileSettings.id) != null) {
+
+                    snackbarHostState.showSnackbar("Profile id already exists, skipping")
+                    return@launch
+                }
+
+                if (exportedProfile.customServers.isNotEmpty()) {
+                    for (server in exportedProfile.customServers) {
+                        tileServerRepo.onAddCustomServer(server)
+                    }
+                }
+
+                val profile = exportedProfile.toProfile()
+                profileRepo.addProfile(profile)
+                applyProfile(profile) // apply the profile when we load it from json
+            } catch (t: Throwable) {
+                Napier.e("Failed to load profile from json: $t")
+                snackbarHostState.showSnackbar("Failed to load profile from json")
+            }
+        }
+    }
+
     fun onCreateProfile(label: String) {
         viewModelScope.launch(Dispatchers.IO) {
             val profileSettings = ProfileSettings(
@@ -110,22 +228,29 @@ class ProfilesViewModel(
                 Clock.System.now()
             )
 
-            val appSettings = AppSettings(
-                tileServerRepo.currentlyEnabled(),
-                tileServerRepo.currentTileTypeFlow().value,
-                tileServerRepo.currentTokenFlow().value,
-                tileServerRepo.currentServerFlow().value.id,
-            )
+            val appSettings = loadAppSettings()
 
             val deviceSettings = loadDeviceSettings()
             if (deviceSettings == null) {
                 return@launch
             }
 
+            val appVersion = getAppVersion()
+            if (appVersion == null) {
+                return@launch
+            }
+
+            val device = deviceSelector.currentDevice()
+            if (device == null) {
+                snackbarHostState.showSnackbar("no devices selected")
+                return@launch
+            }
+
             val profile = Profile.build(
                 profileSettings,
                 appSettings,
-                deviceSettings.settings
+                deviceSettings.settings,
+                LastKnownDevice(appVersion, device.friendlyName)
             )
 
             profileRepo.addProfile(profile)
@@ -136,6 +261,15 @@ class ProfilesViewModel(
 
     private suspend fun <T> sendingMessage(msg: String, cb: suspend () -> T?): T? {
         return SendMessageHelper.sendingMessage(viewModelScope, sendingMessage, msg, cb)
+    }
+
+    private fun loadAppSettings(): AppSettings {
+        return AppSettings(
+            tileServerRepo.currentlyEnabled(),
+            tileServerRepo.currentTileTypeFlow().value,
+            tileServerRepo.currentTokenFlow().value,
+            tileServerRepo.currentServerFlow().value.id,
+        )
     }
 
     private suspend fun loadDeviceSettings(): Settings? {
@@ -154,6 +288,26 @@ class ProfilesViewModel(
                 )
                 Napier.d("got settings $settings")
                 settings
+            } catch (t: Throwable) {
+                snackbarHostState.showSnackbar("Failed to load settings. Please ensure an activity is running on the watch.")
+                null
+            }
+        }
+    }
+
+    private suspend fun getAppVersion(): Int? {
+        val device = deviceSelector.currentDevice()
+        if (device == null) {
+            snackbarHostState.showSnackbar("no devices selected")
+            return null
+        }
+
+        return sendingMessage("Loading Settings From Device.\nEnsure an activity with the datafield is running (or at least open) or this will fail.") {
+            return@sendingMessage try {
+                val appInfo = connection.appInfo(
+                    device
+                )
+                appInfo.version
             } catch (t: Throwable) {
                 snackbarHostState.showSnackbar("Failed to load settings. Please ensure an activity is running on the watch.")
                 null

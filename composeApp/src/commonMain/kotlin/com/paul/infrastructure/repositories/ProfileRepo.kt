@@ -18,9 +18,13 @@ class ProfileRepo() {
 
     init {
         val profilesString = settings.getStringOrNull(PROFILES_KEY)
-        val profiles = when (profilesString) {
-            null -> listOf()
-            else -> Json.decodeFromString<List<Profile>>(profilesString)
+        val profiles = try {
+            when (profilesString) {
+                null -> listOf()
+                else -> Json.decodeFromString<List<Profile>>(profilesString)
+            }
+        } catch (t: Throwable) {
+            listOf()
         }
 
         val newList = mutableListOf<Profile>()

@@ -26,6 +26,7 @@ import com.paul.infrastructure.connectiq.IConnection
 import com.paul.infrastructure.connectiq.IDeviceList
 import com.paul.infrastructure.repositories.ITileRepository
 import com.paul.infrastructure.repositories.ProfileRepo
+import com.paul.infrastructure.service.IClipboardHandler
 import com.paul.infrastructure.service.IFileHelper
 import com.paul.infrastructure.service.IGpxFileLoader
 import com.paul.infrastructure.service.IntentHandler
@@ -48,6 +49,7 @@ fun App(
     deviceList: IDeviceList,
     gpxFileLoader: IGpxFileLoader,
     fileHelper: IFileHelper,
+    clipboardHandler: IClipboardHandler,
     webServerController: WebServerController,
     intentHandler: IntentHandler,
 ) {
@@ -84,7 +86,8 @@ fun App(
                 scaffoldState.snackbarHostState,
                 settingsViewModel.tileServerRepo,
                 ProfileRepo(), // needs to be a singleton if anything else uses it
-                navController
+                navController,
+                clipboardHandler,
             )
         }
 

@@ -7,8 +7,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,6 +38,7 @@ fun ProfilesScreen(viewModel: ProfilesViewModel, navController: NavController) {
     val profiles by viewModel.profileRepo.availableProfilesFlow().collectAsState()
     val profileBeingEdited by viewModel.editingProfile.collectAsState()
     val profileBeingCreated by viewModel.creatingProfile.collectAsState()
+    val profileBeingImported by viewModel.importingProfile.collectAsState()
     val profileBeingDeleted by viewModel.deletingProfile.collectAsState()
 // Box allows stacking the sending overlay
     Box(
@@ -47,14 +51,29 @@ fun ProfilesScreen(viewModel: ProfilesViewModel, navController: NavController) {
                 .fillMaxSize()
                 .padding(16.dp)
         ) {
-            Button(onClick = { viewModel.startCreate() }, Modifier.align(Alignment.CenterHorizontally)) {
+            Button(
+                onClick = { viewModel.startCreate() },
+                Modifier.align(Alignment.CenterHorizontally)
+            ) {
                 Icon(Icons.Default.Add, contentDescription = "Add Profile")
                 Text("Create New Profile")
             }
             Spacer(Modifier.height(16.dp))
+
+            Button(
+                onClick = { viewModel.startImport() },
+                Modifier.align(Alignment.CenterHorizontally)
+            ) {
+                Icon(Icons.Default.Download, contentDescription = "Import Profile")
+                Text("Import Profile From Json")
+            }
+            Spacer(Modifier.height(16.dp))
+
             ProfilesListSection(
                 profiles = profiles,
                 onEditClick = { viewModel.startEditing(it) },
+                onApplyClick = { viewModel.applyProfile(it) },
+                onExportClick = { viewModel.exportProfile(it) },
                 onDeleteClick = { viewModel.requestDelete(it) }
             )
         }
@@ -64,10 +83,12 @@ fun ProfilesScreen(viewModel: ProfilesViewModel, navController: NavController) {
         profileBeingEdited?.let { profile ->
             EditProfileDialog(
                 profile = profile,
-                onConfirm = { newName ->
+                onConfirm = { newName, loadWatchSettings, loadAppSettings ->
                     viewModel.confirmEdit(
                         profile.profileSettings.id,
-                        newName
+                        newName,
+                        loadWatchSettings,
+                        loadAppSettings,
                     )
                 },
                 onDismiss = { viewModel.cancelEditing() }
@@ -83,6 +104,18 @@ fun ProfilesScreen(viewModel: ProfilesViewModel, navController: NavController) {
                     )
                 },
                 onDismiss = { viewModel.cancelCreate() }
+            )
+        }
+
+        // Import Dialog
+        if (profileBeingImported) {
+            ImportProfileDialog(
+                onConfirm = { json ->
+                    viewModel.confirmImport(
+                        json
+                    )
+                },
+                onDismiss = { viewModel.cancelImport() }
             )
         }
 
@@ -107,6 +140,8 @@ fun ProfilesScreen(viewModel: ProfilesViewModel, navController: NavController) {
 private fun ProfilesListSection(
     profiles: List<Profile>,
     onEditClick: (Profile) -> Unit,
+    onApplyClick: (Profile) -> Unit,
+    onExportClick: (Profile) -> Unit,
     onDeleteClick: (Profile) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -129,6 +164,8 @@ private fun ProfilesListSection(
                         ProfileListItem(
                             profile = profile,
                             onEditClick = { onEditClick(profile) },
+                            onApplyClick = { onApplyClick(profile) },
+                            onExportClick = { onExportClick(profile) },
                             onDeleteClick = { onDeleteClick(profile) }
                         )
                         Divider() // Separator between items
@@ -143,6 +180,8 @@ private fun ProfilesListSection(
 private fun ProfileListItem(
     profile: Profile,
     onEditClick: () -> Unit,
+    onApplyClick: () -> Unit,
+    onExportClick: () -> Unit,
     onDeleteClick: () -> Unit
 ) {
 
@@ -191,6 +230,12 @@ private fun ProfileListItem(
             IconButton(onClick = onEditClick) {
                 Icon(Icons.Default.Edit, contentDescription = "Edit Profile Name")
             }
+            IconButton(onClick = onApplyClick) {
+                Icon(Icons.Default.PlayArrow, contentDescription = "Apply Profile")
+            }
+            IconButton(onClick = onExportClick) {
+                Icon(Icons.Default.ContentCopy, contentDescription = "Export Profile")
+            }
             IconButton(onClick = onDeleteClick) {
                 Icon(
                     Icons.Default.Delete,
@@ -205,10 +250,12 @@ private fun ProfileListItem(
 @Composable
 private fun EditProfileDialog(
     profile: Profile,
-    onConfirm: (newName: String) -> Unit,
+    onConfirm: (newName: String, loadWatchSettings: Boolean, loadAppSettings: Boolean) -> Unit,
     onDismiss: () -> Unit
 ) {
     var currentName by remember(profile.profileSettings.id) { mutableStateOf(profile.profileSettings.label) } // Reset when profile changes
+    var loadWatchSettings by remember { mutableStateOf(false) }
+    var loadAppSettings by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -221,11 +268,44 @@ private fun EditProfileDialog(
                     label = { Text("Profile Name") },
                     singleLine = true
                 )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween // Align label and add button
+                ) {
+                    Text(
+                        text = "Load Watch Settings:",
+                        style = MaterialTheme.typography.body2,
+                    )
+                    Switch(
+                        checked = loadWatchSettings,
+                        onCheckedChange = { newValue ->
+                            loadWatchSettings = newValue
+                        },
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween // Align label and add button
+                ) {
+                    Text(
+                        text = "Load App Settings:",
+                        style = MaterialTheme.typography.body2,
+                    )
+                    Switch(
+                        checked = loadAppSettings,
+                        onCheckedChange = { newValue ->
+                            loadAppSettings = newValue
+                        },
+                    )
+                }
             }
         },
         confirmButton = {
             Button(
-                onClick = { onConfirm(currentName) },
+                onClick = { onConfirm(currentName, loadWatchSettings, loadAppSettings) },
                 enabled = currentName.isNotBlank() // Optionally disable if name is empty
             ) { Text("Save") }
         },
@@ -259,6 +339,64 @@ private fun CreateProfileDialog(
             Button(
                 onClick = { onConfirm(currentName) },
                 enabled = currentName.isNotBlank() // Optionally disable if name is empty
+            ) { Text("Save") }
+        },
+        dismissButton = {
+            Button(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+@Composable
+private fun ImportProfileDialog(
+    onConfirm: (json: String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var json by remember { mutableStateOf("") }
+    var appAuthToken by remember { mutableStateOf("") }
+    var watchAuthToken by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Paste Json Here") },
+        text = {
+            Column { // Use column in case you add more fields later
+                OutlinedTextField(
+                    value = json,
+                    onValueChange = { json = it },
+                    label = { Text("Json") },
+                    singleLine = true
+                )
+
+                if (json.contains("<AppAuthTokenRequired>")) {
+                    OutlinedTextField(
+                        value = appAuthToken,
+                        onValueChange = { appAuthToken = it },
+                        label = { Text("App Auth Token") },
+                        singleLine = true
+                    )
+                }
+
+                if (json.contains("<WatchAuthTokenRequired>")) {
+                    OutlinedTextField(
+                        value = watchAuthToken,
+                        onValueChange = { watchAuthToken = it },
+                        label = { Text("Watch Auth Token") },
+                        singleLine = true
+                    )
+                }
+
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    onConfirm(
+                        json.replace("<AppAuthTokenRequired>", appAuthToken)
+                            .replace("<WatchAuthTokenRequired>", watchAuthToken)
+                    )
+                },
+                enabled = json.isNotBlank() // Optionally disable if name is empty
             ) { Text("Save") }
         },
         dismissButton = {

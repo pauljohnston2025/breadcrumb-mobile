@@ -23,6 +23,7 @@ import androidx.core.content.ContextCompat
 import com.paul.infrastructure.connectiq.Connection
 import com.paul.infrastructure.connectiq.DeviceList
 import com.paul.infrastructure.repositories.TileRepository
+import com.paul.infrastructure.service.ClipboardHandler
 import com.paul.infrastructure.service.FileHelper
 import com.paul.infrastructure.service.GpxFileLoader
 import com.paul.infrastructure.service.ImageProcessor
@@ -39,6 +40,7 @@ class MainActivity : ComponentActivity() {
     }
 
     val fileHelper = FileHelper(this)
+    val clipboardHandler = ClipboardHandler(this)
     val connection = Connection(this)
     val deviceList = DeviceList(connection)
     val gpxFileLoader = GpxFileLoader()
@@ -93,6 +95,7 @@ class MainActivity : ComponentActivity() {
                     deviceList,
                     gpxFileLoader,
                     fileHelper,
+                    clipboardHandler,
                     webServerController,
                     intentHandler,
                 )

@@ -31,10 +31,17 @@ data class ProfileSettings(
 )
 
 @Serializable
+data class LastKnownDevice(
+    val appVersion: Int,
+    val name: String
+)
+
+@Serializable
 data class Profile(
     val profileSettings: ProfileSettings,
     val appSettings: AppSettings,
     private val deviceSettings: Map<String, JsonElement>,
+    val lastKnownDevice: LastKnownDevice,
 ) {
 
     fun deviceSettings(): Map<String, Any> {
@@ -46,12 +53,18 @@ data class Profile(
         fun build(
             profileSettings: ProfileSettings,
             appSettings: AppSettings,
-            deviceSettingsAsAnyMap: Map<String, Any>
-        ) : Profile = Profile(
-            profileSettings = profileSettings,
-            appSettings = appSettings,
-            deviceSettings = convertAnyMapToJsonElementMap(deviceSettingsAsAnyMap)
-        )
+            deviceSettingsAsAnyMap: Map<String, Any>,
+            lastKnownDevice: LastKnownDevice,
+        ): Profile {
+            val mutableDeviceSettings = deviceSettingsAsAnyMap.toMutableMap()
+            mutableDeviceSettings.remove("routes") // do not touch users routes when changing profiles
+            return Profile(
+                profileSettings = profileSettings,
+                appSettings = appSettings,
+                deviceSettings = convertAnyMapToJsonElementMap(mutableDeviceSettings.toMap()),
+                lastKnownDevice,
+            )
+        }
 
         private fun convertAnyMapToJsonElementMap(anyMap: Map<String, Any?>): Map<String, JsonElement> {
             return anyMap.mapValues { (_, value) ->
@@ -122,7 +135,7 @@ data class Profile(
 
     fun export(tileServerRepo: TileServerRepo): ExportedProfile {
         val obfuscatedAuthToken =
-            if (appSettings.authToken == "") appSettings.authToken else "<AuthTokenRequired>"
+            if (appSettings.authToken == "") appSettings.authToken else "<AppAuthTokenRequired>"
         val customServers = mutableListOf<TileServerInfo>()
         var tileServer = tileServerRepo.get(appSettings.tileServerId)
         if (tileServer == null) {
@@ -133,12 +146,13 @@ data class Profile(
         }
         val obfuscatedDeviceSettings = deviceSettings().toMutableMap()
         if (obfuscatedDeviceSettings.containsKey("authToken") && obfuscatedDeviceSettings["authToken"] != "") {
-            obfuscatedDeviceSettings["authToken"] = "<AuthTokenRequired>"
+            obfuscatedDeviceSettings["authToken"] = "<WatchAuthTokenRequired>"
         }
         return ExportedProfile(
             profileSettings.copy(),
             appSettings.copy(authToken = obfuscatedAuthToken),
             convertAnyMapToJsonElementMap(obfuscatedDeviceSettings.toMap()),
+            lastKnownDevice,
             customServers
         )
     }
@@ -149,5 +163,15 @@ data class ExportedProfile(
     val profileSettings: ProfileSettings,
     val appSettings: AppSettings,
     val deviceSettings: Map<String, JsonElement>,
+    val lastKnownDevice: LastKnownDevice,
     val customServers: List<TileServerInfo>,
-)
+) {
+    fun toProfile(): Profile {
+        return Profile(
+            profileSettings,
+            appSettings,
+            deviceSettings,
+            lastKnownDevice,
+        )
+    }
+}
