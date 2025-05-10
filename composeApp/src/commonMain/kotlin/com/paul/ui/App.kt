@@ -25,12 +25,14 @@ import androidx.navigation.compose.rememberNavController
 import com.paul.infrastructure.connectiq.IConnection
 import com.paul.infrastructure.connectiq.IDeviceList
 import com.paul.infrastructure.repositories.ITileRepository
+import com.paul.infrastructure.repositories.ProfileRepo
 import com.paul.infrastructure.service.IFileHelper
 import com.paul.infrastructure.service.IGpxFileLoader
 import com.paul.infrastructure.service.IntentHandler
 import com.paul.infrastructure.web.WebServerController
 import com.paul.viewmodels.DebugViewModel
 import com.paul.viewmodels.MapViewModel
+import com.paul.viewmodels.ProfilesViewModel
 import com.paul.viewmodels.RoutesViewModel
 import com.paul.viewmodels.StartViewModel
 import com.paul.viewmodels.StorageViewModel
@@ -72,6 +74,17 @@ fun App(
                 scaffoldState.snackbarHostState,
                 webServerController,
                 tileRepo
+            )
+        }
+
+        val profilesViewModel = viewModel {
+            ProfilesViewModel(
+                deviceSelector,
+                connection,
+                scaffoldState.snackbarHostState,
+                settingsViewModel.tileServerRepo,
+                ProfileRepo(), // needs to be a singleton if anything else uses it
+                navController
             )
         }
 
@@ -177,6 +190,13 @@ fun App(
                         }
                         RoutesScreen(
                             viewModel = routesViewModel,
+                            navController = navController,
+                        )
+                    }
+
+                    composable(Screen.Profiles.route) {
+                        ProfilesScreen(
+                            viewModel = profilesViewModel,
                             navController = navController,
                         )
                     }

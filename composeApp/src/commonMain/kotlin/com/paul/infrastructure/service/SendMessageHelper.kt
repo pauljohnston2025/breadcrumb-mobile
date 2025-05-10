@@ -8,16 +8,16 @@ import kotlinx.coroutines.launch
 
 class SendMessageHelper {
     companion object {
-        suspend fun sendingMessage(
+        suspend fun <T> sendingMessage(
             viewModelScope: CoroutineScope,
             message: MutableState<String>,
             msg: String,
-            cb: suspend () -> Unit) {
+            cb: suspend () -> T): T? {
             try {
                 viewModelScope.launch(Dispatchers.Main) {
                     message.value = msg
                 }
-                cb()
+                return cb()
             } catch (t: Throwable) {
                 Napier.d("Failed to do operation: $msg $t")
             } finally {
@@ -25,6 +25,8 @@ class SendMessageHelper {
                     message.value = ""
                 }
             }
+
+            return null
         }
     }
 }

@@ -99,6 +99,10 @@ class TileServerRepo(
         return currentTileType.asStateFlow()
     }
 
+    fun currentTokenFlow(): StateFlow<String> {
+        return currentAuthToken.asStateFlow()
+    }
+
     fun tileServerEnabledFlow(): Flow<Boolean> {
         return tileServerEnabled
     }
@@ -270,5 +274,9 @@ class TileServerRepo(
         }
 
         return tileServer.title
+    }
+
+    fun get(id: String): TileServerInfo? {
+        return availableServers.value.find { it.id == id }
     }
 }

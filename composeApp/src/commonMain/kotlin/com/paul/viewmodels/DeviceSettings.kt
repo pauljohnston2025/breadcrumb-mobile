@@ -1,20 +1,17 @@
 package com.paul.viewmodels
 
-import io.github.aakira.napier.Napier
 import androidx.compose.material.SnackbarHostState
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavHostController
-import com.paul.composables.colorToHexString
-import com.paul.composables.parseColor
 import com.paul.domain.IqDevice
 import com.paul.infrastructure.connectiq.IConnection
 import com.paul.protocol.fromdevice.Settings
 import com.paul.protocol.todevice.SaveSettings
+import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 

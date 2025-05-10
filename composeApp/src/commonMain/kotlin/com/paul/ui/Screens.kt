@@ -11,8 +11,10 @@ import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.SdStorage
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.SwitchAccount
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.TextSnippet
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.ui.graphics.vector.ImageVector
 
 // https://github.com/JetBrains/compose-multiplatform/blob/a6961385ccf0dee7b6d31e3f73d2c8ef91005f1a/examples/nav_cupcake/composeApp/src/commonMain/kotlin/org/jetbrains/nav_cupcake/CupcakeScreen.kt#L89
@@ -31,6 +33,7 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     object Storage : Screen("storage", "Storage Info", Icons.Default.SdStorage)
     object Debug : Screen("debug", "Debug Info", Icons.Default.Terminal)
     object Routes : Screen("routes", "Routes", Icons.Default.Route)
+    object Profiles : Screen("profiles", "Profiles", Icons.Default.Tune)
 }
 
 // List of items specifically for the drawer menu
@@ -38,6 +41,7 @@ val drawerScreens = listOf(
     Screen.Start,
     Screen.Routes,
     Screen.Settings,
+    Screen.Profiles,
     Screen.Devices,
     Screen.Map,
     Screen.Storage,
