@@ -258,6 +258,21 @@ fun DeviceSettings(
                                 if (scaleRestrictedToTileLayersProp != null) PropertyEditorResolver(
                                     scaleRestrictedToTileLayersProp
                                 )
+
+                                SectionHeader("Offline Tile Storage")
+
+                                val cacheTilesInStorageProp = findProp("cacheTilesInStorage")
+                                if (cacheTilesInStorageProp != null) PropertyEditorResolver(
+                                    cacheTilesInStorageProp
+                                )
+                                val storageMapTilesOnlyProp = findProp("storageMapTilesOnly")
+                                if (storageMapTilesOnlyProp != null) PropertyEditorResolver(
+                                    storageMapTilesOnlyProp
+                                )
+                                val storageTileCacheSizeProp = findProp("storageTileCacheSize")
+                                if (storageTileCacheSizeProp != null) PropertyEditorResolver(
+                                    storageTileCacheSizeProp
+                                )
                             }
                         }
                     }

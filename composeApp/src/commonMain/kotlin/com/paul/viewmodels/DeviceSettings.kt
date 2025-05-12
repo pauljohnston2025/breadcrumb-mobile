@@ -108,6 +108,7 @@ val listOptionsMapping: Map<String, List<ListOption>> = mapOf(
         ListOption(1, "Zoom When Stopped"),
         ListOption(2, "Never Zoom"),
         ListOption(3, "Always Zoom"),
+        ListOption(4, "Routes Without Track"),
     ),
     "uiMode" to listOf(
         ListOption(0, "Show On Top"),
@@ -168,6 +169,9 @@ val labelOverrides: Map<String, String> = mapOf(
     "offTrackCheckIntervalS" to "Max Check Interval (s)",
     "tileSize" to "Tile Size (pixels)",
     "drawLineToClosestPoint" to "Draw Line To Closest Point",
+    "cacheTilesInStorage" to "Store Tiles For Offline Use",
+    "storageMapTilesOnly" to "Only Use Stored Tiles (no ble data)",
+    "storageTileCacheSize" to "Storage Tile Cache Size (tiles)",
 )
 
 val descriptions: Map<String, String> = mapOf(
@@ -230,6 +234,7 @@ class DeviceSettings(
                     "tileLayerMax",
                     "tileLayerMin",
                     "tileCacheSize",
+                    "storageTileCacheSize",
                     "tileCachePadding",
                     "recalculateIntervalS",
                     "maxPendingWebRequests",
@@ -270,6 +275,8 @@ class DeviceSettings(
 
                     // --- Booleans ---
                     "mapEnabled",
+                    "cacheTilesInStorage",
+                    "storageMapTilesOnly",
                     "displayLatLong",
                     "scaleRestrictedToTileLayers",
                     "resetDefaults",
