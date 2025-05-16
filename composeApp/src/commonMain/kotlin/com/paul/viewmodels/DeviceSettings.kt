@@ -172,6 +172,8 @@ val labelOverrides: Map<String, String> = mapOf(
     "cacheTilesInStorage" to "Store Tiles For Offline Use",
     "storageMapTilesOnly" to "Only Use Stored Tiles (no ble data)",
     "storageTileCacheSize" to "Storage Tile Cache Size (tiles)",
+    "httpErrorTileTTLS" to "Http Error Tile TTL (s)",
+    "errorTileTTLS" to "Error Tile TTL (s)",
 )
 
 val descriptions: Map<String, String> = mapOf(
@@ -242,6 +244,8 @@ class DeviceSettings(
                     "offTrackAlertsMaxReportIntervalS",
                     "offTrackCheckIntervalS",
                     "disableMapsFailureCount",
+                    "httpErrorTileTTLS",
+                    "errorTileTTLS",
                     "routeMax" -> EditableProperty(
                         key,
                         PropertyType.NUMBER,
@@ -284,6 +288,11 @@ class DeviceSettings(
                     "drawLineToClosestPoint",
                     "enableRotation",
                     "displayRouteNames",
+                    "showPoints",
+                    "drawLineToClosestTrack",
+                    "showTileBorders",
+                    "showErrorTileMessages",
+                    "includeDebugPageInOnScreenUi",
                     "routesEnabled" -> EditableProperty(
                         key,
                         PropertyType.BOOLEAN,
@@ -305,6 +314,7 @@ class DeviceSettings(
                     )
 
                     // --- Colors (Treated as String for editing, but typed as COLOR) ---
+                    "tileErrorColour",
                     "trackColour",
                     "elevationColour",
                     "userColour",

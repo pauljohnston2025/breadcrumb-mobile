@@ -205,34 +205,6 @@ fun DeviceSettings(
                         ) {
                             // This inner Column holds the actual settings
                             Column {
-                                val mapChoiceProp = findProp("mapChoice")
-                                if (mapChoiceProp != null) {
-                                    PropertyEditorResolver(
-                                        mapChoiceProp
-                                    )
-                                }
-                                val tileUrlProp = findProp("tileUrl")
-                                if (tileUrlProp != null) PropertyEditorResolver(tileUrlProp)
-                                val authTokenProp = findProp("authToken")
-                                if (authTokenProp != null) PropertyEditorResolver(authTokenProp)
-                                val tileSizeProp = findProp("tileSize")
-                                if (tileSizeProp != null) PropertyEditorResolver(tileSizeProp)
-                                val fullTileSizeProp = findProp("fullTileSize")
-                                if (fullTileSizeProp != null) PropertyEditorResolver(
-                                    fullTileSizeProp
-                                )
-                                val scaledTileSizeProp = findProp("scaledTileSize")
-                                if (scaledTileSizeProp != null) PropertyEditorResolver(
-                                    scaledTileSizeProp
-                                )
-                                val tileLayerMaxProp = findProp("tileLayerMax")
-                                if (tileLayerMaxProp != null) PropertyEditorResolver(
-                                    tileLayerMaxProp
-                                )
-                                val tileLayerMinProp = findProp("tileLayerMin")
-                                if (tileLayerMinProp != null) PropertyEditorResolver(
-                                    tileLayerMinProp
-                                )
                                 val tileCacheSizeProp = findProp("tileCacheSize")
                                 if (tileCacheSizeProp != null) PropertyEditorResolver(
                                     tileCacheSizeProp
@@ -249,6 +221,14 @@ fun DeviceSettings(
                                 if (disableMapsFailureProp != null) PropertyEditorResolver(
                                     disableMapsFailureProp
                                 )
+                                val httpErrorTileTTLSProp = findProp("httpErrorTileTTLS")
+                                if (httpErrorTileTTLSProp != null) PropertyEditorResolver(
+                                    httpErrorTileTTLSProp
+                                )
+                                val errorTileTTLSProp = findProp("errorTileTTLS")
+                                if (errorTileTTLSProp != null) PropertyEditorResolver(
+                                    errorTileTTLSProp
+                                )
                                 val fixedLatProp = findProp("fixedLatitude")
                                 if (fixedLatProp != null) PropertyEditorResolver(fixedLatProp)
                                 val fixedLonProp = findProp("fixedLongitude")
@@ -257,6 +237,38 @@ fun DeviceSettings(
                                     findProp("scaleRestrictedToTileLayers")
                                 if (scaleRestrictedToTileLayersProp != null) PropertyEditorResolver(
                                     scaleRestrictedToTileLayersProp
+                                )
+
+                                SectionHeader("Tile Server Settings")
+
+
+                                val mapChoiceProp = findProp("mapChoice")
+                                if (mapChoiceProp != null) {
+                                    PropertyEditorResolver(
+                                        mapChoiceProp
+                                    )
+                                }
+                                val tileUrlProp = findProp("tileUrl")
+                                if (tileUrlProp != null) PropertyEditorResolver(tileUrlProp)
+                                val authTokenProp = findProp("authToken")
+                                if (authTokenProp != null) PropertyEditorResolver(authTokenProp)
+                                val tileSizeProp = findProp("tileSize")
+                                if (tileSizeProp != null) PropertyEditorResolver(tileSizeProp)
+                                val scaledTileSizeProp = findProp("scaledTileSize")
+                                if (scaledTileSizeProp != null) PropertyEditorResolver(
+                                    scaledTileSizeProp
+                                )
+                                val tileLayerMaxProp = findProp("tileLayerMax")
+                                if (tileLayerMaxProp != null) PropertyEditorResolver(
+                                    tileLayerMaxProp
+                                )
+                                val tileLayerMinProp = findProp("tileLayerMin")
+                                if (tileLayerMinProp != null) PropertyEditorResolver(
+                                    tileLayerMinProp
+                                )
+                                val fullTileSizeProp = findProp("fullTileSize")
+                                if (fullTileSizeProp != null) PropertyEditorResolver(
+                                    fullTileSizeProp
                                 )
 
                                 SectionHeader("Offline Tile Storage")
@@ -389,6 +401,44 @@ fun DeviceSettings(
                         // Directly call the resolver, which will choose RoutesArrayEditor
                         PropertyEditorResolver(property = prop)
                     }
+                }
+
+                item { SectionHeader("Debug") } // Header is separate
+                val showPointsProp = findProp("showPoints")
+                if (showPointsProp != null) item(key = showPointsProp.id) {
+                    PropertyEditorResolver(
+                        showPointsProp
+                    )
+                }
+                val drawLineToClosestTrackProp = findProp("drawLineToClosestTrack")
+                if (drawLineToClosestTrackProp != null) item(key = drawLineToClosestTrackProp.id) {
+                    PropertyEditorResolver(
+                        drawLineToClosestTrackProp
+                    )
+                }
+                val showTileBordersProp = findProp("showTileBorders")
+                if (showTileBordersProp != null) item(key = showTileBordersProp.id) {
+                    PropertyEditorResolver(
+                        showTileBordersProp
+                    )
+                }
+                val showErrorTileMessagesProp = findProp("showErrorTileMessages")
+                if (showErrorTileMessagesProp != null) item(key = showErrorTileMessagesProp.id) {
+                    PropertyEditorResolver(
+                        showErrorTileMessagesProp
+                    )
+                }
+                val tileErrorColourProp = findProp("tileErrorColour")
+                if (tileErrorColourProp != null) item(key = tileErrorColourProp.id) {
+                    PropertyEditorResolver(
+                        tileErrorColourProp
+                    )
+                }
+                val includeDebugPageInOnScreenUiProp = findProp("includeDebugPageInOnScreenUi")
+                if (includeDebugPageInOnScreenUiProp != null) item(key = includeDebugPageInOnScreenUiProp.id) {
+                    PropertyEditorResolver(
+                        includeDebugPageInOnScreenUiProp
+                    )
                 }
 
                 // --- Setting: resetDefaults ---

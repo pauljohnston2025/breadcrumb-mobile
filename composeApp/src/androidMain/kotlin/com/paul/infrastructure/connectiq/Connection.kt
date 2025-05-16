@@ -280,11 +280,21 @@ class Connection(private val context: Context) : IConnection {
 //                "tileSize" to 64,
 //                "userColour" to "FFFF5500",
 //                "uiColour" to "FF555555",
+//                "tileErrorColour" to "FF555555",
 //                "mapEnabled" to true,
 //                "scaleRestrictedToTileLayers" to false,
 //                "tileLayerMax" to 15,
 //                "disableMapsFailureCount" to 200,
-//                "maxPendingWebRequests" to 100
+//                "maxPendingWebRequests" to 100,
+//                "cacheTilesInStorage" to false,
+//                "showPoints" to false,
+//                "drawLineToClosestTrack" to false,
+//                "showTileBorders" to false,
+//                "showErrorTileMessages" to false,
+//                "includeDebugPageInOnScreenUi" to false,
+//                "storageTileCacheSize" to 100,
+//                "httpErrorTileTTLS" to 60,
+//                "errorTileTTLS" to 20,
 //            )
 //        )
 //
