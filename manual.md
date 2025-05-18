@@ -53,6 +53,7 @@ Auth Token - will be used for any tile server that specifies '{authToken}' in th
 # Profiles Page
 
 Allows saving app and watch settings for later use, and allows quick switching between different settings profiles for different activity types. Profiles can be created from the current settings, or imported from json. See the [profile examples](profiles.md) for importing. When importing from json, you will be prompted for auth tokens for the app and watch when needed (if the tile server requires auth).  
+Please share your created profiles as a [github issue](https://github.com/pauljohnston2025/breadcrumb-mobile/issues/new). Ensure that any sensitive data is removed before sharing. Include details such as what activity you use it for and what watch your using. I will add some of these as examples to help other users easily find them, it will also help me see how different users are using the app (and determine what features are more important).  
 
 ![](images/manual/profiles.png)
 ![](images/manual/profile-edit.png)
@@ -64,6 +65,25 @@ Icons can be clicked to do the following:
 * Play - Apply the profiles settings to the watch and companion app.
 * Copy - Copy the profile json to clipboard for sharing with other users, or saving for later use. Please ensure no private information such as auth tokens are included when sharing the profile json. 
 * Bin - Delete the profile.
+
+Steps to create a profile from a currently configured watch and companion app
+1. Click the 'create new profile' button
+1. Give the profile a name and click save 
+
+Steps to import a profile from json
+1. Click the 'import from json' button
+1. Paste the json profile into the text box
+1. Set any auth tokens
+1. Click save
+
+Steps to update a profile
+1. Load the profile using the play button (this puts the profile onto the watch and companion app)
+1. Edit settings on the watch and/or the companion app. Eg. Change the tile server on the companion app and the track colour on the watch app. The watch settings can be edited directly on the watch, through garmin connect or by using the companion app.  
+1. Once all settings edits are complete and you are happy, click the pencil icon on the profile you wish to update. This will generally be the profile you started with but can be any profile.
+1.  Click the 'load watch settings' toggle and/or the 'load app settings' toggle.
+1.  Click save. The new settings will be pulled from the watch and/or the app depending on the options chosen in the previous step.
+
+
 
 ---
 

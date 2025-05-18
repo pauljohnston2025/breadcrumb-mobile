@@ -161,11 +161,17 @@ class ProfilesViewModel(
 
     fun exportProfile(profile: Profile) {
         viewModelScope.launch(Dispatchers.IO) {
-            val exported = profile.export(tileServerRepo)
-            clipboardHandler.copyTextToClipboard(Json {
-                prettyPrint = true
-            }.encodeToString(exported))
-//            snackbarHostState.showSnackbar("Profile copied to clipboard")
+            try {
+                val exported = profile.export(tileServerRepo)
+                clipboardHandler.copyTextToClipboard(Json {
+                    prettyPrint = true
+                }.encodeToString(exported))
+                // already logged in clipboard handler
+                // snackbarHostState.showSnackbar("Profile copied to clipboard")
+            } catch (t: Throwable) {
+                Napier.e("Failed to export profile: $t")
+                snackbarHostState.showSnackbar("Failed to export profile")
+            }
         }
     }
 

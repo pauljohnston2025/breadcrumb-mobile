@@ -14,6 +14,7 @@ import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.longOrNull
+import java.util.SortedMap
 
 @Serializable
 data class AppSettings(
@@ -148,10 +149,18 @@ data class Profile(
         if (obfuscatedDeviceSettings.containsKey("authToken") && obfuscatedDeviceSettings["authToken"] != "") {
             obfuscatedDeviceSettings["authToken"] = "<WatchAuthTokenRequired>"
         }
+
+        val unsortedMap = convertAnyMapToJsonElementMap(obfuscatedDeviceSettings.toMap())
+        val sortedKeys = unsortedMap.keys.sorted()
+        val sortedPropertiesMap = LinkedHashMap<String, JsonElement>() // Preserves insertion order
+        for (key in sortedKeys) {
+            sortedPropertiesMap[key] = unsortedMap[key]!! // Add entries in sorted key order
+        }
+
         return ExportedProfile(
             profileSettings.copy(),
             appSettings.copy(authToken = obfuscatedAuthToken),
-            convertAnyMapToJsonElementMap(obfuscatedDeviceSettings.toMap()),
+            sortedPropertiesMap,
             lastKnownDevice,
             customServers
         )
