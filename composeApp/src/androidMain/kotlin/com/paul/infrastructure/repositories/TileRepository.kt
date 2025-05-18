@@ -18,7 +18,7 @@ class TileRepository(
     fileHelper: IFileHelper,
 ) : ITileRepository(fileHelper) {
 
-    override suspend fun getWatchTile(req: LoadTileRequest): LoadTileResponse {
+    override suspend fun getWatchTile(req: LoadTileRequest): Pair<Int, LoadTileResponse?> {
 //        Napier.d("small tile req: $req")
         val smallTilesPerScaledTile = Math.ceil(req.scaledTileSize.toDouble() / req.tileSize).toInt()
         val scaleUpSize = smallTilesPerScaledTile * req.tileSize
@@ -27,15 +27,15 @@ class TileRepository(
         Napier.d("webserver full tile req: $x, $y, ${req.z}")
 
         val tileContents = getTile(x, y, req.z)
-        if (tileContents == null) {
-            return erroredTile(req)
+        if (tileContents.first != 200 || tileContents.second == null) {
+            return Pair(tileContents.first, null)
         }
         val bitmaps = try {
-            val resizedBitmap = imageProcessor.parseImage(tileContents, scaleUpSize)!!
+            val resizedBitmap = imageProcessor.parseImage(tileContents.second!!, scaleUpSize)!!
             imageProcessor.splitBitmapDynamic(resizedBitmap, req.tileSize, req.tileSize)!!
         } catch (e: Throwable) {
             Napier.d("failed to parse bitmap")
-            return erroredTile(req)
+            return Pair(500, null)
         }
 
         val xOffset = req.x % smallTilesPerScaledTile
@@ -43,7 +43,7 @@ class TileRepository(
         val offset = xOffset * smallTilesPerScaledTile + yOffset
         if (offset >= bitmaps.size || offset < 0) {
             Napier.d("our math aint mathing $offset")
-            return erroredTile(req)
+            return Pair(500, null)
         }
         val bitmap = bitmaps[offset]
         val colourData = mutableListOf<Colour>()
@@ -60,6 +60,6 @@ class TileRepository(
 
         val tile = MapTile(req.x, req.y, req.z, colourData)
 
-        return LoadTileResponse(tileType.value.toInt(), tile.colourString(tileType))
+        return Pair(200, LoadTileResponse(tileType.value.toInt(), tile.colourString(tileType)))
     }
 }

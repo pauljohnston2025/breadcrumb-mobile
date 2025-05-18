@@ -55,19 +55,7 @@ abstract class ITileRepository(private val fileHelper: IFileHelper) {
         this.tileType = tileType
     }
 
-    fun erroredTile(req: LoadTileRequest): LoadTileResponse {
-        val colourData = List(req.tileSize * req.tileSize) {
-            Colour(
-                255.toUByte(), // red tiles for error
-                0.toUByte(),
-                0.toUByte()
-            )
-        }
-        val tile = MapTile(req.x, req.y, req.z, colourData)
-        return LoadTileResponse(tileType.value.toInt(), tile.colourString(tileType))
-    }
-
-    abstract suspend fun getWatchTile(req: LoadTileRequest): LoadTileResponse
+    abstract suspend fun getWatchTile(req: LoadTileRequest): Pair<Int, LoadTileResponse?>
 
     // gets a full size tile
     suspend fun seedLayer(
@@ -120,7 +108,7 @@ abstract class ITileRepository(private val fileHelper: IFileHelper) {
         }
     }
 
-    suspend fun getTile(x: Int, y: Int, z: Int): ByteArray? {
+    suspend fun getTile(x: Int, y: Int, z: Int): Pair<Int, ByteArray?> {
         val tileUrl = tileServer.url
             .replace("{x}", "${x}")
             .replace("{y}", "${y}")
@@ -130,7 +118,7 @@ abstract class ITileRepository(private val fileHelper: IFileHelper) {
 
         if (z < tileServer.tileLayerMin || z > tileServer.tileLayerMax) {
             Napier.w("Tile url outsize z layer $tileUrl")
-            return null
+            return Pair(500, null)
         }
         //        val brisbaneUrl = "https://a.tile.opentopomap.org/11/1894/1186.png"
         //        var tileUrl = brisbaneUrl;
@@ -150,7 +138,8 @@ abstract class ITileRepository(private val fileHelper: IFileHelper) {
                 }
                 if (!response.status.isSuccess()) {
                     Napier.d("fetching $tileUrl failed ${response.status}")
-                    return null
+                    // todo: cache tile errors, and show them to user to (especially for map page)
+                    return Pair(response.status.value, null)
                 }
 
                 tileContents = withContext(Dispatchers.IO) {
@@ -159,10 +148,10 @@ abstract class ITileRepository(private val fileHelper: IFileHelper) {
                 fileHelper.writeLocalFile(fileName, tileContents)
             }
 
-            return tileContents
+            return Pair(200, tileContents)
         } catch (e: Throwable) {
             Napier.d("fetching $tileUrl failed $e")
-            return null
+            return Pair(500, null)
         }
     }
 }

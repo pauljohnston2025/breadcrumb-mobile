@@ -1,7 +1,7 @@
 {
   "appSettings": {
     "authToken": "",
-    "tileServerEnabled": true,
+    "tileServerEnabled": false,
     "tileServerId": "Open Topo Map",
     "tileType": "TILE_DATA_TYPE_64_COLOUR"
   },

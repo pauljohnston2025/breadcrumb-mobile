@@ -39,20 +39,26 @@ val RequestLogging = createApplicationPlugin(name = "RequestLogging") {
         val request = call.request
         val path = request.path()
         val method = request.httpMethod.value
-        val headers = request.headers.entries().joinToString(separator = "\n    ") { (name, values) ->
-            "$name: ${values.joinToString()}"
-        }
+        val headers =
+            request.headers.entries().joinToString(separator = "\n    ") { (name, values) ->
+                "$name: ${values.joinToString()}"
+            }
 
-        val parameters = request.queryParameters.entries().joinToString(separator = "\n    ") { (name, values) ->
-            "$name: ${values.joinToString()}"
-        }
+        val parameters =
+            request.queryParameters.entries().joinToString(separator = "\n    ") { (name, values) ->
+                "$name: ${values.joinToString()}"
+            }
 
 //        Napier.d("Incoming request - Method: $method, Path: $path\n  Headers:\n    $headers\n  Parameters:\n    $parameters", tag = "WebserverService")
 
-        val parametersSingleLine = request.queryParameters.entries().joinToString(separator = ", ") { (name, values) ->
-            "$name: ${values.joinToString()}"
-        }
-        Napier.d("Incoming request - Method: $method, Path: $path params: $parametersSingleLine", tag = "WebserverService")
+        val parametersSingleLine =
+            request.queryParameters.entries().joinToString(separator = ", ") { (name, values) ->
+                "$name: ${values.joinToString()}"
+            }
+        Napier.d(
+            "Incoming request - Method: $method, Path: $path params: $parametersSingleLine",
+            tag = "WebserverService"
+        )
 
         // Store the start time in the call attributes
         call.attributes.put(startTimeKey, System.currentTimeMillis())
@@ -71,13 +77,17 @@ val RequestLogging = createApplicationPlugin(name = "RequestLogging") {
         val responseObject = call.attributes[responseKey]
         val duration = System.currentTimeMillis() - startTime
         val statusCode = call.response.status()
-        val headers = call.response.headers.allValues().entries().joinToString(separator = "\n    ") { (name, values) ->
-            "$name: ${values.joinToString()}"
-        }
+        val headers = call.response.headers.allValues().entries()
+            .joinToString(separator = "\n    ") { (name, values) ->
+                "$name: ${values.joinToString()}"
+            }
         val responseType = call.response.responseType
-//        Napier.d("Outgoing response - Method: $method, Path: $path\n  Status: $statusCode\n  Headers:\n" +
-//                "    $headers\n  Duration: $duration ms\n  ResponseType: $responseType\n  Response: $responseObject", tag = "WebserverService")
-        Napier.d("Outgoing response - Method: $method Status: $statusCode", tag = "WebserverService")
+        Napier.d("Outgoing response - Method: $method, Path: $path\n  Status: $statusCode\n  Headers:\n" +
+                "    $headers\n  Duration: $duration ms\n  ResponseType: $responseType\n  Response: $responseObject", tag = "WebserverService")
+//        Napier.d(
+//            "Outgoing response - Method: $method Status: $statusCode",
+//            tag = "WebserverService"
+//        )
     }
 }
 
@@ -90,14 +100,13 @@ class WebServerService(
     private val tileGetter: ITileRepository
 ) {
     private val serverPort = 8080
-    private var server: EmbeddedServer<NettyApplicationEngine, NettyApplicationEngine.Configuration>? = null
+    private var server: EmbeddedServer<NettyApplicationEngine, NettyApplicationEngine.Configuration>? =
+        null
 
     fun start(): Int {
         try {
             startKtorServer()
-        }
-        catch (t: Throwable)
-        {
+        } catch (t: Throwable) {
             // todo handle shutting down the old service somehow
             // then start a new one
             Napier.e("failed to start service, probably already bound: $t")
@@ -139,11 +148,22 @@ class WebServerService(
         }
 
         routing {
-            resourcesGet<LoadTileRequest>  { params ->
-                call.respond(tileGetter.getWatchTile(params))
+            resourcesGet<LoadTileRequest> { params ->
+                val res = tileGetter.getWatchTile(params)
+                if (res.first != 200) {
+                    call.respond(HttpStatusCode.fromValue(res.first), ErrorJson())
+                    return@resourcesGet
+                }
+
+                if (res.second == null) {
+                    call.respond(HttpStatusCode.fromValue(500), ErrorJson())
+                    return@resourcesGet
+                }
+
+                call.respond(res.second!!)
             }
 
-            resourcesGet<TileServerDetails>  {
+            resourcesGet<TileServerDetails> {
                 call.respond(tileGetter.serverDetails())
             }
 
@@ -162,7 +182,7 @@ class WebServerService(
                 call.respond(HttpStatusCode.OK)
             }
 
-            resourcesGet<CheckStatusRequest>  { params ->
+            resourcesGet<CheckStatusRequest> { params ->
                 call.respond(HttpStatusCode.OK)
             }
         }

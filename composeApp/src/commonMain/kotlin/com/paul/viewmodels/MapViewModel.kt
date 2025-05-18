@@ -123,8 +123,12 @@ class MapViewModel(
                             tileId.y,
                             tileId.z
                         ) // Use injected repo
+                        if (data.first != 200 || data.second == null) {
+                            return@launch
+                        }
                         if (!isActive) return@launch // Check cancellation *before* conversion
-                        bitmapResult = byteArrayToImageBitmap(data) // Non-composable conversion
+                        bitmapResult =
+                            byteArrayToImageBitmap(data.second!!) // Non-composable conversion
                         if (!isActive) return@launch // Check cancellation *after* conversion
 
                         // Update cache and state flow (ensure thread safety if needed, StateFlow is safe)
