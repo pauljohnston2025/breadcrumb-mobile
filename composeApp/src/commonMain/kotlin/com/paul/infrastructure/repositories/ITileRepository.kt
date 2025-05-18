@@ -9,6 +9,7 @@ import com.paul.infrastructure.service.IFileHelper
 import com.paul.infrastructure.web.KtorClient
 import com.paul.infrastructure.web.LoadTileRequest
 import com.paul.infrastructure.web.LoadTileResponse
+import com.paul.infrastructure.web.TileServerDetailsResponse
 import com.paul.infrastructure.web.TileType
 import com.paul.infrastructure.web.platformInfo
 import com.paul.protocol.todevice.Colour
@@ -34,6 +35,10 @@ abstract class ITileRepository(private val fileHelper: IFileHelper) {
 
     fun currentTileServer(): TileServerInfo {
         return tileServer
+    }
+
+    fun serverDetails(): TileServerDetailsResponse {
+        return TileServerDetailsResponse(tileServer.tileLayerMin, tileServer.tileLayerMax)
     }
 
     fun setTileServer(tileServer: TileServerInfo) {
@@ -96,8 +101,7 @@ abstract class ITileRepository(private val fileHelper: IFileHelper) {
                         } catch (e: Exception) {
                             // Report the error for this specific tile
                             errorCallback(x, y, z, e)
-                        }
-                        finally {
+                        } finally {
 
                             // Still count it as "processed" in terms of the loop attempt,
                             // otherwise progress might never reach 100% if errors occur.

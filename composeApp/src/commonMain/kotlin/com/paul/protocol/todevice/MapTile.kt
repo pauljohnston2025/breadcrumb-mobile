@@ -59,12 +59,12 @@ class MapTile(
     private val y: Int,
     private val z: Int,
     private val pixelData: List<Colour>
-) : Protocol {
-    override fun type(): ProtocolType {
-        return ProtocolType.PROTOCOL_MAP_TILE
-    }
+) {
+//    override fun type(): ProtocolType {
+//        return ProtocolType.PROTOCOL_MAP_TILE
+//    }
 
-    override fun payload(): List<Any> {
+    fun payload(): List<Any> {
         val data = mutableListOf<Any>()
         data.add(x)
         data.add(y)

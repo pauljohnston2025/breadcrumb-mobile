@@ -11,7 +11,7 @@ import com.paul.infrastructure.repositories.ITileRepository
 import com.paul.infrastructure.repositories.TileServerRepo
 import com.paul.infrastructure.web.TileType
 import com.paul.infrastructure.web.WebServerController
-import com.paul.protocol.todevice.DropTileCache
+import com.paul.protocol.todevice.CompanionAppTileServerChanged
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
@@ -60,7 +60,13 @@ class Settings(
                         snackbarHostState.showSnackbar("Failed to update tile type")
                         return@sendingMessage
                     }
-                    connection.send(device, DropTileCache())
+                    val tilServer = tileServerRepo.currentServerFlow().value
+                    connection.send(
+                        device, CompanionAppTileServerChanged(
+                            tilServer.tileLayerMin,
+                            tilServer.tileLayerMax,
+                        )
+                    )
                 } catch (t: TimeoutCancellationException) {
                     snackbarHostState.showSnackbar("Timed out clearing tile cache")
                     return@sendingMessage
@@ -104,7 +110,12 @@ class Settings(
                         snackbarHostState.showSnackbar("Failed to update tile server")
                         return@sendingMessage
                     }
-                    connection.send(device, DropTileCache())
+                    connection.send(
+                        device, CompanionAppTileServerChanged(
+                            tileServer.tileLayerMin,
+                            tileServer.tileLayerMax,
+                        )
+                    )
                 } catch (t: TimeoutCancellationException) {
                     snackbarHostState.showSnackbar("Timed out clearing tile cache")
                     return@sendingMessage
