@@ -3,16 +3,21 @@ package com.paul.composables
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.Button
 import androidx.compose.material.Icon
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.RemoveRedEye
+import androidx.compose.material.icons.filled.Watch
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -44,6 +49,7 @@ import com.paul.infrastructure.service.worldPixelToGeo
 import com.paul.protocol.todevice.Point
 import com.paul.protocol.todevice.Route
 import com.paul.viewmodels.MapViewModel
+import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -312,6 +318,68 @@ fun MapTilerComposable(
                 .align(Alignment.BottomEnd)
                 .padding(8.dp)
         ) {
+            Button(
+//                modifier = Modifier.width(75.dp),
+                onClick = {
+
+                    // Get bounds and zoom from user input or map viewport
+                    // Example fixed values:
+                    if (viewportSize != IntSize.Zero) {
+                        // 1. Get current map state from ViewModel
+                        val centerPoint = viewModel.mapCenter.value
+                        val centerGeo = GeoPosition(
+                            centerPoint.latitude.toDouble(),
+                            centerPoint.longitude.toDouble()
+                        )
+                        val currentZoom = viewModel.mapZoom.value
+
+                        // 2. Calculate viewport corners' geographic coordinates
+                        val topLeftGeo =
+                            screenPixelToGeo(
+                                IntOffset(0, 0),
+                                centerGeo,
+                                currentZoom,
+                                viewportSize
+                            )
+                        val bottomRightGeo = screenPixelToGeo(
+                            IntOffset(viewportSize.width, viewportSize.height),
+                            centerGeo,
+                            currentZoom,
+                            viewportSize
+                        )
+
+                        viewModel.showLocationOnWatch(
+                            centerGeo = centerGeo,
+                            topLeftGeo = topLeftGeo,
+                            bottomRightGeo = bottomRightGeo,
+                        )
+                    } else {
+                        // Optional: Show a message if size is not ready
+                        // scope.launch { snackbarHostState.showSnackbar("Map not ready yet") }
+                        Napier.d("Viewport size not available yet.")
+                    }
+                },
+                enabled = true
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    // Negative spacing causes overlap. Adjust the value as needed.
+                    // -8.dp means the second icon will be pulled 8.dp to the left.
+                    horizontalArrangement = Arrangement.spacedBy((-2).dp)
+                ) {
+                    Icon(
+                        Icons.Default.Watch,
+                        contentDescription = "Show on watch",
+                        modifier = Modifier.size(17.dp) // Slightly smaller icon so that the button is the same size as the other ones
+                    )
+                    Icon(
+                        Icons.Default.RemoveRedEye,
+                        contentDescription = "Show on watch",
+                        modifier = Modifier.size(17.dp) // Slightly smaller icon so that the button is the same size as the other ones
+                    )
+                }
+            }
+
             Button(
                 onClick = {
                     viewModel.setMapZoom(

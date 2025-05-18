@@ -1,35 +1,42 @@
 package com.paul.viewmodels
 
 import androidx.compose.material.SnackbarHostState
-import androidx.compose.runtime.mutableStateOf // Import mutableStateOf for simple boolean
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.navigation.NavController
 import com.paul.composables.byteArrayToImageBitmap
 import com.paul.domain.TileServerInfo
+import com.paul.infrastructure.connectiq.IConnection
 import com.paul.infrastructure.repositories.ITileRepository
 import com.paul.infrastructure.repositories.TileServerRepo
 import com.paul.infrastructure.service.GeoPosition
+import com.paul.infrastructure.service.SendMessageHelper.Companion.sendingMessage
 import com.paul.infrastructure.service.TileId
+import com.paul.protocol.todevice.CacheCurrentArea
 import com.paul.protocol.todevice.Point
+import com.paul.protocol.todevice.RequestLocationLoad
 import com.paul.protocol.todevice.Route
-import com.paul.ui.Screen
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.flow.update // Import update extension
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlin.coroutines.cancellation.CancellationException
+import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 
 class MapViewModel(
+    private val connection: IConnection,
+    private val deviceSelector: DeviceSelector,
     private val tileRepository: ITileRepository,
     val tileServerRepository: TileServerRepo,
     private val snackbarHostState: SnackbarHostState
@@ -81,6 +88,11 @@ class MapViewModel(
             tileServerRepository.authTokenFlow().onEach { refresh() }.collect()
         }
     }
+
+    val sendingFile: MutableState<String> = mutableStateOf("")
+
+    private val _watchSendStarted = MutableStateFlow<RequestLocationLoad?>(null)
+    val watchSendStarted: StateFlow<RequestLocationLoad?> = _watchSendStarted.asStateFlow()
 
     fun refresh() {
         val serverId = tileServerRepository.currentServerFlow().value.id
@@ -206,6 +218,127 @@ class MapViewModel(
         if (_currentRoute.value != null) {
             _isElevationProfileVisible.update { !it }
         }
+    }
+
+    suspend fun getLocationArea(
+        centerGeo: GeoPosition,
+        topLeftGeo: GeoPosition,
+        bottomRightGeo: GeoPosition,
+    ): RequestLocationLoad? {
+        val tl = Point(
+            topLeftGeo.latitude.toFloat(),
+            topLeftGeo.longitude.toFloat(),
+            0f
+        ).convert2XY()
+        val br = Point(
+            bottomRightGeo.latitude.toFloat(),
+            bottomRightGeo.longitude.toFloat(),
+            0f
+        ).convert2XY()
+        if (tl == null || br == null) {
+            snackbarHostState.showSnackbar("Invalid position")
+            return null
+        }
+
+        // should be positive, but in the wonderful world of negative on the bottom of the world who knows
+        val xDim = abs(br.x - tl.x)
+        val yDim = abs(tl.y - br.y)
+
+        val maxDim = max(xDim, yDim)
+
+        return RequestLocationLoad(
+            centerGeo.latitude.toFloat(),
+            centerGeo.longitude.toFloat(),
+            maxDim
+        )
+    }
+
+    fun startSeedingAreaToWatch(
+        centerGeo: GeoPosition,
+        topLeftGeo: GeoPosition,
+        bottomRightGeo: GeoPosition,
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                _watchSendStarted.value = getLocationArea(
+                    centerGeo,
+                    topLeftGeo,
+                    bottomRightGeo,
+                )
+            } catch (t: Throwable) {
+                snackbarHostState.showSnackbar("Failed to start seed on watch")
+                Napier.e("Failed to start seed on watch", t) // Log the full exception
+            }
+        }
+    }
+
+    fun cancelWatchLocationLoad() {
+        _watchSendStarted.value = null
+    }
+
+    fun confirmWatchLocationLoad() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val device = deviceSelector.currentDevice()
+                if (device == null) {
+                    snackbarHostState.showSnackbar("no devices selected")
+                    _watchSendStarted.value = null
+                    return@launch
+                }
+
+                sendingMessage("Caching current map area on Device.\nEnsure an activity with the datafield is running. Progress will be shown on the datafield") {
+                    _watchSendStarted.value = null
+                    connection.send(device, _watchSendStarted.value!!)
+                    connection.send(device, CacheCurrentArea())
+                    // todo wait for response to say finished? its a very long process though
+                    delay(10000) // wait for a bit so users can read message
+                }
+            } catch (t: Throwable) {
+                snackbarHostState.showSnackbar("Failed to start seed on watch")
+                Napier.e("Failed to start seed on watch", t) // Log the full exception
+            } finally {
+                _watchSendStarted.value = null
+            }
+        }
+    }
+
+    fun showLocationOnWatch(
+        centerGeo: GeoPosition,
+        topLeftGeo: GeoPosition,
+        bottomRightGeo: GeoPosition,
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val location = getLocationArea(
+                    centerGeo,
+                    topLeftGeo,
+                    bottomRightGeo,
+                )
+                if (location == null) {
+                    return@launch
+                }
+
+                val device = deviceSelector.currentDevice()
+                if (device == null) {
+                    snackbarHostState.showSnackbar("no devices selected")
+                    _watchSendStarted.value = null
+                    return@launch
+                }
+
+                sendingMessage("Showing current location on watch, ensure the datafield is open and running") {
+                    connection.send(device, location)
+                }
+            } catch (t: Throwable) {
+                snackbarHostState.showSnackbar("Failed to show location on watch")
+                Napier.e("Failed to show location on watch", t) // Log the full exception
+            } finally {
+                _watchSendStarted.value = null
+            }
+        }
+    }
+
+    private suspend fun sendingMessage(msg: String, cb: suspend () -> Unit) {
+        sendingMessage(viewModelScope, sendingFile, msg, cb)
     }
 
     // Called by the user to start seeding an area

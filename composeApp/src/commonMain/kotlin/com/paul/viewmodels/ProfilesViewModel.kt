@@ -17,13 +17,13 @@ import com.paul.infrastructure.repositories.ProfileRepo
 import com.paul.infrastructure.repositories.TileServerRepo
 import com.paul.infrastructure.service.IClipboardHandler
 import com.paul.infrastructure.service.SendMessageHelper
-import com.paul.infrastructure.service.SendMessageHelper.Companion.sendingMessage
 import com.paul.protocol.fromdevice.ProtocolResponse
 import com.paul.protocol.fromdevice.Settings
 import com.paul.protocol.todevice.RequestSettings
 import com.paul.protocol.todevice.SaveSettings
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -177,6 +177,12 @@ class ProfilesViewModel(
 
     fun applyProfile(profile: Profile) {
         viewModelScope.launch(Dispatchers.IO) {
+            applyProfileInner(profile)
+        }
+    }
+
+    suspend fun applyProfileInner(profile: Profile) {
+        sendingMessage("Applying settings to device") {
             val appVersion = getAppVersion()
             if (appVersion != null && profile.lastKnownDevice.appVersion > appVersion) {
                 snackbarHostState.showSnackbar("Newer profile detected, some settings might not be applied")
@@ -185,23 +191,23 @@ class ProfilesViewModel(
             val device = deviceSelector.currentDevice()
             if (device == null) {
                 snackbarHostState.showSnackbar("no devices selected")
-                return@launch
+                return@sendingMessage
             }
-            sendingMessage("Applying settings to device") {
-                connection.send(device, SaveSettings(profile.deviceSettings()))
-            }
-            sendingMessage("Applying app settings") {
-                val tileServer = tileServerRepo.get(profile.appSettings.tileServerId)
-                if (tileServer == null) {
-                    snackbarHostState.showSnackbar("unknown tile server")
-                    return@sendingMessage
-                }
-                tileServerRepo.onTileServerEnabledChange(profile.appSettings.tileServerEnabled)
-                tileServerRepo.updateCurrentTileServer(tileServer)
-                tileServerRepo.updateAuthToken(profile.appSettings.authToken)
-                tileServerRepo.updateCurrentTileType(profile.appSettings.tileType)
 
+            connection.send(device, SaveSettings(profile.deviceSettings()))
+            delay(500) // wait for a bit so users can read message (its almost instant in sim but real device goes slow anyway)
+        }
+        sendingMessage("Applying app settings") {
+            val tileServer = tileServerRepo.get(profile.appSettings.tileServerId)
+            if (tileServer == null) {
+                snackbarHostState.showSnackbar("unknown tile server")
+                return@sendingMessage
             }
+            tileServerRepo.onTileServerEnabledChange(profile.appSettings.tileServerEnabled)
+            tileServerRepo.updateCurrentTileServer(tileServer)
+            tileServerRepo.updateAuthToken(profile.appSettings.authToken)
+            tileServerRepo.updateCurrentTileType(profile.appSettings.tileType)
+            delay(1000) // wait for a bit so users can read message
         }
     }
 
@@ -218,6 +224,9 @@ class ProfilesViewModel(
 
                 if (exportedProfile.customServers.isNotEmpty()) {
                     for (server in exportedProfile.customServers) {
+                        if (tileServerRepo.get(server.id) != null) {
+                            continue; // we already have this server
+                        }
                         tileServerRepo.onAddCustomServer(server)
                     }
                 }

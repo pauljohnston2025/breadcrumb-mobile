@@ -104,6 +104,8 @@ fun App(
 
         val mapViewModel = viewModel {
             MapViewModel(
+                connection,
+                deviceSelector,
                 tileRepository = tileRepo,
                 tileServerRepository = settingsViewModel.tileServerRepo,
                 snackbarHostState = scaffoldState.snackbarHostState,
@@ -245,7 +247,7 @@ fun App(
 
                     composable(Screen.Map.route) {
                         mapViewModel.refresh() // make sure the latest tile server changes are applied
-                        MapScreen(mapViewModel)
+                        MapScreen(mapViewModel, navController = navController,)
                     }
 
                     composable(Screen.Storage.route) {
