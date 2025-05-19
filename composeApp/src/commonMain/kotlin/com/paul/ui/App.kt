@@ -91,6 +91,16 @@ fun App(
             )
         }
 
+        val mapViewModel = viewModel {
+            MapViewModel(
+                connection,
+                deviceSelector,
+                tileRepository = tileRepo,
+                tileServerRepository = settingsViewModel.tileServerRepo,
+                snackbarHostState = scaffoldState.snackbarHostState,
+            )
+        }
+
         val startViewModel = viewModel {
             StartViewModel(
                 connection,
@@ -99,16 +109,7 @@ fun App(
                 fileHelper,
                 scaffoldState.snackbarHostState,
                 navController,
-            )
-        }
-
-        val mapViewModel = viewModel {
-            MapViewModel(
-                connection,
-                deviceSelector,
-                tileRepository = tileRepo,
-                tileServerRepository = settingsViewModel.tileServerRepo,
-                snackbarHostState = scaffoldState.snackbarHostState,
+                mapViewModel,
             )
         }
 

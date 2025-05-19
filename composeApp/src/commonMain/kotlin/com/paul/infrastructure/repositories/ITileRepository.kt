@@ -118,7 +118,7 @@ abstract class ITileRepository(private val fileHelper: IFileHelper) {
 
         if (z < tileServer.tileLayerMin || z > tileServer.tileLayerMax) {
             Napier.w("Tile url outsize z layer $tileUrl")
-            return Pair(500, null)
+            return Pair(404, null)
         }
         //        val brisbaneUrl = "https://a.tile.opentopomap.org/11/1894/1186.png"
         //        var tileUrl = brisbaneUrl;

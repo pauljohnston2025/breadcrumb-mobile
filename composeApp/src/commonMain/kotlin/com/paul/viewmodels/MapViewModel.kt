@@ -291,11 +291,13 @@ class MapViewModel(
                 }
 
                 sendingMessage("Caching current map area on Device.\nEnsure an activity with the datafield is running. Progress will be shown on the datafield") {
-                    _watchSendStarted.value = null
-                    connection.send(device, _watchSendStarted.value!!)
+                    val toSend = _watchSendStarted.value!!
+                    _watchSendStarted.value = null // clear the overlay so we can see our message
+                    connection.send(device, toSend)
                     connection.send(device, CacheCurrentArea())
                     // todo wait for response to say finished? its a very long process though
                     delay(5000) // wait for a bit so users can read message
+
                 }
             } catch (t: Throwable) {
                 snackbarHostState.showSnackbar("Failed to start seed on watch")

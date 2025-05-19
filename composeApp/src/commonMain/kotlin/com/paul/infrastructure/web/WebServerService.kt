@@ -82,12 +82,12 @@ val RequestLogging = createApplicationPlugin(name = "RequestLogging") {
                 "$name: ${values.joinToString()}"
             }
         val responseType = call.response.responseType
-        Napier.d("Outgoing response - Method: $method, Path: $path\n  Status: $statusCode\n  Headers:\n" +
-                "    $headers\n  Duration: $duration ms\n  ResponseType: $responseType\n  Response: $responseObject", tag = "WebserverService")
-//        Napier.d(
-//            "Outgoing response - Method: $method Status: $statusCode",
-//            tag = "WebserverService"
-//        )
+//        Napier.d("Outgoing response - Method: $method, Path: $path\n  Status: $statusCode\n  Headers:\n" +
+//                "    $headers\n  Duration: $duration ms\n  ResponseType: $responseType\n  Response: $responseObject", tag = "WebserverService")
+        Napier.d(
+            "Outgoing response - Method: $method Status: $statusCode",
+            tag = "WebserverService"
+        )
     }
 }
 
@@ -150,6 +150,7 @@ class WebServerService(
         routing {
             resourcesGet<LoadTileRequest> { params ->
                 val res = tileGetter.getWatchTile(params)
+//                Napier.d("responding with ${res.first}")
                 if (res.first != 200) {
                     call.respond(HttpStatusCode.fromValue(res.first), ErrorJson())
                     return@resourcesGet

@@ -35,10 +35,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FileOpen
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -54,6 +58,7 @@ import androidx.navigation.NavHostController
 import com.paul.composables.LoadingOverlay
 import com.paul.domain.HistoryItem
 import com.paul.domain.RouteEntry
+import com.paul.infrastructure.service.formatBytes
 import com.paul.viewmodels.StartViewModel
 import kotlinx.datetime.TimeZone.Companion.currentSystemDefault
 import kotlinx.datetime.format
@@ -76,6 +81,7 @@ fun Start(
 
     var showClearHistoryDialog by remember { mutableStateOf(false) }
     var routes = viewModel.routeRepo.routes
+    val historyItemBeingDeleted by viewModel.deletingHistoryItem.collectAsState()
 
     // --- Confirmation Dialog ---
     if (showClearHistoryDialog) {
@@ -85,6 +91,14 @@ fun Start(
                 showClearHistoryDialog = false
             },
             onDismiss = { showClearHistoryDialog = false }
+        )
+    }
+
+    // Delete Confirmation Dialog
+    historyItemBeingDeleted?.let { historyItem ->
+        DeleteConfirmationDialog(
+            onConfirm = { viewModel.confirmDelete() },
+            onDismiss = { viewModel.cancelDelete() }
         )
     }
 
@@ -155,7 +169,9 @@ fun Start(
             HistoryListSection(
                 routes = routes,
                 history = viewModel.historyRepo.history,
-                onHistoryItemClick = { viewModel.loadFileFromHistory(it) }, // Pass item ID or URI
+                onPreviewClick = { viewModel.previewRoute(it) },
+                onSendClick = { viewModel.loadFileFromHistory(it) },
+                onDeleteClick = { viewModel.requestDelete(it) },
                 onClearHistoryClick = { showClearHistoryDialog = true }
             )
 
@@ -246,7 +262,9 @@ private fun HtmlErrorDisplay(htmlErrorMessage: String?, onDismiss: () -> Unit) {
 private fun HistoryListSection(
     routes: SnapshotStateList<RouteEntry>,
     history: SnapshotStateList<HistoryItem>,
-    onHistoryItemClick: (HistoryItem) -> Unit,
+    onPreviewClick: (RouteEntry) -> Unit,
+    onSendClick: (HistoryItem) -> Unit,
+    onDeleteClick: (HistoryItem) -> Unit,
     onClearHistoryClick: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -292,7 +310,10 @@ private fun HistoryListSection(
                         HistoryListItem(
                             routes = routes,
                             item = item,
-                            onClick = { onHistoryItemClick(item) })
+                            onPreviewClick = { onPreviewClick(it) },
+                            onSendClick = { onSendClick(item) },
+                            onDeleteClick = { onDeleteClick(item) }
+                        )
                         Divider()
                     }
                 }
@@ -306,28 +327,70 @@ private fun HistoryListSection(
 private fun HistoryListItem(
     routes: SnapshotStateList<RouteEntry>,
     item: HistoryItem,
-    onClick: () -> Unit
+    onPreviewClick: (RouteEntry) -> Unit,
+    onSendClick: () -> Unit,
+    onDeleteClick: () -> Unit
 ) {
     val route = routes.find { it.id == item.routeId }
     var name = if (route == null || route.name.isEmpty()) "<unknown>" else route.name
-    ListItem( // Use standard ListItem composable
-        modifier = Modifier.clickable(onClick = onClick),
-        text = {
-            Text(
-                name,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        },
-        secondaryText = {
-            Text(
-                item.timestamp.toLocalDateTime(currentSystemDefault()).toString(),
-                maxLines = 1
-            )
+
+    Row(
+        Modifier
+            .padding(start = 8.dp)
+            .fillMaxWidth()
+    ) {
+        Text(
+            text = name,
+            style = MaterialTheme.typography.subtitle1,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+
+    Row(
+        Modifier
+            .padding(start = 8.dp)
+            .fillMaxWidth()
+    ) {
+        Text(
+            text = "Created At: " + item.timestamp.toLocalDateTime(currentSystemDefault())
+                .toString(),
+            style = MaterialTheme.typography.caption,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+
+    // Action Buttons Section
+    Row(
+        verticalAlignment = Alignment.Top,
+        // Add some space between info and buttons if needed
+        modifier = Modifier
+            .padding(start = 8.dp)
+            .fillMaxWidth()
+    ) {
+        Spacer(Modifier.weight(1f))
+        Row(
+            verticalAlignment = Alignment.CenterVertically, // Center buttons vertically within this row
+            horizontalArrangement = Arrangement.End // Arrange buttons closely together at the end
+        ) {
+            if (route != null) {
+                IconButton(onClick = { onPreviewClick(route) }) {
+                    Icon(Icons.Default.LocationOn, contentDescription = "Preview Route")
+                }
+            }
+            IconButton(onClick = onSendClick) {
+                Icon(Icons.Default.PlayArrow, contentDescription = "Send Route To Watch")
+            }
+            IconButton(onClick = onDeleteClick) {
+                Icon(
+                    Icons.Default.Delete,
+                    contentDescription = "Delete Route",
+                    tint = MaterialTheme.colors.error
+                ) // Indicate destructive action
+            }
         }
-        // Optional: Add an icon if relevant (e.g., route type)
-        // icon = { Icon(...) }
-    )
+    }
 }
 
 
@@ -355,5 +418,26 @@ fun SendingFileOverlay(sendingMessage: MutableState<String>) {
     LoadingOverlay(
         isLoading = sendingMessage.value != "",
         loadingText = sendingMessage.value
+    )
+}
+
+@Composable
+private fun DeleteConfirmationDialog(
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Confirm Delete") },
+        text = { Text("Are you sure you want to delete the history item? Note: this does not remove the underlying route.") },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(backgroundColor = MaterialTheme.colors.error) // Destructive action color
+            ) { Text("Delete") }
+        },
+        dismissButton = {
+            Button(onClick = onDismiss) { Text("Cancel") }
+        }
     )
 }

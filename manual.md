@@ -19,6 +19,12 @@ Once added routes can be seen in the [Routes Page](#routes-page)
 # Overview Page
 
 The overview page is the main entrypoint of the app, it allows you to import a gpx file from your local storage, or configure a connected devices settings. The route history section shows when each route has been loaded onto the device, and allows a quick way to load routes from the past again (by tapping the route in the history section). The clear all button allows you to empty the route history.
+Like the routes page the buttons are.  
+* Pin - Show the route on [Map View Page](#map-view-page)
+* Play - Send the route to the watch
+* Bin - Delete the history item
+
+
 Note: The `clear all` button only clears route history, it does not remove the routes, if you wish to remove routes use the [Routes Page](#routes-page).  
 ![](images/manual/overview.png)
 ![](images/manual/overview-cleared.png)
@@ -34,7 +40,7 @@ The page for selecting which device to interact with. The selected device will a
 
 # App Settings Page
 
-Configure the app settings  
+Configure the app settings. Note some of the tile server settings will clear the maps cache on the watch, use with care if you do not want to loose cached tiles on the watch.  
 ![](images/manual/appsettings.png)
 ![](images/manual/appsettings-custom.png)
 

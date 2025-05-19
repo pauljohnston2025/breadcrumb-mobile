@@ -76,25 +76,27 @@ class RoutesViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             var iRoute = routeRepo.getRouteI(route.id)
             if (iRoute == null) {
+                snackbarHostState.showSnackbar("Unknown route")
                 return@launch
             }
             var coords = iRoute.toRoute(snackbarHostState)
             if (coords == null) {
+                snackbarHostState.showSnackbar("Bad coordinates")
                 return@launch
             }
             mapViewModel.displayRoute(coords)
         }
 
-            // Navigate if necessary
-            val current = navController.currentDestination
-            if (current?.route != Screen.Map.route) {
-                navController.navigate(Screen.Map.route) {
-                    popUpTo(navController.graph.findStartDestination().id) {
-                        inclusive = true
-                    }
-                    launchSingleTop = true
+        // Navigate if necessary
+        val current = navController.currentDestination
+        if (current?.route != Screen.Map.route) {
+            navController.navigate(Screen.Map.route) {
+                popUpTo(navController.graph.findStartDestination().id) {
+                    inclusive = true
                 }
+                launchSingleTop = true
             }
+        }
     }
 
     fun sendRoute(route: RouteEntry) {

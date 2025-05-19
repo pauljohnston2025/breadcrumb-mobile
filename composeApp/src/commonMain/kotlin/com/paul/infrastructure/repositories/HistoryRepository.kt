@@ -29,6 +29,11 @@ class HistoryRepository {
         saveHistory()
     }
 
+    fun delete(id: String) {
+        history.removeIf { it.id == id }
+        saveHistory()
+    }
+
     private fun saveHistory() {
         // keep only the last few items, we do not want to overflow out internal storage
         settings.putString(HISTORY_KEY, Json.encodeToString(history.toList().takeLast(100)))

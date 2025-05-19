@@ -9,6 +9,7 @@ import androidx.navigation.NavController
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import com.paul.domain.HistoryItem
 import com.paul.domain.IRoute
+import com.paul.domain.RouteEntry
 import com.paul.infrastructure.connectiq.IConnection
 import com.paul.infrastructure.repositories.HistoryRepository
 import com.paul.infrastructure.repositories.KomootRepository
@@ -28,6 +29,9 @@ import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.utils.io.toByteArray
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.net.URLEncoder
@@ -39,6 +43,7 @@ class StartViewModel(
     private val fileHelper: IFileHelper,
     private val snackbarHostState: SnackbarHostState,
     private val navController: NavController,
+    private val mapViewModel: MapViewModel,
 ) : ViewModel() {
     val settings: Settings = Settings()
 
@@ -49,6 +54,25 @@ class StartViewModel(
     private val komootRepo = KomootRepository()
     val routeRepo = RouteRepository(fileHelper, gpxFileLoader)
     val historyRepo = HistoryRepository()
+    private val _deletingHistoryItem = MutableStateFlow<HistoryItem?>(null)
+    val deletingHistoryItem: StateFlow<HistoryItem?> = _deletingHistoryItem.asStateFlow()
+
+    fun requestDelete(historyItem: HistoryItem) {
+        _deletingHistoryItem.value = historyItem
+    }
+
+    fun cancelDelete() {
+        _deletingHistoryItem.value = null
+    }
+
+    fun confirmDelete() {
+        viewModelScope.launch(Dispatchers.IO) {
+            _deletingHistoryItem.value?.let { historyItemToDelete ->
+                historyRepo.delete(historyItemToDelete.id)
+            }
+            _deletingHistoryItem.value = null // Close dialog
+        }
+    }
 
     fun load(
         fileLoad: String?,
@@ -93,6 +117,34 @@ class StartViewModel(
             }
 
             loadGpxFile(uri)
+        }
+    }
+
+    fun previewRoute(route: RouteEntry) {
+        //todo : horrible copy pasta below
+        viewModelScope.launch(Dispatchers.IO) {
+            var iRoute = routeRepo.getRouteI(route.id)
+            if (iRoute == null) {
+                snackbarHostState.showSnackbar("Unknown route")
+                return@launch
+            }
+            var coords = iRoute.toRoute(snackbarHostState)
+            if (coords == null) {
+                snackbarHostState.showSnackbar("Bad coordinates")
+                return@launch
+            }
+            mapViewModel.displayRoute(coords)
+        }
+
+        // Navigate if necessary
+        val current = navController.currentDestination
+        if (current?.route != Screen.Map.route) {
+            navController.navigate(Screen.Map.route) {
+                popUpTo(navController.graph.findStartDestination().id) {
+                    inclusive = true
+                }
+                launchSingleTop = true
+            }
         }
     }
 
