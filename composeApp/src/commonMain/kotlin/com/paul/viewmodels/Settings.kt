@@ -151,15 +151,46 @@ class Settings(
 
     fun onTileServerEnabledChange(newVal: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
-            var oldVal = tileServerRepo.currentlyEnabled()
-            try {
-                tileServerRepo.onTileServerEnabledChange(newVal)
-            } catch (t: Throwable) {
-                Napier.d("failed to update tile server enabled, reverting: $t")
-                snackbarHostState.showSnackbar("Failed to stop/start tile server")
-                launch(Dispatchers.Main) {
-                    tileServerRepo.rollBackEnabled(oldVal)
+            sendingMessage("Enabling tile server") {
+                var oldVal = tileServerRepo.currentlyEnabled()
+                try {
+                    tileServerRepo.onTileServerEnabledChange(newVal)
+                } catch (t: Throwable) {
+                    Napier.d("failed to update tile server enabled, reverting: $t")
+                    snackbarHostState.showSnackbar("Failed to stop/start tile server")
+                    launch(Dispatchers.Main) {
+                        tileServerRepo.rollBackEnabled(oldVal)
+                    }
                 }
+
+                if (!newVal) {
+                    return@sendingMessage
+                }
+
+                // we also need to tell the watch about the changes
+                val device = deviceSelector.currentDevice()
+                if (device == null) {
+                    snackbarHostState.showSnackbar("no devices selected")
+                    return@sendingMessage
+                }
+
+                try {
+
+                    val tilServer = tileServerRepo.currentServerFlow().value
+                    connection.send(
+                        device, CompanionAppTileServerChanged(
+                            tilServer.tileLayerMin,
+                            tilServer.tileLayerMax,
+                        )
+                    )
+                } catch (t: TimeoutCancellationException) {
+                    snackbarHostState.showSnackbar("Timed out enabling tile server")
+                    return@sendingMessage
+                } catch (t: Throwable) {
+                    snackbarHostState.showSnackbar("Failed to send to selected device")
+                    return@sendingMessage
+                }
+                snackbarHostState.showSnackbar("Tile server updated")
             }
         }
     }
