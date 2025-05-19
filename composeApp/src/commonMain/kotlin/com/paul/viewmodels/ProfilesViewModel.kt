@@ -182,12 +182,12 @@ class ProfilesViewModel(
     }
 
     suspend fun applyProfileInner(profile: Profile) {
-        sendingMessage("Applying settings to device") {
             val appVersion = getAppVersion()
             if (appVersion != null && profile.lastKnownDevice.appVersion > appVersion) {
                 snackbarHostState.showSnackbar("Newer profile detected, some settings might not be applied")
             }
 
+        sendingMessage("Applying settings to device") {
             val device = deviceSelector.currentDevice()
             if (device == null) {
                 snackbarHostState.showSnackbar("no devices selected")
@@ -195,7 +195,7 @@ class ProfilesViewModel(
             }
 
             connection.send(device, SaveSettings(profile.deviceSettings()))
-            delay(500) // wait for a bit so users can read message (its almost instant in sim but real device goes slow anyway)
+            delay(1000) // wait for a bit so users can read message (its almost instant in sim but real device goes slow anyway)
         }
         sendingMessage("Applying app settings") {
             val tileServer = tileServerRepo.get(profile.appSettings.tileServerId)
@@ -323,7 +323,7 @@ class ProfilesViewModel(
             return null
         }
 
-        return sendingMessage("Loading Settings From Device.\nEnsure an activity with the datafield is running (or at least open) or this will fail.") {
+        return sendingMessage("Loading App Version From Device.\nEnsure an activity with the datafield is running (or at least open) or this will fail.") {
             return@sendingMessage try {
                 val appInfo = connection.appInfo(
                     device

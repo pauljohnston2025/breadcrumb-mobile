@@ -1,6 +1,7 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.util.concurrent.TimeUnit
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -65,6 +66,33 @@ kotlin {
     }
 }
 
+fun executeCommand(command: String, workingDir: File = rootProject.projectDir, fallbackValue: String = ""): String {
+    return try {
+        val parts = command.split("\\s".toRegex())
+        val proc = ProcessBuilder(*parts.toTypedArray())
+            .directory(workingDir)
+            .redirectOutput(ProcessBuilder.Redirect.PIPE)
+            .redirectError(ProcessBuilder.Redirect.PIPE)
+            .start()
+
+        proc.waitFor(5, TimeUnit.SECONDS) // Wait for 5 seconds
+        val output = proc.inputStream.bufferedReader().readText().trim()
+        if (proc.exitValue() != 0) {
+            val error = proc.errorStream.bufferedReader().readText().trim()
+            println("Warning: Command '$command' failed with error: $error. Output: $output. Using fallback: '$fallbackValue'")
+            fallbackValue
+        } else {
+            output
+        }
+    } catch (e: Exception) {
+        println("Warning: Could not execute command '$command': ${e.message}. Using fallback: '$fallbackValue'")
+        fallbackValue
+    }
+}
+
+val gitCommitCount = executeCommand("git rev-list --count HEAD", fallbackValue = "1").toIntOrNull() ?: 1
+val gitVersionName = executeCommand("git describe --tags --dirty --always", fallbackValue = "0.1.0-SNAPSHOT")
+
 android {
     namespace = "com.paul"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
@@ -77,8 +105,8 @@ android {
         applicationId = "com.paul.breadcrumb"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = gitCommitCount
+        versionName = gitVersionName
     }
     packaging {
         resources {

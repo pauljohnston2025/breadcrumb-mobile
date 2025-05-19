@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.AlertDialog
 import androidx.compose.material.Button
+import androidx.compose.material.Divider
 import androidx.compose.material.DropdownMenuItem
 import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.ExposedDropdownMenuBox
@@ -37,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.paul.composables.LoadingOverlay
 import com.paul.domain.ServerType
@@ -461,7 +463,7 @@ fun Settings(
                     modifier = Modifier.weight(1.5f)
                 ) {
                     OutlinedTextField(
-                        value = currentTileServer.value.title,
+                        value = "${currentTileServer.value.title}\nlayers - min: ${currentTileServer.value.tileLayerMin} max: ${currentTileServer.value.tileLayerMax}",
                         onValueChange = {},
                         readOnly = true,
                         label = { Text("Select Server") },
@@ -483,25 +485,49 @@ fun Settings(
                                     expanded = false
                                 }
                             ) {
-                                Text(server.title)
-
-                                Spacer(modifier = Modifier.weight(1f))
-
-                                if (server.isCustom) {
-                                    IconButton(
-                                        onClick = {
-                                            serverToDelete = server
-                                            expanded = false // Close menu after delete
-                                        },
-                                        modifier = Modifier
-                                            .size(24.dp)
-                                            .padding(start = 8.dp)
-                                    ) {
-                                        Icon(
-                                            Icons.Filled.Delete,
-                                            contentDescription = "Delete custom server ${server.title}",
-                                            tint = MaterialTheme.colors.error
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .padding(start = 8.dp)
+                                        .fillMaxWidth()
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            server.title,
+                                            style = MaterialTheme.typography.subtitle1,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
                                         )
+                                        Text(
+                                            "layers - min: ${server.tileLayerMin} max: ${server.tileLayerMax}",
+                                            style = MaterialTheme.typography.caption,
+                                            maxLines = 1
+                                        )
+                                        Spacer(modifier = Modifier.height(5.dp))
+                                        Divider()
+                                    }
+
+                                    if (server.isCustom) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.End
+                                        ) {
+                                            IconButton(
+                                                onClick = {
+                                                    serverToDelete = server
+                                                    expanded = false // Close menu after delete
+                                                },
+                                                modifier = Modifier
+                                                    .size(24.dp)
+                                                    .padding(start = 8.dp)
+                                            ) {
+                                                Icon(
+                                                    Icons.Filled.Delete,
+                                                    contentDescription = "Delete custom server ${server.title}",
+                                                    tint = MaterialTheme.colors.error
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }

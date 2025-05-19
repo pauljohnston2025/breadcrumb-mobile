@@ -205,7 +205,7 @@ private fun TileListItem(
 ) {
 
     Row(
-        verticalAlignment = Alignment.Top,
+        verticalAlignment = Alignment.CenterVertically,
         // Add some space between info and buttons if needed
         modifier = Modifier
             .padding(start = 8.dp)

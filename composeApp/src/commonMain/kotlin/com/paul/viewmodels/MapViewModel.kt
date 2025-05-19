@@ -295,7 +295,7 @@ class MapViewModel(
                     connection.send(device, _watchSendStarted.value!!)
                     connection.send(device, CacheCurrentArea())
                     // todo wait for response to say finished? its a very long process though
-                    delay(10000) // wait for a bit so users can read message
+                    delay(5000) // wait for a bit so users can read message
                 }
             } catch (t: Throwable) {
                 snackbarHostState.showSnackbar("Failed to start seed on watch")
@@ -331,6 +331,7 @@ class MapViewModel(
 
                 sendingMessage("Showing current location on watch, ensure the datafield is open and running") {
                     connection.send(device, location)
+                    delay(1000) // wait for a bit so users can read message
                 }
             } catch (t: Throwable) {
                 snackbarHostState.showSnackbar("Failed to show location on watch")
