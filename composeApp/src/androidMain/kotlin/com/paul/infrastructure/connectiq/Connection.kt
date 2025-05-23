@@ -283,6 +283,8 @@ class Connection(private val context: Context) : IConnection {
 //                "tileErrorColour" to "FF555555",
 //                "mapEnabled" to true,
 //                "scaleRestrictedToTileLayers" to false,
+//                "useDrawBitmap" to false,
+//                "packingFormat" to 1,
 //                "tileLayerMax" to 15,
 //                "disableMapsFailureCount" to 200,
 //                "maxPendingWebRequests" to 100,

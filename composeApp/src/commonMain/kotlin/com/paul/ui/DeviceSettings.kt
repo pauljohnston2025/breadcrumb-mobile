@@ -238,6 +238,16 @@ fun DeviceSettings(
                                 if (scaleRestrictedToTileLayersProp != null) PropertyEditorResolver(
                                     scaleRestrictedToTileLayersProp
                                 )
+                                val packingFormatProp =
+                                    findProp("packingFormat")
+                                if (packingFormatProp != null) PropertyEditorResolver(
+                                    packingFormatProp
+                                )
+                                val useDrawBitmapProp =
+                                    findProp("useDrawBitmap")
+                                if (useDrawBitmapProp != null) PropertyEditorResolver(
+                                    useDrawBitmapProp
+                                )
 
                                 SectionHeader("Tile Server Settings")
 

@@ -129,6 +129,12 @@ val listOptionsMapping: Map<String, List<ListOption>> = mapOf(
         ListOption(0, "Stacked"),
         ListOption(1, "Ordered Routes"),
     ),
+    "packingFormat" to listOf(
+        ListOption(0, "Default"),
+        ListOption(1, "YUV"),
+        ListOption(1, "PNG"),
+        ListOption(1, "JPG"),
+    ),
     "mapChoice" to listOf(
         ListOption(0, "Custom"),
         ListOption(1, "Companion App"),
@@ -174,6 +180,7 @@ val labelOverrides: Map<String, String> = mapOf(
     "storageTileCacheSize" to "Storage Tile Cache Size (tiles)",
     "httpErrorTileTTLS" to "Http Error Tile TTL (s)",
     "errorTileTTLS" to "Error Tile TTL (s)",
+    "useDrawBitmap" to "Use Draw Bitmap (legacy)",
 )
 
 val descriptions: Map<String, String> = mapOf(
@@ -279,6 +286,7 @@ class DeviceSettings(
 
                     // --- Booleans ---
                     "mapEnabled",
+                    "useDrawBitmap",
                     "cacheTilesInStorage",
                     "storageMapTilesOnly",
                     "displayLatLong",
