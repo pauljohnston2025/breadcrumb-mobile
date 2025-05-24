@@ -132,8 +132,8 @@ val listOptionsMapping: Map<String, List<ListOption>> = mapOf(
     "packingFormat" to listOf(
         ListOption(0, "Default"),
         ListOption(1, "YUV"),
-        ListOption(1, "PNG"),
-        ListOption(1, "JPG"),
+        ListOption(2, "PNG"),
+        ListOption(3, "JPG"),
     ),
     "mapChoice" to listOf(
         ListOption(0, "Custom"),

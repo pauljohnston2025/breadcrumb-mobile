@@ -801,7 +801,7 @@ fun getAttributionParts(serverType: ServerType): List<AttributionPart> {
 fun KmpMapAttributionDisplay(
     serverType: ServerType,
     modifier: Modifier = Modifier,
-    separator: String = " | ",
+    separator: String = " ",
     defaultTextColor: Color = MaterialTheme.colors.onSurface.copy(alpha = 0.7f), // M3 color
     linkTextColor: Color = MaterialTheme.colors.primary, // M3 color
     fontSize: TextUnit = 10.sp,
