@@ -24,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Downloading
+import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Terrain
 import androidx.compose.material.icons.filled.Watch
 import androidx.compose.runtime.Composable
@@ -189,6 +190,46 @@ fun MapScreen(viewModel: MapViewModel, navController: NavController) {
                                 tint = if (isElevationProfileVisible) LocalContentColor.current.copy(
                                     alpha = 1f
                                 ) else LocalContentColor.current.copy(alpha = 0.5f)
+                            )
+                        }
+                    }
+                    Button(
+                        onClick = {
+                                viewModel.returnWatchToUsersLocation()
+                        },
+                        enabled = true
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            // Negative spacing causes overlap. Adjust the value as needed.
+                            // -8.dp means the second icon will be pulled 8.dp to the left.
+                            horizontalArrangement = Arrangement.spacedBy((-2).dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Watch,
+                                contentDescription = "Return Watch To Users Location",
+                                modifier = Modifier.size(17.dp) // Slightly smaller icon so that the button is the same size as the other ones
+                            )
+                            Icon(
+                                Icons.Default.MyLocation,
+                                contentDescription = "Return Watch To Users Location",
+                                modifier = Modifier.size(17.dp) // Slightly smaller icon so that the button is the same size as the other ones
+                            )
+                        }
+                    }
+
+                    Button(
+                        onClick = {
+                                viewModel.returnToUsersLocation()
+                        },
+                        enabled = true
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                Icons.Default.MyLocation,
+                                contentDescription = "Return To Users Location",
                             )
                         }
                     }

@@ -1,8 +1,8 @@
 package com.paul.protocol.todevice
 
-class CancelLocationRequest() : Protocol {
+class ReturnToUser() : Protocol {
     override fun type(): ProtocolType {
-        return ProtocolType.PROTOCOL_CANCEL_LOCATION_REQUEST
+        return ProtocolType.PROTOCOL_RETURN_TO_USER
     }
 
     override fun payload(): List<Any> {

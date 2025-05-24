@@ -118,6 +118,13 @@ android {
     buildTypes {
         getByName("release") {
             isMinifyEnabled = false
+            manifestPlaceholders.put("appIcon", "@mipmap/iconlarge")
+            manifestPlaceholders.put("appIconRound", "@mipmap/iconlarge")
+        }
+        debug {
+            applicationIdSuffix = ".debug"
+            manifestPlaceholders.put("appIcon", "@mipmap/iconlargedebug")
+            manifestPlaceholders.put("appIconRound", "@mipmap/iconlargedebug")
         }
     }
     compileOptions {

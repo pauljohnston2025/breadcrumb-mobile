@@ -17,6 +17,7 @@ import com.paul.infrastructure.service.TileId
 import com.paul.protocol.todevice.CacheCurrentArea
 import com.paul.protocol.todevice.Point
 import com.paul.protocol.todevice.RequestLocationLoad
+import com.paul.protocol.todevice.ReturnToUser
 import com.paul.protocol.todevice.Route
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
@@ -248,12 +249,15 @@ class MapViewModel(
         val xDim = abs(br.x - tl.x)
         val yDim = abs(tl.y - br.y)
 
-        val maxDim = max(xDim, yDim)
+        // max dim means the user is zoomed in, but then the watch shows an area that they cannot see (generally to the left and right of the screen)
+        // min dim only shows part of the screen on the watch, but feels more intuative, as the zoom level is similar.
+        // it will mean some map tiles are not cached though
+        val minDim = min(xDim, yDim)
 
         return RequestLocationLoad(
             centerGeo.latitude.toFloat(),
             centerGeo.longitude.toFloat(),
-            maxDim
+            minDim
         )
     }
 
@@ -306,6 +310,29 @@ class MapViewModel(
                 _watchSendStarted.value = null
             }
         }
+    }
+
+    fun returnWatchToUsersLocation() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val device = deviceSelector.currentDevice()
+                if (device == null) {
+                    snackbarHostState.showSnackbar("no devices selected")
+                    return@launch
+                }
+
+                sendingMessage("Returning watch to users location") {
+                    connection.send(device, ReturnToUser())
+                }
+            } catch (t: Throwable) {
+                snackbarHostState.showSnackbar("Failed to return watch to users location")
+                Napier.e("Failed to return watch to users location", t) // Log the full exception
+            }
+        }
+    }
+
+    fun returnToUsersLocation() {
+        // todo impl
     }
 
     fun showLocationOnWatch(
