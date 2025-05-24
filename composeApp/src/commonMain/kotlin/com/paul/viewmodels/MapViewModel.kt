@@ -332,7 +332,9 @@ class MapViewModel(
     }
 
     fun returnToUsersLocation() {
-        // todo impl
+        viewModelScope.launch(Dispatchers.IO) {
+            snackbarHostState.showSnackbar("Feature Coming Soon")
+        }
     }
 
     fun showLocationOnWatch(

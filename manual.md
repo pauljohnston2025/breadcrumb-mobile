@@ -110,20 +110,24 @@ All the settings from connectiq are available, and the routes can be edited (unl
 
 A map view for displaying the routes that have been imported, preview a route before sending it to your device. 
 
-Feature still in beta:
-Known issues:
-* map panning does not work
+*** Feature still in beta ***
 
 Features to come:
-* cache tile layers around a route
 * better ui
-* cache tile layers for any panned to area
-* tile server attribution
-* maybe display route name on the map like the watch does
+* make 'got to users location' work (watch button does work already)
+* * pinchable zoom
+
 
 What does work:
-* zooming in and out
+* zooming in and out (with on screen buttons)
 * displaying route on map
+* panning
+* showing route elevation
+* attribution links
+* clearing current location from watch 'return to user' crosshairs
+* caching current area to phone
+* caching current area to watch (offline tiles)
+* showing current area on watch
 
 ![](images/manual/mapview-noroute.png)
 ![](images/manual/mapview-nolevation.png)
