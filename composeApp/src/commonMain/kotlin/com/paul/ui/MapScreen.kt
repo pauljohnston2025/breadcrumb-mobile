@@ -2,9 +2,11 @@ package com.paul.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.text.ClickableText
 import androidx.compose.material.AlertDialog
 import androidx.compose.material.Button
 import androidx.compose.material.ButtonDefaults
@@ -43,13 +46,18 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.ExperimentalTextApi
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
@@ -58,6 +66,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.paul.composables.MapTilerComposable
+import com.paul.domain.ServerType
 import com.paul.infrastructure.service.GeoPosition
 import com.paul.infrastructure.service.screenPixelToGeo
 import com.paul.protocol.todevice.Point
@@ -95,6 +104,8 @@ private fun WatchSendDialog(
     )
 }
 
+internal const val URL_TAG = "URL_ATTRIBUTION_TAG" // Internal tag for identifying clickable URL parts
+
 @Composable
 fun MapScreen(viewModel: MapViewModel, navController: NavController) {
     BackHandler {
@@ -121,6 +132,8 @@ fun MapScreen(viewModel: MapViewModel, navController: NavController) {
         modifier = Modifier
             .fillMaxSize()
     ) {
+        val boxScope = this // Capture BoxScope explicitly
+
         watchSendStarted?.let {
             WatchSendDialog(
                 onConfirm = { viewModel.confirmWatchLocationLoad() },
@@ -139,6 +152,7 @@ fun MapScreen(viewModel: MapViewModel, navController: NavController) {
                         .align(Alignment.CenterHorizontally)
                 )
             }
+
             // --- Elevation Profile Area ---
             // Conditionally display based on BOTH route existence AND visibility state
             if (currentRoute != null && isElevationProfileVisible) {
@@ -165,6 +179,18 @@ fun MapScreen(viewModel: MapViewModel, navController: NavController) {
                     viewportSize = viewportSize,
                     onViewportSizeChange = { viewportSize = it }, // Update the state
                     routeToDisplay = currentRoute
+                )
+
+                val tilServer =
+                    viewModel.tileServerRepository.currentServerFlow().collectAsState()
+                val serverType = tilServer.value.serverType
+                KmpMapAttributionDisplay(
+                    serverType = serverType,
+                    modifier = with(boxScope) { // Make BoxScope explicit for .align
+                        Modifier
+                            .align(Alignment.TopStart)
+                            .padding(start = 8.dp)
+                    }
                 )
 
                 Column(
@@ -195,7 +221,7 @@ fun MapScreen(viewModel: MapViewModel, navController: NavController) {
                     }
                     Button(
                         onClick = {
-                                viewModel.returnWatchToUsersLocation()
+                            viewModel.returnWatchToUsersLocation()
                         },
                         enabled = true
                     ) {
@@ -220,7 +246,7 @@ fun MapScreen(viewModel: MapViewModel, navController: NavController) {
 
                     Button(
                         onClick = {
-                                viewModel.returnToUsersLocation()
+                            viewModel.returnToUsersLocation()
                         },
                         enabled = true
                     ) {
@@ -750,4 +776,98 @@ private fun haversineDistance(lat1: Float, lon1: Float, lat2: Float, lon2: Float
     val c = 2 * atan2(sqrt(a), sqrt(1 - a))
 
     return (R * c).toFloat()
+}
+
+data class AttributionPart(
+    val text: String,
+    val url: String? = null // URL is optional
+)
+
+fun getAttributionParts(serverType: ServerType): List<AttributionPart> {
+    val texts = serverType.attributionText()
+    val links = serverType.attributionLink()
+
+    return texts.mapIndexedNotNull { index, text ->
+        if (text.isNotBlank()) { // Only include if text is not blank
+            val url = links.getOrNull(index)?.takeIf { it.isNotBlank() }
+            AttributionPart(text, url)
+        } else {
+            null // Filter out parts with blank text
+        }
+    }
+}
+
+@Composable
+fun KmpMapAttributionDisplay(
+    serverType: ServerType,
+    modifier: Modifier = Modifier,
+    separator: String = " | ",
+    defaultTextColor: Color = MaterialTheme.colors.onSurface.copy(alpha = 0.7f), // M3 color
+    linkTextColor: Color = MaterialTheme.colors.primary, // M3 color
+    fontSize: TextUnit = 10.sp,
+    linkTextDecoration: TextDecoration? = TextDecoration.Underline
+) {
+    val attributionParts = getAttributionParts(serverType)
+
+    if (attributionParts.isEmpty()) {
+        // No valid attribution text to display
+        return
+    }
+
+    val uriHandler = LocalUriHandler.current
+    val annotatedString = buildAnnotatedString {
+        attributionParts.forEachIndexed { index, part ->
+            if (part.url != null) {
+                // This part is clickable
+                pushStringAnnotation(tag = URL_TAG, annotation = part.url)
+                withStyle(
+                    style = SpanStyle(
+                        color = linkTextColor,
+                        textDecoration = linkTextDecoration,
+                        fontSize = fontSize
+                    )
+                ) {
+                    append(part.text)
+                }
+                pop() // Important to pop the annotation
+            } else {
+                // This part is plain text
+                withStyle(
+                    style = SpanStyle(
+                        color = defaultTextColor,
+                        fontSize = fontSize
+                    )
+                ) {
+                    append(part.text)
+                }
+            }
+
+            // Add separator if this is not the last part and there are more parts
+            if (index < attributionParts.size - 1) {
+                withStyle(style = SpanStyle(color = defaultTextColor, fontSize = fontSize)) {
+                    append(separator)
+                }
+            }
+        }
+    }
+
+    if (annotatedString.text.isBlank()) return // Double check if anything was actually appended
+
+    ClickableText(
+        text = annotatedString,
+        modifier = modifier,
+        style = MaterialTheme.typography.body1.copy(fontSize = fontSize), // Base style
+        onClick = { offset ->
+            annotatedString.getStringAnnotations(tag = URL_TAG, start = offset, end = offset)
+                .firstOrNull()?.let { annotation ->
+                    try {
+                        uriHandler.openUri(annotation.item) // annotation.item is the URL
+                    } catch (e: Exception) {
+                        // Handle potential errors opening URI (e.g., invalid URI, no browser)
+                        // Log.e("KmpMapAttribution", "Could not open URI: ${annotation.item}", e)
+                        println("Error opening URI: ${annotation.item} - ${e.message}")
+                    }
+                }
+        }
+    )
 }

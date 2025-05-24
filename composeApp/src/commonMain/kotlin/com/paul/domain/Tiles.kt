@@ -10,7 +10,35 @@ enum class ServerType {
     OPENTOPOMAP,
     OPENSTREETMAP,
     STADIA,
-    CARTO,
+    CARTO;
+
+    fun attributionText(): List<String>
+    {
+        return when (this) {
+            CUSTOM -> listOf("")
+            ESRI -> listOf("Powered by Esri")
+            GOOGLE -> listOf("©Google")
+            OPENTOPOMAP -> listOf("©OpenTopoMap")
+            OPENSTREETMAP -> listOf("©OpenStreetMap")
+            STADIA -> listOf("©Stadia Maps", "©OpenMapTiles", "©OpenStreetMap")
+            CARTO -> listOf("©CARTO")
+            // else -> null // Or a default if you always want something
+        }
+    }
+
+    fun attributionLink(): List<String>
+    {
+        return when (this) {
+            CUSTOM -> listOf("")
+            ESRI -> listOf("https://www.esri.com")
+            GOOGLE -> listOf("https://cloud.google.com/maps-platform/terms")
+            OPENTOPOMAP -> listOf("https://opentopomap.org/about")
+            OPENSTREETMAP -> listOf("https://www.openstreetmap.org/copyright")
+            STADIA -> listOf("https://stadiamaps.com/", "https://openmaptiles.org/", "https://www.openstreetmap.org/copyright")
+            CARTO -> listOf("https://carto.com/attribution")
+            // else -> null // Or a default if you always want something
+        }
+    }
 }
 
 @Serializable
