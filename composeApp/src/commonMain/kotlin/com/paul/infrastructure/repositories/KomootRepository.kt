@@ -29,6 +29,43 @@ data class KomootTour(
 
 @Serializable
 data class KomootTourEmbedded(val coordinates: KomootTourCoordinates)
+// there is also a directions array, but cannot see any way to link to coordinates (other than distance)
+// unless the index corresponds to the coordinate index?
+//"directions": {
+//						"items": [
+//							{
+//								"index": 0,
+//								"complex": false,
+//								"distance": 469,
+//								"type": "S",
+//								"cardinal_direction": "E",
+//								"change_way": false,
+//								"last_similar": 0,
+//								"street_name": "",
+//								"way_type": "wt#hike_d2"
+//							},
+//							{
+//								"index": 10,
+//								"complex": false,
+//								"distance": 262,
+//								"type": "TR",
+//								"cardinal_direction": "E",
+//								"change_way": true,
+//								"last_similar": 4,
+//								"street_name": "Trail",
+//								"way_type": "wt#hike_d2"
+//							},
+//							{
+//								"index": 15,
+//								"complex": false,
+//								"distance": 74,
+//								"type": "TSR",
+//								"cardinal_direction": "SE",
+//								"change_way": false,
+//								"last_similar": 10,
+//								"street_name": "Trail",
+//								"way_type": "wt#way"
+//							},
 
 @Serializable
 data class KomootTourCoordinates(val items: List<KomootTourCoordinate>)

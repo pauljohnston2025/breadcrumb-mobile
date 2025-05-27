@@ -293,6 +293,8 @@ class Connection(private val context: Context) : IConnection {
 //                "drawLineToClosestTrack" to false,
 //                "showTileBorders" to false,
 //                "showErrorTileMessages" to false,
+//                "offTrackWrongDirection" to false,
+//                "drawCheverons" to false,
 //                "includeDebugPageInOnScreenUi" to false,
 //                "storageTileCacheSize" to 100,
 //                "httpErrorTileTTLS" to 60,

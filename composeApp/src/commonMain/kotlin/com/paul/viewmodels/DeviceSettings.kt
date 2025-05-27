@@ -181,6 +181,7 @@ val labelOverrides: Map<String, String> = mapOf(
     "httpErrorTileTTLS" to "Http Error Tile TTL (s)",
     "errorTileTTLS" to "Error Tile TTL (s)",
     "useDrawBitmap" to "Use Draw Bitmap (legacy)",
+    "offTrackWrongDirection" to "Wrong Direction Alerts",
 )
 
 val descriptions: Map<String, String> = mapOf(
@@ -287,6 +288,8 @@ class DeviceSettings(
                     // --- Booleans ---
                     "mapEnabled",
                     "useDrawBitmap",
+                    "drawCheverons",
+                    "offTrackWrongDirection",
                     "cacheTilesInStorage",
                     "storageMapTilesOnly",
                     "displayLatLong",

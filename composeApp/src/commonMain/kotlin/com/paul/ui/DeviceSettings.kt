@@ -107,13 +107,22 @@ fun DeviceSettings(
         editableProperties.find { it.id == "enableOffTrackAlerts" } as? EditableProperty<Boolean>
     }
 
+    val offTrackWrongDirectionProp = remember(editableProperties) {
+        editableProperties.find { it.id == "offTrackWrongDirection" } as? EditableProperty<Boolean>
+    }
+
     val drawLineToClosestPointProp = remember(editableProperties) {
         editableProperties.find { it.id == "drawLineToClosestPoint" } as? EditableProperty<Boolean>
+    }
+    val drawCheveronsProp = remember(editableProperties) {
+        editableProperties.find { it.id == "drawCheverons" } as? EditableProperty<Boolean>
     }
     val displayLatLongProp = remember(editableProperties) {
         editableProperties.find { it.id == "displayLatLong" } as? EditableProperty<Boolean>
     }
     val showOffTrackSection by offTrackAlertsEnabledProp?.state
+        ?: remember { mutableStateOf(false) }
+    val showOffTrackWrongDirectionSection by offTrackWrongDirectionProp?.state
         ?: remember { mutableStateOf(false) }
 
     val findProp = remember<(String) -> EditableProperty<*>?>(editableProperties) {
@@ -320,6 +329,12 @@ fun DeviceSettings(
                 drawLineToClosestPointProp?.let { toggleProp ->
                     item(key = toggleProp.id) { PropertyEditorResolver(toggleProp) }
                 }
+                drawCheveronsProp?.let { toggleProp ->
+                    item(key = toggleProp.id) { PropertyEditorResolver(toggleProp) }
+                }
+                offTrackWrongDirectionProp?.let { toggleProp ->
+                    item(key = toggleProp.id) { PropertyEditorResolver(toggleProp) }
+                }
                 offTrackAlertsEnabledProp?.let { toggleProp ->
                     item(key = toggleProp.id) { PropertyEditorResolver(toggleProp) }
                 }
@@ -327,7 +342,7 @@ fun DeviceSettings(
                 item(key = "off_track_section") { // Stable key
                     Column(modifier = Modifier.animateContentSize()) { // Wrap in Column
                         AnimatedVisibility(
-                            visible = showOffTrackSection,
+                            visible = showOffTrackSection || showOffTrackWrongDirectionSection,
                             enter = fadeIn(),
                             exit = fadeOut()
                         ) {
