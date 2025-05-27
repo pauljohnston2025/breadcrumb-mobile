@@ -58,8 +58,8 @@ data class GpxFile(
             val trackPoint = points[i]
             routePoints.add(
                 Point(
-                    trackPoint.latitude.toFloat(),
-                    trackPoint.longitude.toFloat(),
+                    trackPoint.latitude?.toFloat().let { it ?: 0.0f },
+                    trackPoint.longitude?.toFloat().let { it ?: 0.0f },
                     trackPoint.elevation?.toFloat().let { it ?: 0.0f }
                 )
             )
@@ -111,7 +111,10 @@ class GpxFileLoader() : IGpxFileLoader {
         var streamContents = stream.decodeToString()
         // world topo map app track creation includes <time></time> sections with no value, this breaks the
         // parse, as it expects a time
-        streamContents = streamContents.replace("<time></time>", "");
+        // there are also a few others for waypoints that seem to have empty bodies
+        streamContents = streamContents.replace("<time></time>", "")
+            .replace("<ele></ele>", "")
+            .replace("<desc></desc>", "")
         val streamContentsAsStream: InputStream =
             ByteArrayInputStream(streamContents.toByteArray(StandardCharsets.UTF_8))
         return Pair(parser.parse(streamContentsAsStream), streamContents)
