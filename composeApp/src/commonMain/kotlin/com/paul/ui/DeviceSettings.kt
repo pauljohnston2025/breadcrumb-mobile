@@ -169,6 +169,12 @@ fun DeviceSettings(
                         renderModeProp
                     )
                 }
+                val centerUserOffsetYProp = findProp("centerUserOffsetY")
+                if (centerUserOffsetYProp != null) item(key = centerUserOffsetYProp.id) {
+                    PropertyEditorResolver(
+                        centerUserOffsetYProp
+                    )
+                }
                 displayLatLongProp?.let { toggleProp ->
                     item(key = toggleProp.id) { PropertyEditorResolver(toggleProp) }
                 }
@@ -217,6 +223,10 @@ fun DeviceSettings(
                                 val tileCacheSizeProp = findProp("tileCacheSize")
                                 if (tileCacheSizeProp != null) PropertyEditorResolver(
                                     tileCacheSizeProp
+                                )
+                                val mapMoveScreenSizeProp = findProp("mapMoveScreenSize")
+                                if (mapMoveScreenSizeProp != null) PropertyEditorResolver(
+                                    mapMoveScreenSizeProp
                                 )
                                 val tileCachePaddingProp = findProp("tileCachePadding")
                                 if (tileCachePaddingProp != null) PropertyEditorResolver(
@@ -303,6 +313,14 @@ fun DeviceSettings(
                                 val storageTileCacheSizeProp = findProp("storageTileCacheSize")
                                 if (storageTileCacheSizeProp != null) PropertyEditorResolver(
                                     storageTileCacheSizeProp
+                                )
+                                val storageSeedBoundingBoxProp = findProp("storageSeedBoundingBox")
+                                if (storageSeedBoundingBoxProp != null) PropertyEditorResolver(
+                                    storageSeedBoundingBoxProp
+                                )
+                                val storageSeedRouteDistanceMProp = findProp("storageSeedRouteDistanceM")
+                                if (storageSeedRouteDistanceMProp != null) PropertyEditorResolver(
+                                    storageSeedRouteDistanceMProp
                                 )
                             }
                         }

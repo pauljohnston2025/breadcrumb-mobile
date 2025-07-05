@@ -299,6 +299,10 @@ class Connection(private val context: Context) : IConnection {
 //                "storageTileCacheSize" to 100,
 //                "httpErrorTileTTLS" to 60,
 //                "errorTileTTLS" to 20,
+//                "storageSeedBoundingBox" to false,
+//                "storageSeedRouteDistanceM" to 10.0,
+//                "centerUserOffsetY" to 0.75,
+//                "mapMoveScreenSize" to 0.3,
 //            )
 //        )
 //

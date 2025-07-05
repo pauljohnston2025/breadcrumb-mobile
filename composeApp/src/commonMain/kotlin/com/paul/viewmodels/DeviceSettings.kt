@@ -182,6 +182,10 @@ val labelOverrides: Map<String, String> = mapOf(
     "errorTileTTLS" to "Error Tile TTL (s)",
     "useDrawBitmap" to "Use Draw Bitmap (legacy)",
     "offTrackWrongDirection" to "Wrong Direction Alerts",
+    "centerUserOffsetY" to "Center User Offset Y (ratio)",
+    "mapMoveScreenSize" to "Map Move Screen Size (ratio)",
+    "storageSeedBoundingBox" to "Seed Entire Bounding Box<",
+    "storageSeedRouteDistanceM" to "Seed Route Path Distance (m)",
 )
 
 val descriptions: Map<String, String> = mapOf(
@@ -275,6 +279,9 @@ class DeviceSettings(
 
                     // --- Floats ---
                     "scale",
+                    "storageSeedRouteDistanceM",
+                    "centerUserOffsetY",
+                    "mapMoveScreenSize",
                     "fixedLatitude",
                     "fixedLongitude" -> EditableProperty(
                         key,
@@ -287,6 +294,7 @@ class DeviceSettings(
 
                     // --- Booleans ---
                     "mapEnabled",
+                    "storageSeedBoundingBox",
                     "useDrawBitmap",
                     "drawCheverons",
                     "offTrackWrongDirection",
