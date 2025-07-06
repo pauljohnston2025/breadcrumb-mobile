@@ -122,6 +122,9 @@ class TileServerRepo(
     // @formatter:off
     val availableTileTypes = MutableStateFlow(TileType.entries)
     val availableServers = MutableStateFlow(listOf(
+        // opentopo map is weird, docs say up to layer 17, but their own website fails to get layer 16/17 sometimes
+        // I have managed to get some layer 16/17 tiles but it almost always times out or errors
+        // might be some rate limit thing on lower levels
         TileServerInfo(ServerType.OPENTOPOMAP, "Open Topo Map", "https://a.tile.opentopomap.org/{z}/{x}/{y}.png", 0, 15),
         TileServerInfo(ServerType.GOOGLE, "Google - Hybrid", "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}", 0, 20),
         TileServerInfo(ServerType.GOOGLE, "Google - Satellite", "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}", 0, 20),
@@ -141,8 +144,8 @@ class TileServerRepo(
         TileServerInfo(ServerType.ESRI, "Esri - NatGeo World Map", "https://server.arcgisonline.com/arcgis/rest/services/NatGeo_World_Map/MapServer/tile/{z}/{y}/{x}?blankTile=false", 0, 12),
         TileServerInfo(ServerType.ESRI, "Esri - World Navigation Charts", "https://server.arcgisonline.com/arcgis/rest/services/Specialty/World_Navigation_Charts/MapServer/tile/{z}/{y}/{x}?blankTile=false", 0, 10),
         TileServerInfo(ServerType.ESRI, "Esri - World Physical Map", "https://server.arcgisonline.com/arcgis/rest/services/World_Physical_Map/MapServer/tile/{z}/{y}/{x}?blankTile=false", 0, 8),
-        TileServerInfo(ServerType.OPENSTREETMAP, "Open Street Map - Cyclosm", "https://a.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png", 0, 12),
-        TileServerInfo(ServerType.OPENSTREETMAP, "Open Street Map", "https://tile.openstreetmap.org/{z}/{x}/{y}.png", 0, 12),
+        TileServerInfo(ServerType.OPENSTREETMAP, "Open Street Map - Cyclosm", "https://a.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png", 0, 20),
+        TileServerInfo(ServerType.OPENSTREETMAP, "Open Street Map", "https://tile.openstreetmap.org/{z}/{x}/{y}.png", 0, 19),
         TileServerInfo(ServerType.STADIA, "Stadia - Alidade Smooth (auth required)", "https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}.png?api_key={authToken}", 0, 20),
         TileServerInfo(ServerType.STADIA, "Stadia - Alidade Smooth Dark (auth required)", "https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}.png?api_key={authToken}", 0, 20),
         TileServerInfo(ServerType.STADIA, "Stadia - Outdoors (auth required)", "https://tiles.stadiamaps.com/tiles/outdoors/{z}/{x}/{y}.png?api_key={authToken}", 0, 20),
