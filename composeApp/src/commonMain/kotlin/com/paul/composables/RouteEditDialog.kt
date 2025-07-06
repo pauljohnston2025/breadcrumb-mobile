@@ -22,6 +22,7 @@ fun RouteEditDialog(
 ) {
     var name by remember { mutableStateOf(initialRoute.name) }
     var enabled by remember { mutableStateOf(initialRoute.enabled) }
+    var reversed by remember { mutableStateOf(initialRoute.reversed) }
     var colorHex by remember { mutableStateOf(initialRoute.colour) } // Store hex AARRGGBB
     var showColorPicker by remember { mutableStateOf(false) }
 
@@ -76,6 +77,17 @@ fun RouteEditDialog(
                 }
                 Spacer(Modifier.height(16.dp))
 
+                // --- Reversed Switch ---
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Reversed", style = MaterialTheme.typography.body1)
+                    Switch(checked = reversed, onCheckedChange = { reversed = it })
+                }
+                Spacer(Modifier.height(16.dp))
+
                 // --- Color Picker Row ---
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -113,6 +125,7 @@ fun RouteEditDialog(
                                 // routeId might need special handling if adding vs editing
                                 name = name.trim(), // Trim whitespace
                                 enabled = enabled,
+                                reversed = reversed,
                                 colour = colorHex // Save the hex string directly
                             )
                             onSaveRoute(updatedRoute)

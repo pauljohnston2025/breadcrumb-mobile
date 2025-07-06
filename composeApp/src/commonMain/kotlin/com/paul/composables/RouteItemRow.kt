@@ -68,7 +68,7 @@ fun RouteItemRow(
                 )
                 Text(
                     // Concise status, maybe include ID if useful and not editing
-                    "ID: ${route.routeId} - ${if (route.enabled) "Enabled" else "Disabled"}",
+                    "ID: ${route.routeId} - ${if (route.enabled) "Enabled" else "Disabled"}  ${if (route.reversed) "Reversed" else "Forward"}",
                     style = MaterialTheme.typography.caption,
                     color = LocalContentColor.current.copy(alpha = ContentAlpha.medium)
                 )

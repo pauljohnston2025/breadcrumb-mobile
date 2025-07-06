@@ -20,6 +20,7 @@ data class RouteItem(
     val routeId: Int,             // Read-only identifier (or generated)
     val name: String = "",
     val enabled: Boolean = true,
+    val reversed: Boolean = false,
     val colour: String = "FF0000FF" // Default to opaque Blue (AARRGGBB)
 ) {
     companion object {
@@ -28,6 +29,7 @@ data class RouteItem(
                 routeId = (map["routeId"] as Number).toInt(),
                 name = map["name"] as String,
                 enabled = map["enabled"] as Boolean,
+                reversed = map["reversed"] as Boolean,
                 colour = padColorString(map["colour"] as String)
             )
         }
@@ -39,6 +41,7 @@ data class RouteItem(
             "routeId" to routeId,
             "name" to name,
             "enabled" to enabled,
+            "reversed" to reversed,
             "colour" to colour // Ensure this is the AARRGGBB string
         )
     }
@@ -52,6 +55,7 @@ fun createNewRouteItem(idSuggestion: Int = -1): RouteItem {
         routeId = idSuggestion,
         name = "New Route",
         enabled = true,
+        reversed = false,
         colour = "FF0000FF"
     )
 }
