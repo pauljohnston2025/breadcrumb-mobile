@@ -30,6 +30,7 @@ import com.paul.infrastructure.repositories.ProfileRepo
 import com.paul.infrastructure.service.IClipboardHandler
 import com.paul.infrastructure.service.IFileHelper
 import com.paul.infrastructure.service.IGpxFileLoader
+import com.paul.infrastructure.service.ILocationService
 import com.paul.infrastructure.service.IntentHandler
 import com.paul.infrastructure.web.WebServerController
 import com.paul.viewmodels.DebugViewModel
@@ -53,7 +54,9 @@ fun App(
     clipboardHandler: IClipboardHandler,
     webServerController: WebServerController,
     intentHandler: IntentHandler,
-) {
+    locationService: ILocationService,
+
+    ) {
     AppTheme {
         val navController = rememberNavController()
         val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -99,6 +102,7 @@ fun App(
                 tileRepository = tileRepo,
                 tileServerRepository = settingsViewModel.tileServerRepo,
                 snackbarHostState = scaffoldState.snackbarHostState,
+                locationService = locationService,
             )
         }
 

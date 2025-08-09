@@ -61,6 +61,7 @@ kotlin {
             implementation(libs.napier)
             implementation(libs.uuid)
             implementation(libs.skiko.core)
+            implementation(libs.play.services.location)
 //            implementation(libs.icons.extended)
         }
     }

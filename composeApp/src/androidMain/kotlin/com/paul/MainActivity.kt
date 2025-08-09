@@ -5,8 +5,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Bundle
 import android.os.Build
+import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -16,14 +16,17 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.CallSuper
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.content.ContextCompat
 import com.paul.infrastructure.connectiq.Connection
 import com.paul.infrastructure.connectiq.DeviceList
 import com.paul.infrastructure.repositories.TileRepository
+import com.paul.infrastructure.service.AndroidLocationService
 import com.paul.infrastructure.service.ClipboardHandler
 import com.paul.infrastructure.service.FileHelper
 import com.paul.infrastructure.service.GpxFileLoader
@@ -51,6 +54,7 @@ class MainActivity : ComponentActivity() {
         ImageProcessor(this),
         FileHelper(this)
     )
+    val locationService = AndroidLocationService(this)
 
     // based on ActivityResultContracts.OpenDocument()
     val getFileContent =
@@ -99,6 +103,7 @@ class MainActivity : ComponentActivity() {
                     clipboardHandler,
                     webServerController,
                     intentHandler,
+                    locationService,
                 )
             }
         }
@@ -199,31 +204,52 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun PermissionHandler(content: @Composable () -> Unit) {
     val context = LocalContext.current
-    var hasNotificationPermission = remember {
+
+    // 1. Define all permissions your app needs in an array.
+    // The Notification permission is only added on Android 13 (API 33) and above.
+    val permissionsToRequest = remember {
+        mutableListOf(
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ).apply {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                add(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }.toTypedArray() // Convert to Array for the launcher
+    }
+
+    // 2. Create a single state to track if ALL permissions have been granted.
+    var hasAllPermissions by remember {
         mutableStateOf(
-            ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.POST_NOTIFICATIONS
-            ) == PackageManager.PERMISSION_GRANTED
+            permissionsToRequest.all {
+                ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
+            }
         )
     }
 
-    val requestPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted: Boolean ->
-        hasNotificationPermission.value = isGranted
-        if (!isGranted) {
-            Toast.makeText(context, "Notification permission required", Toast.LENGTH_LONG).show()
+    // 3. Use the launcher for MULTIPLE permissions. The callback receives a map.
+    val requestPermissionsLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions: Map<String, Boolean> ->
+        // Check if all values in the returned map are `true`.
+        val allGranted = permissions.values.all { it }
+        hasAllPermissions = allGranted
+
+        if (!allGranted) {
+            // Optional: Show a generic message if any permission was denied.
+            Toast.makeText(context, "Some permissions were denied.", Toast.LENGTH_LONG).show()
         }
     }
 
+    // 4. In LaunchedEffect, check the single state and launch the request with the array.
     LaunchedEffect(key1 = Unit) {
-        if (!hasNotificationPermission.value) {
-            requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        if (!hasAllPermissions) {
+            requestPermissionsLauncher.launch(permissionsToRequest)
         }
     }
 
-    // continue anyway, its not supper critical
+    // Continue to show the main content unconditionally, as per the original design.
+    // Features requiring permissions (like 'my location') might not work until granted.
     content()
 }
 

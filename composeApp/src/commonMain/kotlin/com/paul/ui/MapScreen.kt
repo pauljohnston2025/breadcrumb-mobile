@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Downloading
 import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Terrain
 import androidx.compose.material.icons.filled.Watch
 import androidx.compose.runtime.Composable
@@ -104,7 +105,8 @@ private fun WatchSendDialog(
     )
 }
 
-internal const val URL_TAG = "URL_ATTRIBUTION_TAG" // Internal tag for identifying clickable URL parts
+internal const val URL_TAG =
+    "URL_ATTRIBUTION_TAG" // Internal tag for identifying clickable URL parts
 
 @Composable
 fun MapScreen(viewModel: MapViewModel, navController: NavController) {
@@ -273,7 +275,7 @@ fun MapScreen(viewModel: MapViewModel, navController: NavController) {
             ) {
                 if (isSeeding) {
                     Row(
-                        Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
@@ -281,14 +283,34 @@ fun MapScreen(viewModel: MapViewModel, navController: NavController) {
                             contentDescription = "Caching map area",
                             modifier = Modifier.size(ButtonDefaults.IconSize),
                         )
-                        Text("Caching map area (zlayer: $zSeedingProgress)...") // Updated text slightly
+                        Spacer(modifier = Modifier.size(8.dp))
+                        Text("Caching map area (z-layer: $zSeedingProgress)...")
                     }
-                    LinearProgressIndicator(
-                        progress = seedingProgress,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp)
-                    )
+
+                    // New Row for the progress bar and stop button
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        LinearProgressIndicator(
+                            progress = seedingProgress,
+                            modifier = Modifier.weight(1f) // Let the bar take up available space
+                        )
+                        // The new "Stop" button
+                        Button(
+                            onClick = { viewModel.cancelSeedingArea() },
+                            colors = ButtonDefaults.buttonColors(
+                                backgroundColor = MaterialTheme.colors.error, // Use a distinct color
+                                contentColor = Color.White
+                            )
+                        ) {
+                            Icon(
+                                Icons.Default.Stop, // A clear icon for stopping an action
+                                contentDescription = "Stop Caching"
+                            )
+                        }
+                    }
                 } else {
                     // Add Button or UI to trigger seeding
                     // --- Cache Current Area Button ---
@@ -298,10 +320,9 @@ fun MapScreen(viewModel: MapViewModel, navController: NavController) {
                     ) {
                         Button(
                             onClick = {
-                                // Get bounds and zoom from user input or map viewport
-                                // Example fixed values:
+                                // We only proceed if the viewport has been measured.
                                 if (viewportSize != IntSize.Zero) {
-                                    // 1. Get current map state from ViewModel
+                                    // 1. Get the CURRENT map state from the ViewModel.
                                     val centerPoint = viewModel.mapCenter.value
                                     val centerGeo = GeoPosition(
                                         centerPoint.latitude.toDouble(),
@@ -309,7 +330,8 @@ fun MapScreen(viewModel: MapViewModel, navController: NavController) {
                                     )
                                     val currentZoom = viewModel.mapZoom.value
 
-                                    // 2. Calculate viewport corners' geographic coordinates
+                                    // 2. Calculate the viewport corners' geographic coordinates based on the CURRENT view.
+                                    // This is the crucial part that ensures we use what the user sees.
                                     val topLeftGeo =
                                         screenPixelToGeo(
                                             IntOffset(0, 0),
@@ -324,14 +346,16 @@ fun MapScreen(viewModel: MapViewModel, navController: NavController) {
                                         viewportSize
                                     )
 
-                                    // 3. Determine zoom range (e.g., current to current + 2, or up to max)
-                                    //    Make sure minZoom is at least the current zoom level
+                                    // 3. Determine the zoom range for the download.
+                                    // Here, we'll download from the current integer zoom level up to the server's max.
+                                    // You could also define a fixed range if you prefer.
                                     val tilServer =
                                         viewModel.tileServerRepository.currentServerFlow().value
-                                    val minSeedZoom = tilServer.tileLayerMin
+                                    val minSeedZoom = viewModel.mapZoom.value.roundToInt()
+                                        .coerceIn(tilServer.tileLayerMin, tilServer.tileLayerMax)
                                     val maxSeedZoom = tilServer.tileLayerMax
 
-                                    // 4. Call ViewModel function
+                                    // 4. Call the ViewModel function with the CORRECT bounds from the viewport.
                                     viewModel.startSeedingArea(
                                         minLat = bottomRightGeo.latitude.toFloat(), // Min lat is bottom
                                         maxLat = topLeftGeo.latitude.toFloat(),     // Max lat is top
@@ -341,12 +365,10 @@ fun MapScreen(viewModel: MapViewModel, navController: NavController) {
                                         maxZoom = maxSeedZoom
                                     )
                                 } else {
-                                    // Optional: Show a message if size is not ready
-                                    // scope.launch { snackbarHostState.showSnackbar("Map not ready yet") }
-                                    Napier.d("Viewport size not available yet.")
+                                    // Optional: Show a message if size is not ready, though this is unlikely to happen.
+                                    Napier.d("Viewport size not available yet for seeding.")
                                 }
                             },
-//                        modifier = Modifier.align(Alignment.CenterHorizontally)
                         ) {
                             Icon(
                                 Icons.Default.Download,
@@ -354,7 +376,6 @@ fun MapScreen(viewModel: MapViewModel, navController: NavController) {
                                 modifier = Modifier.size(ButtonDefaults.IconSize),
                             )
                             Text("Download Current Map Area")
-
                         }
 
                         Button(

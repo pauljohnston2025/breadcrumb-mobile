@@ -12,8 +12,10 @@ import com.paul.infrastructure.connectiq.IConnection
 import com.paul.infrastructure.repositories.ITileRepository
 import com.paul.infrastructure.repositories.TileServerRepo
 import com.paul.infrastructure.service.GeoPosition
+import com.paul.infrastructure.service.ILocationService
 import com.paul.infrastructure.service.SendMessageHelper.Companion.sendingMessage
 import com.paul.infrastructure.service.TileId
+import com.paul.infrastructure.service.UserLocation
 import com.paul.protocol.todevice.CacheCurrentArea
 import com.paul.protocol.todevice.Point
 import com.paul.protocol.todevice.RequestLocationLoad
@@ -40,8 +42,17 @@ class MapViewModel(
     private val deviceSelector: DeviceSelector,
     private val tileRepository: ITileRepository,
     val tileServerRepository: TileServerRepo,
-    private val snackbarHostState: SnackbarHostState
+    private val snackbarHostState: SnackbarHostState,
+    private val locationService: ILocationService
 ) : ViewModel() {
+
+    private var seedingJob: Job? = null
+
+    // --- NEW: State for the user's live location ---
+    private val _userLocation = MutableStateFlow<UserLocation?>(null)
+    val userLocation: StateFlow<UserLocation?> = _userLocation.asStateFlow()
+
+    private var isInitialLocationSet = false // Flag to center the map only once
 
     // --- Map State ---
     private val _mapCenter = MutableStateFlow(Point(-27.472077f, 153.022172f, 0f)) // Brisbane
@@ -84,6 +95,9 @@ class MapViewModel(
     private var currentVisibleTiles: Set<TileId> = setOf()
 
     init {
+        // Start collecting location updates as soon as the ViewModel is created
+        startLocationUpdates()
+
         viewModelScope.launch(Dispatchers.IO) {
             tileServerRepository.currentServerFlow().onEach { refresh() }.collect()
             tileServerRepository.authTokenFlow().onEach { refresh() }.collect()
@@ -331,9 +345,45 @@ class MapViewModel(
         }
     }
 
+    private fun startLocationUpdates() {
+        viewModelScope.launch {
+            locationService.getLocationFlow().collect { location ->
+                _userLocation.value = location
+
+                // If this is the first location update we've received, center the map on it.
+                if (!isInitialLocationSet) {
+                    _mapCenter.value = Point(
+                        latitude = location.position.latitude.toFloat(),
+                        longitude = location.position.longitude.toFloat(),
+                        0f,
+                    )
+                    _mapZoom.value = 15f // A good default zoom for user location
+                    isInitialLocationSet = true
+                }
+            }
+        }
+    }
+
     fun returnToUsersLocation() {
-        viewModelScope.launch(Dispatchers.IO) {
-            snackbarHostState.showSnackbar("Feature Coming Soon")
+        viewModelScope.launch {
+            _userLocation.value?.let { currentUserLocation ->
+                // Center the map on the most recent known location
+                _mapCenter.value = Point(
+                    latitude = currentUserLocation.position.latitude.toFloat(),
+                    longitude = currentUserLocation.position.longitude.toFloat(),
+                    0f,
+                )
+
+                // Only change the zoom level if the user is currently zoomed out further than our
+                // desired "close-up" level. This prevents jarringly zooming out.
+                // maybe this should be hard coded to 15 or some other value so we do not zoom right in?
+                if (_mapZoom.value < currentTileServer.value.tileLayerMax) {
+                    _mapZoom.value = currentTileServer.value.tileLayerMax.toFloat()
+                }
+            } ?: run {
+                // Handle case where location is not yet available
+                snackbarHostState.showSnackbar("User location not available yet.")
+            }
         }
     }
 
@@ -393,7 +443,7 @@ class MapViewModel(
         _seedingError.value = null
         val server = tileServerRepository.currentServerFlow().value
 
-        viewModelScope.launch(Dispatchers.IO) {
+        seedingJob = viewModelScope.launch(Dispatchers.IO) {
             try {
                 val effectiveMinZoom = max(minZoom, server.tileLayerMin)
                 val effectiveMaxZoom = min(maxZoom, server.tileLayerMax)
@@ -500,11 +550,16 @@ class MapViewModel(
             } catch (e: Exception) {
                 _seedingError.value = "Seeding failed: ${e.message}"
                 _seedingProgress.value = 0f // Reset progress on error
+                seedingJob = null // Clear the job reference
                 Napier.e("Seeding error", e) // Log the full exception
             } finally {
                 _isSeeding.value = false
             }
         }
+    }
+
+    fun cancelSeedingArea() {
+        seedingJob?.cancel()
     }
 
     // --- Helper Functions (Needs Implementation) ---

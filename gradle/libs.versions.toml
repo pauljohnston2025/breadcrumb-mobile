@@ -58,6 +58,7 @@ napier = { module = "io.github.aakira:napier", version.ref = "napier" }
 uuid = { module = "com.benasher44:uuid", version = "0.8.4" }
 #skiko-android =  { module = "org.jetbrains.skiko:skiko-android", version.ref = "skiko"}
 skiko-core = { module = "org.jetbrains.skiko:skiko", version.ref = "skiko" }
+play-services-location = { module = "com.google.android.gms:play-services-location", version = "21.2.0" }
 #icons-extended = { module = "androidx.compose.material:material-icons-extended", version.ref = "compose-plugin" }
 
 [plugins]
