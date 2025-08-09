@@ -157,6 +157,10 @@ class TileServerRepo(
         TileServerInfo(ServerType.CARTO, "Carto - Voyager", "https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png", 0, 20),
         TileServerInfo(ServerType.CARTO, "Carto - Dark Matter", "https://a.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png", 0, 20),
         TileServerInfo(ServerType.CARTO, "Carto - Light All", "https://a.basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}.png", 0, 20),
+        TileServerInfo(ServerType.MAPY, "Mapy - Basic (auth required)", "https://api.mapy.com/v1/maptiles/basic/256/{z}/{x}/{y}?apiKey={authToken}", 0, 19),
+        TileServerInfo(ServerType.MAPY, "Mapy - Outdoor (auth required)", "https://api.mapy.com/v1/maptiles/outdoor/256/{z}/{x}/{y}?apiKey={authToken}", 0, 19),
+        TileServerInfo(ServerType.MAPY, "Mapy - Winter (auth required)", "https://api.mapy.com/v1/maptiles/winter/256/{z}/{x}/{y}?apiKey={authToken}", 0, 19),
+        TileServerInfo(ServerType.MAPY, "Mapy - Aerial (auth required)", "https://api.mapy.com/v1/maptiles/aerial/256/{z}/{x}/{y}?apiKey={authToken}", 0, 13),
     ))
     // @formatter:on
 

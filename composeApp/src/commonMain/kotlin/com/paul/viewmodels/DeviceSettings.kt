@@ -169,6 +169,10 @@ val listOptionsMapping: Map<String, List<ListOption>> = mapOf(
         ListOption(26, "Carto - Voyager"),
         ListOption(27, "Carto - Dark Matter"),
         ListOption(28, "Carto - Dark Light All"),
+        ListOption(29, "Mapy - Basic (auth required)"),
+        ListOption(30, "Mapy - Outdoor (auth required)"),
+        ListOption(31, "Mapy - Winter (auth required)"),
+        ListOption(32, "Mapy - Aerial (auth required)"),
     )
 )
 

@@ -114,13 +114,7 @@ A map view for displaying the routes that have been imported, preview a route be
 
 *** Feature still in beta ***
 
-Features to come:
-* better ui
-* make 'got to users location' work (watch button does work already)
-* * pinchable zoom
-
-
-What does work:
+What works so far:
 * zooming in and out (with on screen buttons)
 * displaying route on map
 * panning
@@ -130,6 +124,9 @@ What does work:
 * caching current area to phone
 * caching current area to watch (offline tiles)
 * showing current area on watch
+* pinchable zoom
+* see users location on map
+* allow user to go to their current location
 
 ![](images/manual/mapview-noroute.png)
 ![](images/manual/mapview-nolevation.png)

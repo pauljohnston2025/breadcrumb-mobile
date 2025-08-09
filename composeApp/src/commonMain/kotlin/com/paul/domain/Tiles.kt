@@ -10,7 +10,8 @@ enum class ServerType {
     OPENTOPOMAP,
     OPENSTREETMAP,
     STADIA,
-    CARTO;
+    CARTO,
+    MAPY;
 
     fun attributionText(): List<String>
     {
@@ -22,6 +23,7 @@ enum class ServerType {
             OPENSTREETMAP -> listOf("©OpenStreetMap")
             STADIA -> listOf("©Stadia Maps", "©OpenMapTiles", "©OpenStreetMap")
             CARTO -> listOf("©CARTO")
+            MAPY -> listOf("Mapy.com", "Seznam.cz a.s. and others")
             // else -> null // Or a default if you always want something
         }
     }
@@ -36,6 +38,7 @@ enum class ServerType {
             OPENSTREETMAP -> listOf("https://www.openstreetmap.org/copyright")
             STADIA -> listOf("https://stadiamaps.com/", "https://openmaptiles.org/", "https://www.openstreetmap.org/copyright")
             CARTO -> listOf("https://carto.com/attribution")
+            MAPY -> listOf("https://mapy.com/", "https://api.mapy.com/copyright")
             // else -> null // Or a default if you always want something
         }
     }
