@@ -10,7 +10,9 @@ From Google Maps - You can create some directions and the click 'Share Direction
 Import a file - Open the breadcrumb app and select 'Import GPX', a file browser will be launched that you can select the route from.  
 Open A Gpx File - When opening a gpx file select 'open with' and pick the breadcrumb app.  
 Komoot - Similar to google maps, from the komoot app got to saved routes, select a route and `share with link`. The breadcrumb app should appear in the available app list to share with. You can also download the gpx route and open it through other means.  
-WorldTopoMap App - Go To the tracks section, and click the info button on a track. There is then a `...` menu at the top. Select share, and then the breadcrumb app.  
+WorldTopoMap App - Go To the tracks section, and click the info button on a track. There is then a `...` menu at the top. Select share, and then the breadcrumb app.
+Trail Router - With a route open cli share, select `share gpx` or `open gpx`, then select breadrumb from the app menu.
+ 
 
 The `ShareWith` functionality should work with any app that shares a gpx route. Please let me know if there is an app that does not work and I will try to add support for it (if I can access the app without a subscription).
 

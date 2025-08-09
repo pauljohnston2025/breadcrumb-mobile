@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
+import android.os.Build
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -152,6 +153,20 @@ class MainActivity : ComponentActivity() {
                     }
 
                     if (!it.data.toString().contains(".gpx")) {
+
+                        // For ACTION_SEND, the URI is sometimes in the EXTRA_STREAM extra.
+                        // We need a version check for compatibility with Android 13 (Tiramisu) and newer.
+                        val gpxUri: Uri? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+                        } else {
+                            @Suppress("DEPRECATION")
+                            intent.getParcelableExtra(Intent.EXTRA_STREAM) as? Uri
+                        }
+
+                        if (gpxUri != null) {
+                            return@let gpxUri
+                        }
+
                         return@let null
                     }
 

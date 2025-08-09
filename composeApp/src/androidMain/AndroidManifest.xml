@@ -29,25 +29,29 @@
             android:launchMode="singleTask">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- allow opening application/gpx+xml files with the app -->
-            <!-- note: could not get this to work by file extension-->
+
             <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-
+                <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <category android:name="android.intent.category.OPENABLE" />
-
-                <data
-                    android:host="*"
-                    android:mimeType="application/gpx+xml"
-                    android:scheme="content" />
+                <data android:mimeType="application/gpx+xml" />
+                <data android:mimeType="application/xml" />
+                <data android:mimeType="text/xml" />
             </intent-filter>
 
-            <!-- this is needed for apps share to (topo maps etc.), it doesn't provide extension, so you can't add path  -->
+            <!-- Intent filter to VIEW GPX files -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:mimeType="application/gpx+xml" />
+                <data android:mimeType="application/xml" />
+                <data android:mimeType="text/xml" />
+            </intent-filter>
+
+            <!-- this is needed for apps share to (opentopo maps etc.), it doesn't provide extension, so you can't add path  -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
 
@@ -65,22 +69,6 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/plain" />
             </intent-filter>
-
-            <intent-filter
-                android:exported="true"
-                >
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.LAUNCHER" />
-                <category android:name="android.intent.category.BROWSABLE" />
-
-                <data android:scheme="myapp"
-                    android:host="open.breadcrumb.app.example.com"
-                />
-            </intent-filter>
-
-<!--            see https://forums.garmin.com/developer/connect-iq/f/discussion/4339/start-an-android-service-from-watch?pifragment-1298=2#pifragment-1298=2-->
-
         </activity>
         <service android:name=".WebServerService"
             android:foregroundServiceType="specialUse"
