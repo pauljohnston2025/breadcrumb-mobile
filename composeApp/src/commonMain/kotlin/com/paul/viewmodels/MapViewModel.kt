@@ -47,8 +47,8 @@ class MapViewModel(
     private val _mapCenter = MutableStateFlow(Point(-27.472077f, 153.022172f, 0f)) // Brisbane
     val mapCenter: StateFlow<Point> = _mapCenter
 
-    private val _mapZoom = MutableStateFlow(10)
-    val mapZoom: StateFlow<Int> = _mapZoom
+    private val _mapZoom = MutableStateFlow(10f)
+    val mapZoom: StateFlow<Float> = _mapZoom
 
     val currentTileServer: StateFlow<TileServerInfo> = tileServerRepository.currentServerFlow()
 
@@ -514,7 +514,7 @@ class MapViewModel(
         _mapCenter.value = point
     }
 
-    fun setMapZoom(z: Int) {
+    fun setMapZoom(z: Float) {
         _mapZoom.value = z
     }
 

@@ -1,5 +1,6 @@
 package com.paul.infrastructure.service
 
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
@@ -42,19 +43,26 @@ fun worldPixelToGeo(px: Double, py: Double): GeoPosition {
     return GeoPosition(latitude.coerceIn(-MAX_LATITUDE, MAX_LATITUDE), longitude)
 }
 
-// Get the scale factor (pixels per world pixel unit at zoom 0) for a given zoom level
-fun getScaleFactor(zoom: Int): Double {
-    return TILE_SIZE * (1 shl zoom).toDouble() // 2^zoom
+/**
+ * UPDATED: Get the scale factor for a given zoom level.
+ * Now accepts a Float and uses `pow` for fractional zoom.
+ */
+fun getScaleFactor(zoom: Float): Double {
+    // Replaced `(1 shl zoom)` with `2.0.pow(zoom)` to support fractional zoom levels.
+    return TILE_SIZE * 2.0.pow(zoom.toDouble())
 }
 
-// Convert Lat/Lon to screen pixel offset relative to the top-left of the map viewport
+/**
+ * UPDATED: Convert Lat/Lon to screen pixel offset.
+ * Now accepts a Float for the zoom level.
+ */
 fun geoToScreenPixel(
     geo: GeoPosition,
     mapCenterGeo: GeoPosition,
-    zoom: Int,
+    zoom: Float, // Changed from Int to Float
     viewportSize: IntSize
 ): IntOffset {
-    val scale = getScaleFactor(zoom)
+    val scale = getScaleFactor(zoom) // This now handles the Float zoom
     val (worldCenterX, worldCenterY) = geoToWorldPixel(mapCenterGeo)
     val (worldTargetX, worldTargetY) = geoToWorldPixel(geo)
 
@@ -73,14 +81,17 @@ fun geoToScreenPixel(
     return IntOffset(screenX.roundToInt(), screenY.roundToInt())
 }
 
-// Convert Screen pixel offset to Lat/Lon
+/**
+ * UPDATED: Convert Screen pixel offset to Lat/Lon.
+ * Now accepts a Float for the zoom level.
+ */
 fun screenPixelToGeo(
     screenPixel: IntOffset,
     mapCenterGeo: GeoPosition,
-    zoom: Int,
+    zoom: Float, // Changed from Int to Float
     viewportSize: IntSize
 ): GeoPosition {
-    val scale = getScaleFactor(zoom)
+    val scale = getScaleFactor(zoom) // This now handles the Float zoom
     val (worldCenterX, worldCenterY) = geoToWorldPixel(mapCenterGeo)
 
     // Screen coordinates relative to viewport center
@@ -98,7 +109,12 @@ fun screenPixelToGeo(
     return worldPixelToGeo(worldTargetX, worldTargetY)
 }
 
-// Convert Lat/Lon to Tile X/Y (similar to ViewModel one, ensure consistency)
+/**
+ * UNCHANGED: Convert Lat/Lon to Tile X/Y.
+ * This function correctly remains with `zoom: Int` because tile indices are always
+ * based on integer zoom levels. The calling code should round the fractional zoom
+ * before calling this.
+ */
 fun latLonToTileXY(lat: Double, lon: Double, zoom: Int): Pair<Int, Int> {
     val n = 1 shl zoom
     val latRad = Math.toRadians(lat)
@@ -107,4 +123,25 @@ fun latLonToTileXY(lat: Double, lon: Double, zoom: Int): Pair<Int, Int> {
     // Clamp values to valid range for the zoom level
     val maxTileIndex = n - 1
     return Pair(xTile.coerceIn(0, maxTileIndex), yTile.coerceIn(0, maxTileIndex))
+}
+
+/**
+ * NEW: Calculates the map center required to place a target geo-position
+ * at a specific screen pixel for a given zoom level. This is the mathematical
+ * inverse of `geoToScreenPixel` with respect to the map center.
+ */
+fun calculateNewCenter(
+    targetGeo: GeoPosition,      // The geographic point that should be at a specific screen location
+    targetScreenPx: Offset,      // The screen location (in pixels) where the targetGeo should be
+    newZoom: Float,              // The new zoom level
+    viewportSize: IntSize
+): GeoPosition {
+    val scale = getScaleFactor(newZoom)
+    val (worldTargetX, worldTargetY) = geoToWorldPixel(targetGeo)
+
+    // Rearrange the formula from geoToScreenPixel to solve for worldCenter
+    val worldCenterX = worldTargetX - (targetScreenPx.x - viewportSize.width / 2.0) / scale
+    val worldCenterY = worldTargetY - (targetScreenPx.y - viewportSize.height / 2.0) / scale
+
+    return worldPixelToGeo(worldCenterX, worldCenterY)
 }

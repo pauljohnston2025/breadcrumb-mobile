@@ -2,7 +2,11 @@ package com.paul.composables
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateCentroid
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,11 +31,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds // <-- IMPORT THIS FOR CLIPPING
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntOffset
@@ -40,8 +46,8 @@ import androidx.compose.ui.unit.dp
 import com.paul.infrastructure.service.GeoPosition
 import com.paul.infrastructure.service.TileId
 import com.paul.infrastructure.service.TileInfo
+import com.paul.infrastructure.service.calculateNewCenter
 import com.paul.infrastructure.service.geoToScreenPixel
-import com.paul.infrastructure.service.getScaleFactor
 import com.paul.infrastructure.service.latLonToTileXY
 import com.paul.infrastructure.service.screenPixelToGeo
 import com.paul.infrastructure.service.worldPixelToGeo
@@ -52,9 +58,14 @@ import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlin.math.abs
+import kotlin.math.ln
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.pow
 import kotlin.math.roundToInt
+
+// Constant to define how many extra zoom levels to allow visually past the last tile layer
+private const val OVERZOOM_LEVELS = 3f
 
 @Composable
 fun MapTilerComposable(
@@ -65,70 +76,53 @@ fun MapTilerComposable(
     routeToDisplay: Route? = null,
     routeColor: Color = Color.Blue,
     routeStrokeWidth: Float = 5f,
-    fitToBoundsPaddingPercent: Float = 0.1f // e.g., 10% padding around the route
+    fitToBoundsPaddingPercent: Float = 0.1f
 ) {
-    // Read state from ViewModel
-    val initialMapCenterPoint by viewModel.mapCenter.collectAsState()
-    val mapCenterPoint by viewModel.mapCenter.collectAsState()
-    val currentZoomLevel by viewModel.mapZoom.collectAsState()
+    // --- State from ViewModel ---
+    val vmMapCenter by viewModel.mapCenter.collectAsState()
+    val vmZoom by viewModel.mapZoom.collectAsState()
     val tilServer by viewModel.tileServerRepository.currentServerFlow().collectAsState()
-    val minZoom = tilServer.tileLayerMin
-    val maxZoom = tilServer.tileLayerMax
-
-    // --- LOCAL state for map center during interaction ---
-    var localMapCenterGeo by remember {
-        mutableStateOf(
-            GeoPosition(
-                initialMapCenterPoint.latitude.toDouble(),
-                initialMapCenterPoint.longitude.toDouble()
-            )
-        )
-    }
-
-    // Effect to update LOCAL state if ViewModel state changes externally
-    LaunchedEffect(initialMapCenterPoint) {
-        val vmGeo = GeoPosition(
-            initialMapCenterPoint.latitude.toDouble(),
-            initialMapCenterPoint.longitude.toDouble()
-        )
-        // Basic reset. Consider adding a threshold check if needed.
-        if (localMapCenterGeo != vmGeo) { // Avoid self-update from onDragEnd
-            localMapCenterGeo = vmGeo
-        }
-    }
-    val viewModelMapCenterGeo = remember(initialMapCenterPoint) {
-        GeoPosition(
-            initialMapCenterPoint.latitude.toDouble(),
-            initialMapCenterPoint.longitude.toDouble()
-        )
-    }
-
     val tileCache by viewModel.tileCacheState.collectAsState()
 
-    val visibleTiles by remember(viewModelMapCenterGeo, currentZoomLevel, viewportSize) {
+    // --- Local State for Gestures ---
+    var localCenterGeo by remember { mutableStateOf(GeoPosition(vmMapCenter.latitude.toDouble(), vmMapCenter.longitude.toDouble())) }
+    var localZoom by remember { mutableStateOf(vmZoom) }
+
+    // --- Derived State ---
+    val minZoom = remember { tilServer.tileLayerMin.toFloat() }
+    val maxZoom = remember { tilServer.tileLayerMax.toFloat() }
+
+    // *** CHANGE 1: OVERZOOM LOGIC ***
+    // The integerZoom is used for fetching tiles. It MUST be clamped to the actual tile layers available.
+    val integerZoom = remember(localZoom, minZoom, maxZoom) {
+        localZoom.roundToInt().coerceIn(minZoom.toInt(), maxZoom.toInt())
+    }
+
+    // --- Effects to sync local state if ViewModel is updated externally ---
+    LaunchedEffect(vmMapCenter) {
+        localCenterGeo = GeoPosition(vmMapCenter.latitude.toDouble(), vmMapCenter.longitude.toDouble())
+    }
+    LaunchedEffect(vmZoom) {
+        localZoom = vmZoom
+    }
+
+    // --- Tile Calculation & Fetching ---
+    val visibleTiles by remember(localCenterGeo, integerZoom, viewportSize) {
         derivedStateOf {
             if (viewportSize == IntSize.Zero) emptyList() else {
-                calculateVisibleTiles(
-                    viewModelMapCenterGeo,
-                    currentZoomLevel,
-                    viewportSize,
-                    viewModel.tileServerRepository.currentServerFlow().value.id
-                )
+                calculateVisibleTiles(localCenterGeo, integerZoom, viewportSize, tilServer.id)
             }
         }
     }
 
-    // Effect to request tiles from ViewModel
     LaunchedEffect(visibleTiles) {
-        val visibleIds = visibleTiles.map { it.id }.toSet()
-        viewModel.requestTilesForViewport(visibleIds)
+        viewModel.requestTilesForViewport(visibleTiles.map { it.id }.toSet())
     }
 
-    // === Effect to Zoom/Center on Route Change ===
+    // --- Fit to Route Effect ---
     LaunchedEffect(routeToDisplay, viewportSize) {
-        // Run calculation only when we have a route AND the viewport has been measured
+        // This effect logic remains the same
         if (routeToDisplay != null && routeToDisplay.route.isNotEmpty() && viewportSize != IntSize.Zero) {
-            // 1. Calculate Bounding Box
             var minLat = routeToDisplay.route.first().latitude.toDouble()
             var maxLat = minLat
             var minLon = routeToDisplay.route.first().longitude.toDouble()
@@ -141,267 +135,165 @@ fun MapTilerComposable(
                 maxLon = max(maxLon, point.longitude.toDouble())
             }
 
-            // Handle single point case (just use VM center, maybe zoom in?)
             if (minLat == maxLat && minLon == maxLon) {
-                viewModel.setMapZoom(
-                    (currentZoomLevel + 2).coerceIn(
-                        minZoom,
-                        maxZoom
-                    )
-                ) // Example: Zoom in 2 levels
-                return@LaunchedEffect // Exit effect
+                viewModel.setMapZoom((vmZoom + 1).coerceIn(minZoom, maxZoom + OVERZOOM_LEVELS))
+                return@LaunchedEffect
             }
 
-            // 2. Calculate Target Center (already done mostly in VM, but recalculate for precision)
-            val targetCenterLat = minLat + (maxLat - minLat) / 2.0
-            val targetCenterLon = minLon + (maxLon - minLon) / 2.0
-            val targetCenterGeo = GeoPosition(targetCenterLat, targetCenterLon)
-
-            // 3. Calculate Target Zoom
-            var targetZoom = maxZoom // Start checking from max zoom level
+            val targetCenterGeo = GeoPosition(minLat + (maxLat - minLat) / 2.0, minLon + (maxLon - minLon) / 2.0)
+            var targetZoom = maxZoom
             while (targetZoom > minZoom) {
-                val scale = getScaleFactor(targetZoom)
-
-                // Calculate pixel coordinates of bounds relative to the *target center*
-                val topLeftScreen = geoToScreenPixel(
-                    GeoPosition(maxLat, minLon),
-                    targetCenterGeo,
-                    targetZoom,
-                    viewportSize
-                )
-                val bottomRightScreen = geoToScreenPixel(
-                    GeoPosition(minLat, maxLon),
-                    targetCenterGeo,
-                    targetZoom,
-                    viewportSize
-                )
-
+                val topLeftScreen = geoToScreenPixel(GeoPosition(maxLat, minLon), targetCenterGeo, targetZoom, viewportSize)
+                val bottomRightScreen = geoToScreenPixel(GeoPosition(minLat, maxLon), targetCenterGeo, targetZoom, viewportSize)
                 val routePixelWidth = abs(bottomRightScreen.x - topLeftScreen.x)
                 val routePixelHeight = abs(bottomRightScreen.y - topLeftScreen.y)
-
-                // Check if it fits within the viewport with padding
                 val paddedViewportWidth = viewportSize.width * (1f - fitToBoundsPaddingPercent * 2)
-                val paddedViewportHeight =
-                    viewportSize.height * (1f - fitToBoundsPaddingPercent * 2)
+                val paddedViewportHeight = viewportSize.height * (1f - fitToBoundsPaddingPercent * 2)
 
-                if (routePixelWidth <= paddedViewportWidth && routePixelHeight <= paddedViewportHeight) {
-                    // This zoom level fits, break the loop
-                    break
-                }
-                targetZoom-- // Try the next lower zoom level
+                if (routePixelWidth <= paddedViewportWidth && routePixelHeight <= paddedViewportHeight) break
+                targetZoom -= 0.1f
             }
-            targetZoom = targetZoom.coerceIn(minZoom, maxZoom) // Ensure it's within bounds
 
-
-            // 4. Apply the calculated Center and Zoom via ViewModel functions
-            // Use Dispatchers.Main if state updates require it, though StateFlow should handle it
             launch(Dispatchers.Main.immediate) {
-                viewModel.centerMapOn(
-                    Point(
-                        targetCenterGeo.latitude.toFloat(),
-                        targetCenterGeo.longitude.toFloat(),
-                        0f
-                    )
-                )
-                viewModel.setMapZoom(targetZoom)
+                viewModel.centerMapOn(Point(targetCenterGeo.latitude.toFloat(), targetCenterGeo.longitude.toFloat(), 0f))
+                viewModel.setMapZoom(targetZoom.coerceIn(minZoom, maxZoom + OVERZOOM_LEVELS))
             }
         }
-    } // === End of Zoom/Center Effect ===
-
+    }
 
     Box(
         modifier = modifier
             .onSizeChanged { onViewportSizeChange(it) }
             .background(Color.LightGray)
             .pointerInput(Unit) {
-                detectDragGestures(
-                    onDragEnd = {
-                        // Update VM only on drag end
-                        viewModel.centerMapOn(
-                            Point(
-                                localMapCenterGeo.latitude.toFloat(), // Use local state
-                                localMapCenterGeo.longitude.toFloat(), // Use local state
-                                0f
-                            )
-                        )
-                    },
-                    onDrag = { change, dragAmount ->
-                        change.consume()
-                        // Update local state for immediate feedback (using previous local state approach)
-                        val currentCenterScreen =
-                            IntOffset(viewportSize.width / 2, viewportSize.height / 2)
-                        val draggedToScreen = currentCenterScreen - IntOffset(
-                            dragAmount.x.roundToInt(),
-                            dragAmount.y.roundToInt()
-                        )
-                        val newCenter = screenPixelToGeo(
-                            draggedToScreen,
-                            localMapCenterGeo,
-                            currentZoomLevel,
-                            viewportSize
-                        )
-                        // --- Update LOCAL state directly ---
-                        localMapCenterGeo = newCenter
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false)
+                    do {
+                        val event = awaitPointerEvent()
+                        if (event.changes.any { it.pressed }) {
+                            val pan = event.calculatePan()
+                            val zoom = event.calculateZoom()
+                            val centroid = event.calculateCentroid()
 
-                    }
-                )
+                            // *** CHANGE 1: OVERZOOM LOGIC ***
+                            // The visual zoom can now go past the max tile layer up to the OVERZOOM_LEVELS limit.
+                            val newZoom = (localZoom + (ln(zoom) / ln(2.0f))).coerceIn(minZoom, maxZoom + OVERZOOM_LEVELS)
+
+                            val pannedCenterScreenPixel = Offset(size.width / 2f, size.height / 2f) - pan
+                            val pannedCenterGeo = screenPixelToGeo(
+                                screenPixel = IntOffset(pannedCenterScreenPixel.x.roundToInt(), pannedCenterScreenPixel.y.roundToInt()),
+                                mapCenterGeo = localCenterGeo,
+                                zoom = localZoom,
+                                viewportSize = size
+                            )
+                            val geoUnderCentroid = screenPixelToGeo(
+                                screenPixel = IntOffset(centroid.x.roundToInt(), centroid.y.roundToInt()),
+                                mapCenterGeo = pannedCenterGeo,
+                                zoom = localZoom,
+                                viewportSize = size
+                            )
+                            val finalNewCenterGeo = calculateNewCenter(
+                                targetGeo = geoUnderCentroid,
+                                targetScreenPx = centroid,
+                                newZoom = newZoom,
+                                viewportSize = size
+                            )
+
+                            localZoom = newZoom
+                            localCenterGeo = finalNewCenterGeo
+                        }
+                        event.changes.forEach { it.consume() }
+                    } while (event.changes.any { it.pressed })
+
+                    viewModel.setMapZoom(localZoom)
+                    viewModel.centerMapOn(Point(localCenterGeo.latitude.toFloat(), localCenterGeo.longitude.toFloat(), 0f))
+                }
             }
     ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            clipRect {
+        // *** CHANGE 2: RESPECT CONTAINER BOUNDARIES ***
+        // The clipToBounds() modifier ensures that the canvas content (tiles, route)
+        // will not be drawn outside of its specified layout area.
+        Canvas(modifier = Modifier
+            .fillMaxSize()
+            .clipToBounds()
+        ) {
+            val scale = 2.0.pow((localZoom - integerZoom).toDouble()).toFloat()
+
+            withTransform({
+                scale(scale, scale, pivot = Offset(size.width / 2f, size.height / 2f))
+            }) {
                 // --- Draw Tiles ---
                 visibleTiles.forEach { tileInfo ->
-                    val tileId = tileInfo.id
-                    val imageBitmap = tileCache[tileId]
-                    if (tileCache.containsKey(tileId)) {
-                        if (imageBitmap != null) {
-                            drawImage(
-                                image = imageBitmap,
-                                dstOffset = tileInfo.screenOffset,
-                                dstSize = tileInfo.size
-                            )
-                        } else { /* Draw Error */
-                            drawRect(
-                                color = Color.DarkGray.copy(alpha = 0.5f),
-                                topLeft = Offset(
-                                    tileInfo.screenOffset.x.toFloat(),
-                                    tileInfo.screenOffset.y.toFloat()
-                                ),
-                                size = androidx.compose.ui.geometry.Size(
-                                    tileInfo.size.width.toFloat(),
-                                    tileInfo.size.height.toFloat()
-                                )
-                                // You could draw a small spinner graphic here too
-                            )
-                        }
-                    } else { // Check internal loading state if needed, or just show background
-                        // If exposing loading state from VM:
-                        // if (loadingTiles.contains(tileId)) { /* Draw Loading */ }
-                        // Otherwise, just let background show through
+                    tileCache[tileInfo.id]?.let { imageBitmap ->
+                        drawImage(image = imageBitmap, dstOffset = tileInfo.screenOffset, dstSize = tileInfo.size)
+                    } ?: run {
+                        drawRect(
+                            color = Color.DarkGray.copy(alpha = 0.5f),
+                            topLeft = Offset(tileInfo.screenOffset.x.toFloat(), tileInfo.screenOffset.y.toFloat()),
+                            size = androidx.compose.ui.geometry.Size(tileInfo.size.width.toFloat(), tileInfo.size.height.toFloat())
+                        )
                     }
                 }
+
                 // --- Draw Route ---
                 routeToDisplay?.let { route ->
                     if (route.route.size >= 2) {
                         val path = Path()
-                        // Use viewModelMapCenterGeo and currentZoomLevel from VM state
-                        val startPoint = geoToScreenPixel(
-                            GeoPosition(
-                                route.route.first().latitude.toDouble(),
-                                route.route.first().longitude.toDouble()
-                            ), viewModelMapCenterGeo, currentZoomLevel, viewportSize
-                        )
+                        val startPoint = geoToScreenPixel(GeoPosition(route.route.first().latitude.toDouble(), route.route.first().longitude.toDouble()), localCenterGeo, integerZoom.toFloat(), viewportSize)
                         path.moveTo(startPoint.x.toFloat(), startPoint.y.toFloat())
                         route.route.drop(1).forEach { point ->
-                            val screenPoint = geoToScreenPixel(
-                                GeoPosition(
-                                    point.latitude.toDouble(),
-                                    point.longitude.toDouble()
-                                ), viewModelMapCenterGeo, currentZoomLevel, viewportSize
-                            )
+                            val screenPoint = geoToScreenPixel(GeoPosition(point.latitude.toDouble(), point.longitude.toDouble()), localCenterGeo, integerZoom.toFloat(), viewportSize)
                             path.lineTo(screenPoint.x.toFloat(), screenPoint.y.toFloat())
                         }
-                        drawPath(
-                            path = path,
-                            color = routeColor,
-                            style = Stroke(width = routeStrokeWidth)
-                        )
+                        drawPath(path = path, color = routeColor, style = Stroke(width = routeStrokeWidth / scale, cap = StrokeCap.Round))
                     }
                 }
             }
         }
 
-        // --- Simple Zoom Buttons ---
+        // --- UI Controls ---
         Column(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(8.dp)
         ) {
+            // ... (The buttons section is updated to respect the new overzoom limit)
             Button(
-//                modifier = Modifier.width(75.dp),
                 onClick = {
-
-                    // Get bounds and zoom from user input or map viewport
-                    // Example fixed values:
                     if (viewportSize != IntSize.Zero) {
-                        // 1. Get current map state from ViewModel
-                        val centerPoint = viewModel.mapCenter.value
-                        val centerGeo = GeoPosition(
-                            centerPoint.latitude.toDouble(),
-                            centerPoint.longitude.toDouble()
-                        )
-                        val currentZoom = viewModel.mapZoom.value
-
-                        // 2. Calculate viewport corners' geographic coordinates
-                        val topLeftGeo =
-                            screenPixelToGeo(
-                                IntOffset(0, 0),
-                                centerGeo,
-                                currentZoom,
-                                viewportSize
-                            )
-                        val bottomRightGeo = screenPixelToGeo(
-                            IntOffset(viewportSize.width, viewportSize.height),
-                            centerGeo,
-                            currentZoom,
-                            viewportSize
-                        )
-
-                        viewModel.showLocationOnWatch(
-                            centerGeo = centerGeo,
-                            topLeftGeo = topLeftGeo,
-                            bottomRightGeo = bottomRightGeo,
-                        )
+                        val topLeftGeo = screenPixelToGeo(IntOffset(0, 0), localCenterGeo, localZoom, viewportSize)
+                        val bottomRightGeo = screenPixelToGeo(IntOffset(viewportSize.width, viewportSize.height), localCenterGeo, localZoom, viewportSize)
+                        viewModel.showLocationOnWatch(centerGeo = localCenterGeo, topLeftGeo = topLeftGeo, bottomRightGeo = bottomRightGeo)
                     } else {
-                        // Optional: Show a message if size is not ready
-                        // scope.launch { snackbarHostState.showSnackbar("Map not ready yet") }
                         Napier.d("Viewport size not available yet.")
                     }
-                },
-                enabled = true
+                }
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    // Negative spacing causes overlap. Adjust the value as needed.
-                    // -8.dp means the second icon will be pulled 8.dp to the left.
-                    horizontalArrangement = Arrangement.spacedBy((-2).dp)
-                ) {
-                    Icon(
-                        Icons.Default.Watch,
-                        contentDescription = "Show on watch",
-                        modifier = Modifier.size(17.dp) // Slightly smaller icon so that the button is the same size as the other ones
-                    )
-                    Icon(
-                        Icons.Default.RemoveRedEye,
-                        contentDescription = "Show on watch",
-                        modifier = Modifier.size(17.dp) // Slightly smaller icon so that the button is the same size as the other ones
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy((-2).dp)) {
+                    Icon(Icons.Default.Watch, contentDescription = "Show on watch", modifier = Modifier.size(17.dp))
+                    Icon(Icons.Default.RemoveRedEye, contentDescription = "Show on watch", modifier = Modifier.size(17.dp))
                 }
             }
 
             Button(
                 onClick = {
-                    viewModel.setMapZoom(
-                        (currentZoomLevel + 1).coerceIn(
-                            minZoom,
-                            maxZoom
-                        )
-                    )
+                    // *** CHANGE 1: OVERZOOM LOGIC ***
+                    val newZoom = (localZoom + 1f).coerceIn(minZoom, maxZoom + OVERZOOM_LEVELS)
+                    localZoom = newZoom
+                    viewModel.setMapZoom(newZoom)
                 },
-                enabled = currentZoomLevel < maxZoom
+                enabled = localZoom < maxZoom + OVERZOOM_LEVELS
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Zoom In")
             }
             Button(
                 onClick = {
-                    viewModel.setMapZoom(
-                        (currentZoomLevel - 1).coerceIn(
-                            minZoom,
-                            maxZoom
-                        )
-                    )
+                    // The minimum zoom doesn't change
+                    val newZoom = (localZoom - 1f).coerceIn(minZoom, maxZoom + OVERZOOM_LEVELS)
+                    localZoom = newZoom
+                    viewModel.setMapZoom(newZoom)
                 },
-                enabled = currentZoomLevel > minZoom
+                enabled = localZoom > minZoom
             ) {
                 Icon(Icons.Default.Remove, contentDescription = "Zoom Out")
             }
@@ -409,31 +301,20 @@ fun MapTilerComposable(
     }
 }
 
-// Helper function calculateVisibleTiles needs slight adjustment if it uses the *local* screenOffset calculation
-// It should probably just return List<TileId> and the drawing loop calculates offset.
-// OR ensure it uses the VM state passed in. Let's assume it uses the passed state:
+// This private helper function remains unchanged.
 private fun calculateVisibleTiles(
-    mapCenterGeo: GeoPosition, // Use state from VM
-    zoom: Int,                 // Use state from VM
+    mapCenterGeo: GeoPosition,
+    zoom: Int,
     viewportSize: IntSize,
     serverId: String
-): List<TileInfo> { // Keep returning TileInfo for now
-    // ... (implementation remains the same, calculates offset based on passed center/zoom) ...
+): List<TileInfo> {
     if (viewportSize == IntSize.Zero) return emptyList()
+    val zoomF = zoom.toFloat()
     val tiles = mutableListOf<TileInfo>()
-    val topLeftGeo = screenPixelToGeo(IntOffset(0, 0), mapCenterGeo, zoom, viewportSize)
-    val bottomRightGeo = screenPixelToGeo(
-        IntOffset(viewportSize.width, viewportSize.height),
-        mapCenterGeo,
-        zoom,
-        viewportSize
-    )
+    val topLeftGeo = screenPixelToGeo(IntOffset(0, 0), mapCenterGeo, zoomF, viewportSize)
+    val bottomRightGeo = screenPixelToGeo(IntOffset(viewportSize.width, viewportSize.height), mapCenterGeo, zoomF, viewportSize)
     val (minTileX, minTileY) = latLonToTileXY(topLeftGeo.latitude, topLeftGeo.longitude, zoom)
-    val (maxTileX, maxTileY) = latLonToTileXY(
-        bottomRightGeo.latitude,
-        bottomRightGeo.longitude,
-        zoom
-    )
+    val (maxTileX, maxTileY) = latLonToTileXY(bottomRightGeo.latitude, bottomRightGeo.longitude, zoom)
     val n = 1 shl zoom
     val buffer = 1
     val startX = (minTileX - buffer).coerceAtLeast(0)
@@ -444,14 +325,8 @@ private fun calculateVisibleTiles(
         for (y in startY..endY) {
             val tileId = TileId(x, y, zoom, serverId)
             val tileTopLeftGeo = worldPixelToGeo(x.toDouble() / n, y.toDouble() / n)
-            // This screenOffset is calculated based on the *current* VM state
-            val screenOffset = geoToScreenPixel(tileTopLeftGeo, mapCenterGeo, zoom, viewportSize)
-            tiles.add(
-                TileInfo(
-                    id = tileId,
-                    screenOffset = screenOffset
-                )
-            ) // Include offset here for drawing
+            val screenOffset = geoToScreenPixel(tileTopLeftGeo, mapCenterGeo, zoomF, viewportSize)
+            tiles.add(TileInfo(id = tileId, screenOffset = screenOffset))
         }
     }
     return tiles
