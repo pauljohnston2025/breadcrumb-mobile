@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.rememberDrawerState
 import androidx.compose.material.rememberScaffoldState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
@@ -113,7 +114,9 @@ fun App(
             )
         }
 
-        intentHandler.updateStartViewModel(startViewModel)
+        LaunchedEffect(Unit) {
+            intentHandler.updateStartViewModel(startViewModel)
+        }
 
         // Get the current route to potentially change the TopAppBar title
         val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -248,7 +251,7 @@ fun App(
 
                     composable(Screen.Map.route) {
                         mapViewModel.refresh() // make sure the latest tile server changes are applied
-                        MapScreen(mapViewModel, navController = navController,)
+                        MapScreen(mapViewModel, navController = navController)
                     }
 
                     composable(Screen.Storage.route) {

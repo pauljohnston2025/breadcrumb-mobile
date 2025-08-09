@@ -81,11 +81,13 @@ class StartViewModel(
         initialErrorMessage: String?
     ) {
         // return to the main overview screen if we get a gpx route, or any other load call come in
-        navController.navigate(Screen.Start.route) {
-            popUpTo(navController.graph.findStartDestination().id) {
-                inclusive = true
+        if (navController.currentDestination != null) {
+            navController.navigate(Screen.Start.route) {
+                popUpTo(navController.graph.findStartDestination().id) {
+                    inclusive = true
+                }
+                launchSingleTop = true
             }
-            launchSingleTop = true
         }
 
         if (initialErrorMessage != null) {
