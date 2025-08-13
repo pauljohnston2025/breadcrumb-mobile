@@ -110,27 +110,32 @@ All the settings from connectiq are available, and the routes can be edited (unl
 
 # Map View Page
 
-A map view for displaying the routes that have been imported, preview a route before sending it to your device. 
+A map view for displaying the routes that have been imported, preview a route before sending it to your device.
 
-*** Feature still in beta ***
+Functions:
 
-What works so far:
-* zooming in and out (with on screen buttons)
-* displaying route on map
-* panning
-* showing route elevation
-* attribution links
-* clearing current location from watch 'return to user' crosshairs
-* caching current area to phone
-* caching current area to watch (offline tiles)
-* showing current area on watch
-* pinchable zoom
-* see users location on map
-* allow user to go to their current location
+Not all functions are available all the time, eg. route Features are removed when no route is being previewed.
 
-![](images/manual/mapview-noroute.png)
-![](images/manual/mapview-nolevation.png)
-![](images/manual/mapview-elevation.png)
+* Cross - Close the currently previewed route, and just show the map view.
+* Mountains - Show/hide the route elevation data
+* Watch and Crosshair - Send the 'return to user' command to the watch, clears any current zoom or fixed location on the watch.
+* Crosshair - Move the maps view to the users current location 
+
+
+* Watch and Eye - Send the currently viewed location to the watch, this is to preview the area on the watch.
+* Plus - Zoom in
+* Minus - Zoom out
+
+
+* Download - Download the currently viewed map area for offline map routing
+* Watch and Download - Start caching the current map area on the watch. Note: This only works if the watch is configured to download a bounding box, if the watch is set to download the route only it will download the map tiles for the route that's currently loaded on the watch *NOT* the route being previewed on the phone.
+
+
+![](images/manual/map-just-route.png)
+![](images/manual/map-route-and-elevation.png)
+![](images/manual/map-caching.png)
+![](images/manual/map-no-route.png)
+![](images/manual/map-no-route2.png)
 
 ---
 
