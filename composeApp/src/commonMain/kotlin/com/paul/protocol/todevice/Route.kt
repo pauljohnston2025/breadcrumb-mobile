@@ -34,7 +34,22 @@ data class Point(val latitude: Float, val longitude: Float, val altitude: Float)
     }
 }
 
-class Route(val name: String, val route: List<Point>) : Protocol {
+class Route(val name: String, var route: List<Point>) : Protocol {
+    init {
+        // truncate our points so we can send them to the device without it crashing/taking too long
+        // the watch has this same cap on points already
+        val truncatedPoints = mutableListOf<Point>()
+        var nthPoint = Math.ceil(route.size / 400.0).toInt()
+        if (nthPoint == 0) {
+            // get all if less than 1000
+            // should never happen now we are doing ceil()
+            nthPoint = 1
+        }
+        for (i in 1 until route.size step nthPoint) {
+            truncatedPoints.add(route[i])
+        }
+        route = truncatedPoints
+    }
     override fun type(): ProtocolType {
         return ProtocolType.PROTOCOL_ROUTE_DATA
     }

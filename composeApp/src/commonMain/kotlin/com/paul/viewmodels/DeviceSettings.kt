@@ -192,7 +192,7 @@ val labelOverrides: Map<String, String> = mapOf(
     "offTrackWrongDirection" to "Wrong Direction Alerts",
     "centerUserOffsetY" to "Center User Offset Y (ratio)",
     "mapMoveScreenSize" to "Map Move Screen Size (ratio)",
-    "storageSeedBoundingBox" to "Seed Entire Bounding Box<",
+    "storageSeedBoundingBox" to "Seed Entire Bounding Box",
     "storageSeedRouteDistanceM" to "Seed Route Path Distance (m)",
 )
 

@@ -41,31 +41,13 @@ data class GpxFile(
             return null
         }
 
-        val routePoints = mutableListOf<Point>()
-        // too figure out the max size we can have
-        // for now use 1000
-        // from connectIq internals ConnectIQ.sendMessage if (data.length > 16384 ...
-        // MonkeyDouble is 9 bytes, MonkeyFloat is 5 bytes , though if its small enough error they send as float
-        // so 1000 is probably fine (since each point is double|double|float (15 to 23 bytes each))
-        // should probably condense this down (possibly send the rectangular coordinate)
-        var nthPoint = Math.ceil(points.size / 400.0).toInt()
-        if (nthPoint == 0) {
-            // get all if less than 1000
-            // should never happen now we are doing ceil()
-            nthPoint = 1
-        }
-        for (i in 1 until points.size step nthPoint) {
-            val trackPoint = points[i]
-            routePoints.add(
-                Point(
-                    trackPoint.latitude?.toFloat().let { it ?: 0.0f },
-                    trackPoint.longitude?.toFloat().let { it ?: 0.0f },
-                    trackPoint.elevation?.toFloat().let { it ?: 0.0f }
-                )
+        return Route(name(), points.map { trackPoint ->
+            Point(
+                trackPoint.latitude?.toFloat().let { it ?: 0.0f },
+                trackPoint.longitude?.toFloat().let { it ?: 0.0f },
+                trackPoint.elevation?.toFloat().let { it ?: 0.0f }
             )
-        }
-
-        return Route(name(), routePoints)
+        })
     }
 
     override fun name(): String {

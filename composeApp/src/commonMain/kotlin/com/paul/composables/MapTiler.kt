@@ -64,11 +64,13 @@ import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlin.math.abs
+import kotlin.math.cos
 import kotlin.math.ln
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.roundToInt
+import kotlin.math.sin
 
 private const val OVERZOOM_LEVELS = 3f
 
@@ -89,7 +91,14 @@ fun MapTilerComposable(
     val tilServer by viewModel.tileServerRepository.currentServerFlow().collectAsState()
     val tileCache by viewModel.tileCacheState.collectAsState()
 
-    var localCenterGeo by remember { mutableStateOf(GeoPosition(vmMapCenter.latitude.toDouble(), vmMapCenter.longitude.toDouble())) }
+    var localCenterGeo by remember {
+        mutableStateOf(
+            GeoPosition(
+                vmMapCenter.latitude.toDouble(),
+                vmMapCenter.longitude.toDouble()
+            )
+        )
+    }
     var localZoom by remember { mutableStateOf(vmZoom) }
 
     val minZoom = remember { tilServer.tileLayerMin.toFloat() }
@@ -102,7 +111,8 @@ fun MapTilerComposable(
     var centeredRoute by remember { mutableStateOf<Route?>(null) }
 
     LaunchedEffect(vmMapCenter) {
-        localCenterGeo = GeoPosition(vmMapCenter.latitude.toDouble(), vmMapCenter.longitude.toDouble())
+        localCenterGeo =
+            GeoPosition(vmMapCenter.latitude.toDouble(), vmMapCenter.longitude.toDouble())
     }
     LaunchedEffect(vmZoom) {
         localZoom = vmZoom
@@ -138,21 +148,39 @@ fun MapTilerComposable(
                 return@LaunchedEffect
             }
 
-            val targetCenterGeo = GeoPosition(minLat + (maxLat - minLat) / 2.0, minLon + (maxLon - minLon) / 2.0)
+            val targetCenterGeo =
+                GeoPosition(minLat + (maxLat - minLat) / 2.0, minLon + (maxLon - minLon) / 2.0)
             var targetZoom = maxZoom
             while (targetZoom > minZoom) {
-                val topLeftScreen = geoToScreenPixel(GeoPosition(maxLat, minLon), targetCenterGeo, targetZoom, viewportSize)
-                val bottomRightScreen = geoToScreenPixel(GeoPosition(minLat, maxLon), targetCenterGeo, targetZoom, viewportSize)
+                val topLeftScreen = geoToScreenPixel(
+                    GeoPosition(maxLat, minLon),
+                    targetCenterGeo,
+                    targetZoom,
+                    viewportSize
+                )
+                val bottomRightScreen = geoToScreenPixel(
+                    GeoPosition(minLat, maxLon),
+                    targetCenterGeo,
+                    targetZoom,
+                    viewportSize
+                )
                 val routePixelWidth = abs(bottomRightScreen.x - topLeftScreen.x)
                 val routePixelHeight = abs(bottomRightScreen.y - topLeftScreen.y)
                 val paddedViewportWidth = viewportSize.width * (1f - fitToBoundsPaddingPercent * 2)
-                val paddedViewportHeight = viewportSize.height * (1f - fitToBoundsPaddingPercent * 2)
+                val paddedViewportHeight =
+                    viewportSize.height * (1f - fitToBoundsPaddingPercent * 2)
                 if (routePixelWidth <= paddedViewportWidth && routePixelHeight <= paddedViewportHeight) break
                 targetZoom -= 0.1f
             }
 
             launch(Dispatchers.Main.immediate) {
-                viewModel.centerMapOn(Point(targetCenterGeo.latitude.toFloat(), targetCenterGeo.longitude.toFloat(), 0f))
+                viewModel.centerMapOn(
+                    Point(
+                        targetCenterGeo.latitude.toFloat(),
+                        targetCenterGeo.longitude.toFloat(),
+                        0f
+                    )
+                )
                 viewModel.setMapZoom(targetZoom.coerceIn(minZoom, maxZoom + OVERZOOM_LEVELS))
             }
             // *** THE FIX IS HERE (Part 3): Once we have centered, record the route. ***
@@ -177,18 +205,33 @@ fun MapTilerComposable(
                             val pan = event.calculatePan()
                             val zoom = event.calculateZoom()
                             val centroid = event.calculateCentroid()
-                            val newZoom = (localZoom + (ln(zoom) / ln(2.0f))).coerceIn(minZoom, maxZoom + OVERZOOM_LEVELS)
-                            val pannedCenterScreenPixel = Offset(size.width / 2f, size.height / 2f) - pan
+                            val newZoom = (localZoom + (ln(zoom) / ln(2.0f))).coerceIn(
+                                minZoom,
+                                maxZoom + OVERZOOM_LEVELS
+                            )
+                            val pannedCenterScreenPixel =
+                                Offset(size.width / 2f, size.height / 2f) - pan
                             val pannedCenterGeo = screenPixelToGeo(
-                                screenPixel = IntOffset(pannedCenterScreenPixel.x.roundToInt(), pannedCenterScreenPixel.y.roundToInt()),
+                                screenPixel = IntOffset(
+                                    pannedCenterScreenPixel.x.roundToInt(),
+                                    pannedCenterScreenPixel.y.roundToInt()
+                                ),
                                 mapCenterGeo = localCenterGeo, zoom = localZoom, viewportSize = size
                             )
                             val geoUnderCentroid = screenPixelToGeo(
-                                screenPixel = IntOffset(centroid.x.roundToInt(), centroid.y.roundToInt()),
-                                mapCenterGeo = pannedCenterGeo, zoom = localZoom, viewportSize = size
+                                screenPixel = IntOffset(
+                                    centroid.x.roundToInt(),
+                                    centroid.y.roundToInt()
+                                ),
+                                mapCenterGeo = pannedCenterGeo,
+                                zoom = localZoom,
+                                viewportSize = size
                             )
                             val finalNewCenterGeo = calculateNewCenter(
-                                targetGeo = geoUnderCentroid, targetScreenPx = centroid, newZoom = newZoom, viewportSize = size
+                                targetGeo = geoUnderCentroid,
+                                targetScreenPx = centroid,
+                                newZoom = newZoom,
+                                viewportSize = size
                             )
                             localZoom = newZoom
                             localCenterGeo = finalNewCenterGeo
@@ -196,7 +239,13 @@ fun MapTilerComposable(
                         event.changes.forEach { it.consume() }
                     } while (event.changes.any { it.pressed })
                     viewModel.setMapZoom(localZoom)
-                    viewModel.centerMapOn(Point(localCenterGeo.latitude.toFloat(), localCenterGeo.longitude.toFloat(), 0f))
+                    viewModel.centerMapOn(
+                        Point(
+                            localCenterGeo.latitude.toFloat(),
+                            localCenterGeo.longitude.toFloat(),
+                            0f
+                        )
+                    )
                 }
             }
     ) {
@@ -211,46 +260,101 @@ fun MapTilerComposable(
             }) {
                 visibleTiles.forEach { tileInfo ->
                     tileCache[tileInfo.id]?.let { imageBitmap ->
-                        drawImage(image = imageBitmap, dstOffset = tileInfo.screenOffset, dstSize = tileInfo.size)
+                        drawImage(
+                            image = imageBitmap,
+                            dstOffset = tileInfo.screenOffset,
+                            dstSize = tileInfo.size
+                        )
                     } ?: run {
                         drawRect(
                             color = Color.DarkGray.copy(alpha = 0.5f),
-                            topLeft = Offset(tileInfo.screenOffset.x.toFloat(), tileInfo.screenOffset.y.toFloat()),
-                            size = androidx.compose.ui.geometry.Size(tileInfo.size.width.toFloat(), tileInfo.size.height.toFloat())
+                            topLeft = Offset(
+                                tileInfo.screenOffset.x.toFloat(),
+                                tileInfo.screenOffset.y.toFloat()
+                            ),
+                            size = androidx.compose.ui.geometry.Size(
+                                tileInfo.size.width.toFloat(),
+                                tileInfo.size.height.toFloat()
+                            )
                         )
                     }
                 }
                 routeToDisplay?.let { route ->
                     if (route.route.size >= 2) {
                         val path = Path()
-                        val startPoint = geoToScreenPixel(GeoPosition(route.route.first().latitude.toDouble(), route.route.first().longitude.toDouble()), localCenterGeo, integerZoom.toFloat(), viewportSize)
+                        val startPoint = geoToScreenPixel(
+                            GeoPosition(
+                                route.route.first().latitude.toDouble(),
+                                route.route.first().longitude.toDouble()
+                            ), localCenterGeo, integerZoom.toFloat(), viewportSize
+                        )
                         path.moveTo(startPoint.x.toFloat(), startPoint.y.toFloat())
                         route.route.drop(1).forEach { point ->
-                            val screenPoint = geoToScreenPixel(GeoPosition(point.latitude.toDouble(), point.longitude.toDouble()), localCenterGeo, integerZoom.toFloat(), viewportSize)
+                            val screenPoint = geoToScreenPixel(
+                                GeoPosition(
+                                    point.latitude.toDouble(),
+                                    point.longitude.toDouble()
+                                ), localCenterGeo, integerZoom.toFloat(), viewportSize
+                            )
                             path.lineTo(screenPoint.x.toFloat(), screenPoint.y.toFloat())
                         }
-                        drawPath(path = path, color = routeColor, style = Stroke(width = routeStrokeWidth / scale, cap = StrokeCap.Round))
+                        drawPath(
+                            path = path,
+                            color = routeColor,
+                            style = Stroke(width = routeStrokeWidth / scale, cap = StrokeCap.Round)
+                        )
                     }
                 }
             }
             userLocation?.let { loc ->
                 val screenPos = geoToScreenPixel(
-                    geo = loc.position, mapCenterGeo = localCenterGeo, zoom = localZoom, viewportSize = viewportSize
+                    geo = loc.position,
+                    mapCenterGeo = localCenterGeo,
+                    zoom = localZoom,
+                    viewportSize = viewportSize
                 )
+                val circleRadius = 20f
+                val arrowSize = 22f // Half the base width of the arrow
                 val screenOffset = Offset(screenPos.x.toFloat(), screenPos.y.toFloat())
-                loc.bearing?.let { bearing ->
-                    rotate(degrees = bearing, pivot = screenOffset) {
+                loc.bearing?.let { nonNullBearing ->
+                    // Convert bearing to radians. Subtract 90 degrees (PI/2) to align 0 degrees with the top.
+                    val angleRad = Math.toRadians(nonNullBearing - 90.0).toFloat()
+
+                    // Calculate the arrow's center position on the edge of the circle
+                    // The arrow will be placed just outside the main circle.
+                    val arrowDistanceFromCenter = circleRadius + arrowSize / 2f
+
+                    val arrowCenterX = screenOffset.x + arrowDistanceFromCenter * cos(angleRad)
+                    val arrowCenterY = screenOffset.y + arrowDistanceFromCenter * sin(angleRad)
+                    val arrowCenter = Offset(arrowCenterX, arrowCenterY)
+
+                    // Use withTransform to isolate translation and rotation for the arrow
+                    withTransform({
+                        // First, translate the canvas to the arrow's target position
+                        translate(left = arrowCenter.x, top = arrowCenter.y)
+                        // Then, rotate around this new origin (0,0) which is now the arrow's center
+                        rotate(degrees = nonNullBearing, pivot = Offset.Zero)
+                    }) {
+                        // Define the arrow path relative to its own center (0,0)
                         val arrowPath = Path().apply {
-                            moveTo(screenOffset.x, screenOffset.y - 45f)
-                            lineTo(screenOffset.x - 22f, screenOffset.y + 22f)
-                            lineTo(screenOffset.x + 22f, screenOffset.y + 22f)
+                            val halfHeight = arrowSize * 1.5f // Make the arrow taller than it is wide
+                            moveTo(0f, -halfHeight / 2) // Tip of the arrow
+                            lineTo(-arrowSize, halfHeight / 2) // Bottom left
+                            lineTo(arrowSize, halfHeight / 2)  // Bottom right
                             close()
                         }
-                        drawPath(path = arrowPath, color = Color.Blue.copy(alpha = 0.8f))
+                        drawPath(path = arrowPath, color = Color(0xFFFF5500))
                     }
                 }
-                drawCircle(color = Color.Blue, radius = 20f, center = screenOffset)
-                drawCircle(color = Color.White, radius = 20f, center = screenOffset, style = Stroke(width = 3f))
+
+                // Draw the central circle
+                drawCircle(color = Color(0xFFFF5500), radius = circleRadius, center = screenOffset)
+                drawCircle(
+                    color = Color.White,
+                    radius = circleRadius,
+                    center = screenOffset,
+                    style = Stroke(width = 3f)
+                )
             }
         }
         ZoomLevelIndicator(
@@ -267,17 +371,42 @@ fun MapTilerComposable(
             Button(
                 onClick = {
                     if (viewportSize != IntSize.Zero) {
-                        val topLeftGeo = screenPixelToGeo(IntOffset(0, 0), localCenterGeo, localZoom, viewportSize)
-                        val bottomRightGeo = screenPixelToGeo(IntOffset(viewportSize.width, viewportSize.height), localCenterGeo, localZoom, viewportSize)
-                        viewModel.showLocationOnWatch(centerGeo = localCenterGeo, topLeftGeo = topLeftGeo, bottomRightGeo = bottomRightGeo)
+                        val topLeftGeo = screenPixelToGeo(
+                            IntOffset(0, 0),
+                            localCenterGeo,
+                            localZoom,
+                            viewportSize
+                        )
+                        val bottomRightGeo = screenPixelToGeo(
+                            IntOffset(viewportSize.width, viewportSize.height),
+                            localCenterGeo,
+                            localZoom,
+                            viewportSize
+                        )
+                        viewModel.showLocationOnWatch(
+                            centerGeo = localCenterGeo,
+                            topLeftGeo = topLeftGeo,
+                            bottomRightGeo = bottomRightGeo
+                        )
                     } else {
                         Napier.d("Viewport size not available yet.")
                     }
                 }
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy((-2).dp)) {
-                    Icon(Icons.Default.Watch, contentDescription = "Show on watch", modifier = Modifier.size(17.dp))
-                    Icon(Icons.Default.RemoveRedEye, contentDescription = "Show on watch", modifier = Modifier.size(17.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy((-2).dp)
+                ) {
+                    Icon(
+                        Icons.Default.Watch,
+                        contentDescription = "Show on watch",
+                        modifier = Modifier.size(17.dp)
+                    )
+                    Icon(
+                        Icons.Default.RemoveRedEye,
+                        contentDescription = "Show on watch",
+                        modifier = Modifier.size(17.dp)
+                    )
                 }
             }
             Button(
@@ -329,9 +458,18 @@ private fun calculateVisibleTiles(
     val zoomF = zoom.toFloat()
     val tiles = mutableListOf<TileInfo>()
     val topLeftGeo = screenPixelToGeo(IntOffset(0, 0), mapCenterGeo, zoomF, viewportSize)
-    val bottomRightGeo = screenPixelToGeo(IntOffset(viewportSize.width, viewportSize.height), mapCenterGeo, zoomF, viewportSize)
+    val bottomRightGeo = screenPixelToGeo(
+        IntOffset(viewportSize.width, viewportSize.height),
+        mapCenterGeo,
+        zoomF,
+        viewportSize
+    )
     val (minTileX, minTileY) = latLonToTileXY(topLeftGeo.latitude, topLeftGeo.longitude, zoom)
-    val (maxTileX, maxTileY) = latLonToTileXY(bottomRightGeo.latitude, bottomRightGeo.longitude, zoom)
+    val (maxTileX, maxTileY) = latLonToTileXY(
+        bottomRightGeo.latitude,
+        bottomRightGeo.longitude,
+        zoom
+    )
     val n = 1 shl zoom
     val buffer = 1
     val startX = (minTileX - buffer).coerceAtLeast(0)
@@ -342,7 +480,8 @@ private fun calculateVisibleTiles(
         for (y in startY..endY) {
             val tileId = TileId(x, y, zoom, serverId)
             val tileTopLeftGeo = worldPixelToGeo(x.toDouble() / n, y.toDouble() / n)
-            val screenOffset = geoToScreenPixel(tileTopLeftGeo, mapCenterGeo, zoomF, viewportSize)
+            val screenOffset =
+                geoToScreenPixel(tileTopLeftGeo, mapCenterGeo, zoomF, viewportSize)
             tiles.add(TileInfo(id = tileId, screenOffset = screenOffset))
         }
     }
