@@ -6,7 +6,6 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.navigation.NavHostController
 import com.paul.domain.IqDevice
 import com.paul.infrastructure.connectiq.ConnectIqNeedsInstall
 import com.paul.infrastructure.connectiq.ConnectIqNeedsUpdate
@@ -21,13 +20,23 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 
+sealed class NavigationEvent {
+    // Represents a command to navigate to a specific route
+    data class NavigateTo(val route: String) : NavigationEvent()
+
+    // Represents a command to pop the back stack
+    object PopBackStack : NavigationEvent()
+}
+
 class DeviceSelector(
-    private val navController: NavHostController,
     private val connection: IConnection,
     private val deviceList: IDeviceList,
     private val snackbarHostState: SnackbarHostState,
@@ -40,6 +49,16 @@ class DeviceSelector(
     val errorMessage: MutableState<String> = mutableStateOf("")
     var lastLoadedSettings: Settings? = null
 
+    // apparently passing navigation to the view models is not safe, and can lead to navigation quirks
+    // before i did this there was a bug where the device settings would remain open
+    // reproduction:
+    // open device page
+    // click settings cog (device settings appears)
+    // click hamburger menu and open any other page
+    // click hamburger menu and open devices page, its stuck on settings for some reason
+    private val _navigationEvents = MutableSharedFlow<NavigationEvent>()
+    val navigationEvents: SharedFlow<NavigationEvent> = _navigationEvents.asSharedFlow()
+
     init {
         viewModelScope.launch {
             try {
@@ -49,19 +68,13 @@ class DeviceSelector(
                     Napier.d("got device ${it.size} $it")
                     devicesFlow.emit(it)
                 }
-            }
-            catch (t: ConnectIqNeedsUpdate)
-            {
+            } catch (t: ConnectIqNeedsUpdate) {
                 errorMessage.value = "Please update the garmin connect app"
                 Napier.d("failed to subscribe to device list $t")
-            }
-            catch (t: ConnectIqNeedsInstall)
-            {
+            } catch (t: ConnectIqNeedsInstall) {
                 errorMessage.value = "Please install the garmin connect app"
                 Napier.d("failed to subscribe to device list $t")
-            }
-            catch (t: Throwable)
-            {
+            } catch (t: Throwable) {
                 Napier.d("failed to subscribe to device list $t")
             }
         }.invokeOnCompletion {
@@ -96,17 +109,8 @@ class DeviceSelector(
                             delay(1000);
                         }
                     }
-                }
-                catch(e: TimeoutCancellationException) {
-                    viewModelScope.launch(Dispatchers.Main) {
-                        val current = navController.currentDestination
-                        // if we already navigated away ignore the change
-                        if (current?.route == Screen.DeviceSelection.route)
-                        {
-                            // we are still on he device select page, go back
-                            navController.popBackStack()
-                        }
-                    }
+                } catch (e: TimeoutCancellationException) {
+                    _navigationEvents.emit(NavigationEvent.PopBackStack)
                 }
             }
         }
@@ -122,7 +126,7 @@ class DeviceSelector(
 
     private fun selectDevice() {
         viewModelScope.launch(Dispatchers.Main) {
-            navController.navigate(Screen.DeviceSelection.route)
+            _navigationEvents.emit(NavigationEvent.NavigateTo(Screen.DeviceSelection.route))
         }
     }
 
@@ -134,8 +138,7 @@ class DeviceSelector(
         }
     }
 
-    suspend fun openDeviceSettingsSuspend(device: IqDevice)
-    {
+    suspend fun openDeviceSettingsSuspend(device: IqDevice) {
         try {
             val settings = connection.query<Settings>(
                 device,
@@ -145,19 +148,25 @@ class DeviceSelector(
             lastLoadedSettings = settings
             Napier.d("got settings $settings")
             settingsLoading.value = false
-            viewModelScope.launch(Dispatchers.Main) {
-                navController.navigate(Screen.DeviceSettings.route)
-            }
-        }
-        catch (t: Throwable)
-        {
+            // INSTEAD of navigating, emit an event to the UI
+            _navigationEvents.emit(NavigationEvent.NavigateTo(Screen.DeviceSettings.route))
+        } catch (t: Throwable) {
             // most likely a timeout exception
             settingsLoading.value = false
             snackbarHostState.showSnackbar("Failed to load settings. Please ensure an activity is running on the watch.")
         }
     }
 
-    fun onDeviceSelected(device: IqDevice) {
+    fun onDeviceSettingsClosed() {
+        lastLoadedSettings = null
+    }
+
+    fun onDeviceSelected(device: IqDevice, selectingDevice: Boolean) {
         currentDevice.value = device
+        if (selectingDevice) {
+            viewModelScope.launch {
+                _navigationEvents.emit(NavigationEvent.PopBackStack)
+            }
+        }
     }
 }

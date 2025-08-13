@@ -28,14 +28,9 @@ import okhttp3.internal.wait
 
 
 @Composable
-fun RoutesScreen(viewModel: RoutesViewModel, navController: NavController) {
-    BackHandler {
-        if (viewModel.sendingFile.value != "") {
-            // prevent back handler when we are trying to do things, todo cancel the job we are trying to do
-            return@BackHandler
-        }
-
-        navController.popBackStack()
+fun RoutesScreen(viewModel: RoutesViewModel) {
+    BackHandler(enabled = viewModel.sendingFile.value != "") {
+        // prevent back handler when we are trying to do things, todo cancel the job we are trying to do
     }
 
     val routes = viewModel.routeRepo.routes
@@ -160,7 +155,8 @@ private fun RouteListItem(
             .fillMaxWidth()
     ) {
         Text(
-            text = "Created At: " + route.createdAt.toLocalDateTime(currentSystemDefault()).toString(),
+            text = "Created At: " + route.createdAt.toLocalDateTime(currentSystemDefault())
+                .toString(),
             style = MaterialTheme.typography.caption,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis

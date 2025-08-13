@@ -14,11 +14,13 @@ import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.rememberDrawerState
 import androidx.compose.material.rememberScaffoldState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -34,9 +36,13 @@ import com.paul.infrastructure.service.ILocationService
 import com.paul.infrastructure.service.IntentHandler
 import com.paul.infrastructure.web.WebServerController
 import com.paul.viewmodels.DebugViewModel
+import com.paul.viewmodels.DeviceSettingsNavigationEvent
 import com.paul.viewmodels.MapViewModel
+import com.paul.viewmodels.NavigationEvent
 import com.paul.viewmodels.ProfilesViewModel
+import com.paul.viewmodels.RoutesNavigationEvent
 import com.paul.viewmodels.RoutesViewModel
+import com.paul.viewmodels.StartNavigationEvent
 import com.paul.viewmodels.StartViewModel
 import com.paul.viewmodels.StorageViewModel
 import kotlinx.coroutines.launch
@@ -66,7 +72,6 @@ fun App(
         val deviceSelector =
             viewModel {
                 DeviceSelectorModel(
-                    navController,
                     connection,
                     deviceList,
                     scaffoldState.snackbarHostState
@@ -90,7 +95,6 @@ fun App(
                 scaffoldState.snackbarHostState,
                 settingsViewModel.tileServerRepo,
                 ProfileRepo(), // needs to be a singleton if anything else uses it
-                navController,
                 clipboardHandler,
             )
         }
@@ -113,7 +117,6 @@ fun App(
                 gpxFileLoader,
                 fileHelper,
                 scaffoldState.snackbarHostState,
-                navController,
                 mapViewModel,
             )
         }
@@ -122,11 +125,54 @@ fun App(
             intentHandler.updateStartViewModel(startViewModel)
         }
 
+        // Listen for navigation events from the DeviceSelector ViewModel
+        // The LaunchedEffect that listens for navigation events now becomes more descriptive
+        LaunchedEffect(key1 = Unit) {
+            deviceSelector.navigationEvents.collect { event ->
+                // Use a 'when' statement to handle all possible navigation events
+                when (event) {
+                    is NavigationEvent.NavigateTo -> {
+                        navController.navigate(event.route)
+                    }
+
+                    is NavigationEvent.PopBackStack -> {
+                        // Here is where we move the logic from the ViewModel!
+                        // The UI is now responsible for checking its own state.
+                        if (navController.currentDestination?.route == Screen.DeviceSelection.route) {
+                            navController.popBackStack()
+                        }
+                    }
+                }
+            }
+        }
+
+        LaunchedEffect(key1 = Unit) {
+            startViewModel.navigationEvents.collect { event ->
+                // Use a 'when' statement to handle all possible navigation events
+                when (event) {
+                    is StartNavigationEvent.Load -> {
+                        if (navController.currentDestination != null) {
+                            navController.navigate(Screen.Start.route) {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    inclusive = true
+                                }
+                                launchSingleTop = true
+                            }
+                        }
+                    }
+
+                    is StartNavigationEvent.NavigateTo -> {
+                        navController.navigate(event.route)
+                    }
+                }
+            }
+        }
+
         // Get the current route to potentially change the TopAppBar title
         val navBackStackEntry by navController.currentBackStackEntryAsState()
         val currentRoute = navBackStackEntry?.destination?.route
         val currentScreen =
-            drawerScreens.find { it.route == currentRoute }
+            allScreens.find { it.route == currentRoute }
                 ?: Screen.Start // Default to Start title
 
         ModalDrawer(
@@ -176,16 +222,15 @@ fun App(
                     startDestination = Screen.Start.route,
                     modifier = Modifier.padding(paddingValues) // Apply padding to NavHost content
                 ) {
-                    val current = navController.currentDestination
-                    // if we are on the select device screen but navigating to a new screen then pop stack before navigate
-                    if (current?.route == Screen.DeviceSelection.route) {
-                        navController.popBackStack()
-                    }
+//                    val current = navController.currentDestination
+//                    // if we are on the select device screen but navigating to a new screen then pop stack before navigate
+//                    if (current?.route == Screen.DeviceSelection.route) {
+//                        navController.popBackStack()
+//                    }
 
                     composable(Screen.Start.route) {
                         Start(
                             viewModel = startViewModel,
-                            navController = navController,
                         )
                     }
 
@@ -198,19 +243,28 @@ fun App(
                                 startViewModel.routeRepo,
                                 startViewModel.historyRepo,
                                 scaffoldState.snackbarHostState,
-                                navController
                             )
                         }
+
+                        LaunchedEffect(key1 = Unit) {
+                            routesViewModel.navigationEvents.collect { event ->
+                                // Use a 'when' statement to handle all possible navigation events
+                                when (event) {
+                                    is RoutesNavigationEvent.NavigateTo -> {
+                                        navController.navigate(event.route)
+                                    }
+                                }
+                            }
+                        }
+
                         RoutesScreen(
                             viewModel = routesViewModel,
-                            navController = navController,
                         )
                     }
 
                     composable(Screen.Profiles.route) {
                         ProfilesScreen(
                             viewModel = profilesViewModel,
-                            navController = navController,
                         )
                     }
 
@@ -223,7 +277,6 @@ fun App(
                     composable(Screen.Devices.route) {
                         DeviceSelector(
                             viewModel = deviceSelector,
-                            navController = navController, // Pass NavController if event system isn't fully implemented yet
                             false
                         )
                     }
@@ -231,7 +284,6 @@ fun App(
                     composable(Screen.DeviceSelection.route) {
                         DeviceSelector(
                             viewModel = deviceSelector,
-                            navController = navController, // Pass NavController if event system isn't fully implemented yet
                             true
                         )
                     }
@@ -242,20 +294,34 @@ fun App(
                             DeviceSettingsModel(
                                 deviceSelector.lastLoadedSettings!!,
                                 deviceSelector.currentDevice.value!!,
-                                navController,
                                 connection,
                                 scaffoldState.snackbarHostState,
                             )
                         }
+                        LaunchedEffect(key1 = Unit) {
+                            deviceSettings.navigationEvents.collect { event ->
+                                // Use a 'when' statement to handle all possible navigation events
+                                when (event) {
+                                    is DeviceSettingsNavigationEvent.PopBackStack -> {
+                                        navController.popBackStack()
+                                    }
+                                }
+                            }
+                        }
+                        DisposableEffect(Unit) {
+                            // onDispose is called when the composable leaves the composition
+                            onDispose {
+                                deviceSelector.onDeviceSettingsClosed()
+                            }
+                        }
                         DeviceSettings(
                             deviceSettings = deviceSettings,
-                            navController = navController,
                         )
                     }
 
                     composable(Screen.Map.route) {
                         mapViewModel.refresh() // make sure the latest tile server changes are applied
-                        MapScreen(mapViewModel, navController = navController)
+                        MapScreen(mapViewModel)
                     }
 
                     composable(Screen.Storage.route) {

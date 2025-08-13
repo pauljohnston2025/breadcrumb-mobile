@@ -13,7 +13,18 @@ import com.paul.protocol.fromdevice.Settings
 import com.paul.protocol.todevice.SaveSettings
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
+
+sealed class DeviceSettingsNavigationEvent {
+    // Represents a command to navigate to a specific route
+//    data class NavigateTo(val route: String) : DeviceSettingsNavigationEvent()
+
+    // Represents a command to pop the back stack
+    object PopBackStack : DeviceSettingsNavigationEvent()
+}
 
 @Stable
 data class RouteItem(
@@ -212,11 +223,13 @@ fun padColorString(original: String): String {
 class DeviceSettings(
     settings: Settings,
     private val device: IqDevice,
-    private val navController: NavHostController,
     private val connection: IConnection,
     private val snackbarHostState: SnackbarHostState,
 ) : ViewModel() {
     val settingsSaving: MutableState<Boolean> = mutableStateOf(false)
+
+    private val _navigationEvents = MutableSharedFlow<DeviceSettingsNavigationEvent>()
+    val navigationEvents: SharedFlow<DeviceSettingsNavigationEvent> = _navigationEvents.asSharedFlow()
 
     val propertyDefinitions = settings.settings.mapNotNull { entry ->
 
@@ -422,15 +435,15 @@ class DeviceSettings(
                 )
                 Napier.d("got settings $settings")
                 settingsSaving.value = false
-                viewModelScope.launch(Dispatchers.Main) {
-                    navController.popBackStack()
+                viewModelScope.launch {
+                    _navigationEvents.emit(DeviceSettingsNavigationEvent.PopBackStack)
                 }
             } catch (t: Throwable) {
                 settingsSaving.value = false
                 Napier.d("Failed to save settings $t")
                 snackbarHostState.showSnackbar("Failed to save settings")
-                viewModelScope.launch(Dispatchers.Main) {
-                    navController.popBackStack()
+                viewModelScope.launch {
+                    _navigationEvents.emit(DeviceSettingsNavigationEvent.PopBackStack)
                 }
             }
         }

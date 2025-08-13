@@ -25,14 +25,9 @@ import kotlinx.datetime.toLocalDateTime
 
 
 @Composable
-fun ProfilesScreen(viewModel: ProfilesViewModel, navController: NavController) {
-    BackHandler {
-        if (viewModel.sendingMessage.value != "") {
-            // prevent back handler when we are trying to do things, todo cancel the job we are trying to do
-            return@BackHandler
-        }
-
-        navController.popBackStack()
+fun ProfilesScreen(viewModel: ProfilesViewModel) {
+    BackHandler(enabled = viewModel.sendingMessage.value != "") {
+        // prevent back handler when we are trying to do things, todo cancel the job we are trying to do
     }
 
     val profiles by viewModel.profileRepo.availableProfilesFlow().collectAsState()

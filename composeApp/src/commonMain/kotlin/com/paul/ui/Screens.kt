@@ -47,3 +47,11 @@ val drawerScreens = listOf(
     Screen.Storage,
     Screen.Debug,
 )
+
+val allScreens = drawerScreens + listOf(
+    Screen.DeviceSettings,
+    Screen.DeviceSelection,
+)
+
+
+

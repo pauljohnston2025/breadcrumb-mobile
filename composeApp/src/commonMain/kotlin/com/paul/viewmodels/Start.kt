@@ -29,12 +29,22 @@ import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.utils.io.toByteArray
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.net.URLEncoder
+
+sealed class StartNavigationEvent {
+    // Represents a command to navigate to a specific route
+    data class NavigateTo(val route: String) : StartNavigationEvent()
+
+    object Load : StartNavigationEvent()
+}
 
 class StartViewModel(
     private val connection: IConnection,
@@ -42,7 +52,6 @@ class StartViewModel(
     private val gpxFileLoader: IGpxFileLoader,
     private val fileHelper: IFileHelper,
     private val snackbarHostState: SnackbarHostState,
-    private val navController: NavController,
     private val mapViewModel: MapViewModel,
 ) : ViewModel() {
     val settings: Settings = Settings()
@@ -59,6 +68,9 @@ class StartViewModel(
 
     private val _editingRoute = MutableStateFlow<RouteEntry?>(null)
     val editingRoute: StateFlow<RouteEntry?> = _editingRoute.asStateFlow()
+
+    private val _navigationEvents = MutableSharedFlow<StartNavigationEvent>()
+    val navigationEvents: SharedFlow<StartNavigationEvent> = _navigationEvents.asSharedFlow()
 
     fun requestDelete(historyItem: HistoryItem) {
         _deletingHistoryItem.value = historyItem
@@ -84,13 +96,8 @@ class StartViewModel(
         initialErrorMessage: String?
     ) {
         // return to the main overview screen if we get a gpx route, or any other load call come in
-        if (navController.currentDestination != null) {
-            navController.navigate(Screen.Start.route) {
-                popUpTo(navController.graph.findStartDestination().id) {
-                    inclusive = true
-                }
-                launchSingleTop = true
-            }
+        viewModelScope.launch {
+            _navigationEvents.emit(StartNavigationEvent.Load)
         }
 
         if (initialErrorMessage != null) {
@@ -154,17 +161,7 @@ class StartViewModel(
                 return@launch
             }
             mapViewModel.displayRoute(coords)
-        }
-
-        // Navigate if necessary
-        val current = navController.currentDestination
-        if (current?.route != Screen.Map.route) {
-            navController.navigate(Screen.Map.route) {
-                popUpTo(navController.graph.findStartDestination().id) {
-                    inclusive = true
-                }
-                launchSingleTop = true
-            }
+            _navigationEvents.emit(StartNavigationEvent.NavigateTo(Screen.Map.route))
         }
     }
 

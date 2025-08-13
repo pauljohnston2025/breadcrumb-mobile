@@ -67,16 +67,10 @@ import kotlinx.datetime.toLocalDateTime
 
 @Composable
 fun Start(
-    viewModel: StartViewModel,
-    navController: NavHostController,
+    viewModel: StartViewModel
 ) {
-    BackHandler {
-        if (viewModel.sendingFile.value != "") {
-            // prevent back handler when we are trying to do things, todo cancel the job we are trying to do
-            return@BackHandler
-        }
-
-        navController.popBackStack()
+    BackHandler(enabled = viewModel.sendingFile.value != "") {
+        // prevent back handler when we are trying to do things, todo cancel the job we are trying to do
     }
 
     var showClearHistoryDialog by remember { mutableStateOf(false) }

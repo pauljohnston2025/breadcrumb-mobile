@@ -109,14 +109,9 @@ internal const val URL_TAG =
     "URL_ATTRIBUTION_TAG" // Internal tag for identifying clickable URL parts
 
 @Composable
-fun MapScreen(viewModel: MapViewModel, navController: NavController) {
-    BackHandler {
-        if (viewModel.sendingFile.value != "") {
-            // prevent back handler when we are trying to do things, todo cancel the job we are trying to do
-            return@BackHandler
-        }
-
-        navController.popBackStack()
+fun MapScreen(viewModel: MapViewModel) {
+    BackHandler(enabled = viewModel.sendingFile.value != "") {
+        // prevent back handler when we are trying to do things, todo cancel the job we are trying to do
     }
 
     val currentRoute by viewModel.currentRoute.collectAsState()
@@ -276,7 +271,10 @@ fun MapScreen(viewModel: MapViewModel, navController: NavController) {
             ) {
                 // This Column will contain the part of the UI that changes based on isSeeding
                 Column(
-                    modifier = Modifier.weight(1f, fill = false) // Use weight to allow the watch button to have its own space
+                    modifier = Modifier.weight(
+                        1f,
+                        fill = false
+                    ) // Use weight to allow the watch button to have its own space
                 ) {
                     if (isSeeding) {
                         // --- Seeding is in Progress ---
@@ -323,10 +321,22 @@ fun MapScreen(viewModel: MapViewModel, navController: NavController) {
                                         viewModel.mapCenter.value.longitude.toDouble()
                                     )
                                     val currentZoom = viewModel.mapZoom.value
-                                    val topLeftGeo = screenPixelToGeo(IntOffset(0, 0), centerGeo, currentZoom, viewportSize)
-                                    val bottomRightGeo = screenPixelToGeo(IntOffset(viewportSize.width, viewportSize.height), centerGeo, currentZoom, viewportSize)
-                                    val tilServer = viewModel.tileServerRepository.currentServerFlow().value
-                                    val minSeedZoom = viewModel.mapZoom.value.roundToInt().coerceIn(tilServer.tileLayerMin, tilServer.tileLayerMax)
+                                    val topLeftGeo = screenPixelToGeo(
+                                        IntOffset(0, 0),
+                                        centerGeo,
+                                        currentZoom,
+                                        viewportSize
+                                    )
+                                    val bottomRightGeo = screenPixelToGeo(
+                                        IntOffset(
+                                            viewportSize.width,
+                                            viewportSize.height
+                                        ), centerGeo, currentZoom, viewportSize
+                                    )
+                                    val tilServer =
+                                        viewModel.tileServerRepository.currentServerFlow().value
+                                    val minSeedZoom = viewModel.mapZoom.value.roundToInt()
+                                        .coerceIn(tilServer.tileLayerMin, tilServer.tileLayerMax)
                                     val maxSeedZoom = tilServer.tileLayerMax
 
                                     viewModel.startSeedingArea(
@@ -361,8 +371,18 @@ fun MapScreen(viewModel: MapViewModel, navController: NavController) {
                                 viewModel.mapCenter.value.longitude.toDouble()
                             )
                             val currentZoom = viewModel.mapZoom.value
-                            val topLeftGeo = screenPixelToGeo(IntOffset(0, 0), centerGeo, currentZoom, viewportSize)
-                            val bottomRightGeo = screenPixelToGeo(IntOffset(viewportSize.width, viewportSize.height), centerGeo, currentZoom, viewportSize)
+                            val topLeftGeo = screenPixelToGeo(
+                                IntOffset(0, 0),
+                                centerGeo,
+                                currentZoom,
+                                viewportSize
+                            )
+                            val bottomRightGeo = screenPixelToGeo(
+                                IntOffset(viewportSize.width, viewportSize.height),
+                                centerGeo,
+                                currentZoom,
+                                viewportSize
+                            )
                             viewModel.startSeedingAreaToWatch(
                                 centerGeo = centerGeo,
                                 topLeftGeo = topLeftGeo,

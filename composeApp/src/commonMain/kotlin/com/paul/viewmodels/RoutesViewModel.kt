@@ -17,10 +17,18 @@ import com.paul.infrastructure.service.SendRoute
 import com.paul.ui.Screen
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+
+sealed class RoutesNavigationEvent {
+    // Represents a command to navigate to a specific route
+    data class NavigateTo(val route: String) : RoutesNavigationEvent()
+}
 
 class RoutesViewModel(
     private val mapViewModel: MapViewModel,
@@ -28,8 +36,7 @@ class RoutesViewModel(
     private val deviceSelector: DeviceSelector,
     val routeRepo: RouteRepository,
     private val historyRepo: HistoryRepository,
-    private val snackbarHostState: SnackbarHostState,
-    private val navController: NavController
+    private val snackbarHostState: SnackbarHostState
 ) : ViewModel() {
     // State for controlling the edit dialog
     private val _editingRoute = MutableStateFlow<RouteEntry?>(null)
@@ -39,6 +46,9 @@ class RoutesViewModel(
     // State for controlling the delete confirmation dialog
     private val _deletingRoute = MutableStateFlow<RouteEntry?>(null)
     val deletingRoute: StateFlow<RouteEntry?> = _deletingRoute.asStateFlow()
+
+    private val _navigationEvents = MutableSharedFlow<RoutesNavigationEvent>()
+    val navigationEvents: SharedFlow<RoutesNavigationEvent> = _navigationEvents.asSharedFlow()
 
     fun startEditing(route: RouteEntry) {
         _editingRoute.value = route
@@ -85,18 +95,10 @@ class RoutesViewModel(
                 return@launch
             }
             mapViewModel.displayRoute(coords)
+            // Navigate if necessary
+            _navigationEvents.emit(RoutesNavigationEvent.NavigateTo(Screen.Map.route))
         }
 
-        // Navigate if necessary
-        val current = navController.currentDestination
-        if (current?.route != Screen.Map.route) {
-            navController.navigate(Screen.Map.route) {
-                popUpTo(navController.graph.findStartDestination().id) {
-                    inclusive = true
-                }
-                launchSingleTop = true
-            }
-        }
     }
 
     fun sendRoute(route: RouteEntry) {

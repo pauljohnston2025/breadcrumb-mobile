@@ -63,13 +63,15 @@ fun AppDrawerContent(
                                 // avoid building up a large stack of destinations
                                 // on the back stack as users select items
                                 popUpTo(navController.graph.startDestinationId) {
-                                    saveState = true
+                                    inclusive = true
+                                    // do not save the state, when a user switches back to the device page they should not see 'device settings'
+                                     saveState = false
                                 }
                                 // Avoid multiple copies of the same destination when
                                 // reselecting the same item
                                 launchSingleTop = true
                                 // Restore state when reselecting a previously selected item
-                                restoreState = true
+                                 restoreState = false
                             }
                         }
                     }

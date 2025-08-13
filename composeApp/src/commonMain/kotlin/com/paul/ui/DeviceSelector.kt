@@ -47,16 +47,10 @@ import com.paul.viewmodels.DeviceSelector as DeviceSelectorViewModel
 fun DeviceSelector(
     // Pass the refactored ViewModel
     viewModel: DeviceSelectorViewModel,
-    navController: NavHostController,
     selectingDevice: Boolean
 ) {
-    BackHandler {
-        if (viewModel.settingsLoading.value) {
-            // prevent back handler when we are trying to do things, todo cancel the job we are trying to do
-            return@BackHandler
-        }
-
-        navController.popBackStack()
+    BackHandler(enabled = viewModel.settingsLoading.value) {
+        // prevent back handler when we are trying to do things, todo cancel the job we are trying to do
     }
 
     val devicesList = viewModel.devicesFlow().collectAsState(initial = listOf())
@@ -107,10 +101,7 @@ fun DeviceSelector(
                 DeviceListContent(
                     devices = devicesList,
                     onDeviceSelected = {
-                        viewModel.onDeviceSelected(it)
-                        if (selectingDevice) {
-                            navController.popBackStack()
-                        }
+                        viewModel.onDeviceSelected(it, selectingDevice)
                     }, // Select action
                     onSettingsClicked = { viewModel.openDeviceSettings(it) }, // Settings action
                     selectingDevice,

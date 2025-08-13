@@ -38,7 +38,6 @@ class ProfilesViewModel(
     private val snackbarHostState: SnackbarHostState,
     private val tileServerRepo: TileServerRepo,
     val profileRepo: ProfileRepo,
-    val navController: NavController,
     val clipboardHandler: IClipboardHandler,
 ) : ViewModel() {
     val sendingMessage: MutableState<String> = mutableStateOf("")
