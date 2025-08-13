@@ -316,7 +316,8 @@ fun MapScreen(viewModel: MapViewModel, navController: NavController) {
                     // --- Cache Current Area Button ---
                     Row(
                         Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Button(
                             onClick = {
@@ -417,7 +418,6 @@ fun MapScreen(viewModel: MapViewModel, navController: NavController) {
                                     Napier.d("Viewport size not available yet.")
                                 }
                             },
-//                        modifier = Modifier.align(Alignment.CenterHorizontally)
                         ) {
                             Icon(
                                 Icons.Default.Watch,

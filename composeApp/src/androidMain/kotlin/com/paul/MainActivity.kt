@@ -108,16 +108,20 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        if (intent != null)
-        {
+        if (intent != null) {
             handleIntent(intent)
         }
 
         webServerController.onStart()
     }
 
-    private fun handleIntent(intent: Intent)
-    {
+    private fun handleIntent(intent: Intent) {
+        if (intent != null && intent.action == Intent.ACTION_MAIN && intent.hasCategory(Intent.CATEGORY_LAUNCHER)) {
+            // This is a launch from the launcher icon.
+            // If the app is already open, you don't want to navigate to the start screen.
+            return
+        }
+            
         var shortGoogleUrl: String? = null
         var komootUrl: String? = null
         var initialErrorMessage: String? = null
@@ -129,8 +133,7 @@ class MainActivity : ComponentActivity() {
                         // see https://stackoverflow.com/a/75021893
                         val text = it.extras?.getString("android.intent.extra.TEXT")
                             ?.takeUnless { it.isBlank() }
-                        if (text != null && text.contains("komoot"))
-                        {
+                        if (text != null && text.contains("komoot")) {
                             komootUrl = text
                             return@let null
                         }
@@ -161,12 +164,13 @@ class MainActivity : ComponentActivity() {
 
                         // For ACTION_SEND, the URI is sometimes in the EXTRA_STREAM extra.
                         // We need a version check for compatibility with Android 13 (Tiramisu) and newer.
-                        val gpxUri: Uri? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                            intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
-                        } else {
-                            @Suppress("DEPRECATION")
-                            intent.getParcelableExtra(Intent.EXTRA_STREAM) as? Uri
-                        }
+                        val gpxUri: Uri? =
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+                            } else {
+                                @Suppress("DEPRECATION")
+                                intent.getParcelableExtra(Intent.EXTRA_STREAM) as? Uri
+                            }
 
                         if (gpxUri != null) {
                             return@let gpxUri
