@@ -214,7 +214,7 @@ private fun RouteListItem(
 }
 
 @Composable
-private fun EditRouteDialog(
+fun EditRouteDialog(
     route: RouteEntry,
     onConfirm: (newName: String) -> Unit,
     onDismiss: () -> Unit

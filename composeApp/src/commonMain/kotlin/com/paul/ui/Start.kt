@@ -82,6 +82,7 @@ fun Start(
     var showClearHistoryDialog by remember { mutableStateOf(false) }
     var routes = viewModel.routeRepo.routes
     val historyItemBeingDeleted by viewModel.deletingHistoryItem.collectAsState()
+    val routeBeingEdited by viewModel.editingRoute.collectAsState()
 
     // --- Confirmation Dialog ---
     if (showClearHistoryDialog) {
@@ -99,6 +100,14 @@ fun Start(
         DeleteConfirmationDialog(
             onConfirm = { viewModel.confirmDelete() },
             onDismiss = { viewModel.cancelDelete() }
+        )
+    }
+
+    routeBeingEdited?.let { route ->
+        EditRouteDialog(
+            route = route,
+            onConfirm = { newName -> viewModel.confirmRouteEdit(route.id, newName) },
+            onDismiss = { viewModel.cancelRouteEditing() }
         )
     }
 
@@ -169,6 +178,7 @@ fun Start(
             HistoryListSection(
                 routes = routes,
                 history = viewModel.historyRepo.history,
+                onEditClick = { viewModel.startRouteEditing(it) },
                 onPreviewClick = { viewModel.previewRoute(it) },
                 onSendClick = { viewModel.loadFileFromHistory(it) },
                 onDeleteClick = { viewModel.requestDelete(it) },
@@ -262,6 +272,7 @@ private fun HtmlErrorDisplay(htmlErrorMessage: String?, onDismiss: () -> Unit) {
 private fun HistoryListSection(
     routes: SnapshotStateList<RouteEntry>,
     history: SnapshotStateList<HistoryItem>,
+    onEditClick: (RouteEntry) -> Unit,
     onPreviewClick: (RouteEntry) -> Unit,
     onSendClick: (HistoryItem) -> Unit,
     onDeleteClick: (HistoryItem) -> Unit,
@@ -310,6 +321,7 @@ private fun HistoryListSection(
                         HistoryListItem(
                             routes = routes,
                             item = item,
+                            onEditClick = { onEditClick(it) },
                             onPreviewClick = { onPreviewClick(it) },
                             onSendClick = { onSendClick(item) },
                             onDeleteClick = { onDeleteClick(item) }
@@ -327,6 +339,7 @@ private fun HistoryListSection(
 private fun HistoryListItem(
     routes: SnapshotStateList<RouteEntry>,
     item: HistoryItem,
+    onEditClick: (RouteEntry) -> Unit,
     onPreviewClick: (RouteEntry) -> Unit,
     onSendClick: () -> Unit,
     onDeleteClick: () -> Unit
@@ -374,6 +387,11 @@ private fun HistoryListItem(
             verticalAlignment = Alignment.CenterVertically, // Center buttons vertically within this row
             horizontalArrangement = Arrangement.End // Arrange buttons closely together at the end
         ) {
+            if (route != null) {
+                IconButton(onClick = { onEditClick(route) }) {
+                    Icon(Icons.Default.Edit, contentDescription = "Edit Route")
+                }
+            }
             if (route != null) {
                 IconButton(onClick = { onPreviewClick(route) }) {
                     Icon(Icons.Default.LocationOn, contentDescription = "Preview Route")

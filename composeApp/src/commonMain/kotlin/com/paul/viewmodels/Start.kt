@@ -57,6 +57,9 @@ class StartViewModel(
     private val _deletingHistoryItem = MutableStateFlow<HistoryItem?>(null)
     val deletingHistoryItem: StateFlow<HistoryItem?> = _deletingHistoryItem.asStateFlow()
 
+    private val _editingRoute = MutableStateFlow<RouteEntry?>(null)
+    val editingRoute: StateFlow<RouteEntry?> = _editingRoute.asStateFlow()
+
     fun requestDelete(historyItem: HistoryItem) {
         _deletingHistoryItem.value = historyItem
     }
@@ -119,6 +122,21 @@ class StartViewModel(
             }
 
             loadGpxFile(uri)
+        }
+    }
+
+    fun startRouteEditing(route: RouteEntry) {
+        _editingRoute.value = route
+    }
+
+    fun cancelRouteEditing() {
+        _editingRoute.value = null
+    }
+
+    fun confirmRouteEdit(routeId: String, newName: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            routeRepo.updateRoute(routeId, newName)
+            _editingRoute.value = null // Close dialog
         }
     }
 
