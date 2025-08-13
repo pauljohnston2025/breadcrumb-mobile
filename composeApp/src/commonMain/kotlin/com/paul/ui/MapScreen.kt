@@ -266,107 +266,78 @@ fun MapScreen(viewModel: MapViewModel, navController: NavController) {
 
 
             // --- Seeding Controls / Status ---
-            // (Keep this section as is)
-            Column(
+            // This is the start of the corrected section
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                    .align(Alignment.CenterHorizontally)
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween // This will push the items to the edges
             ) {
-                if (isSeeding) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.Default.Downloading,
-                            contentDescription = "Caching map area",
-                            modifier = Modifier.size(ButtonDefaults.IconSize),
-                        )
-                        Spacer(modifier = Modifier.size(8.dp))
-                        Text("Caching map area (z-layer: $zSeedingProgress)...")
-                    }
-
-                    // New Row for the progress bar and stop button
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        LinearProgressIndicator(
-                            progress = seedingProgress,
-                            modifier = Modifier.weight(1f) // Let the bar take up available space
-                        )
-                        // The new "Stop" button
-                        Button(
-                            onClick = { viewModel.cancelSeedingArea() },
-                            colors = ButtonDefaults.buttonColors(
-                                backgroundColor = MaterialTheme.colors.error, // Use a distinct color
-                                contentColor = Color.White
-                            )
+                // This Column will contain the part of the UI that changes based on isSeeding
+                Column(
+                    modifier = Modifier.weight(1f, fill = false) // Use weight to allow the watch button to have its own space
+                ) {
+                    if (isSeeding) {
+                        // --- Seeding is in Progress ---
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                Icons.Default.Stop, // A clear icon for stopping an action
-                                contentDescription = "Stop Caching"
+                                Icons.Default.Downloading,
+                                contentDescription = "Caching map area",
+                                modifier = Modifier.size(ButtonDefaults.IconSize),
                             )
+                            Spacer(modifier = Modifier.size(8.dp))
+                            Text("Caching (z: $zSeedingProgress)...", maxLines = 1)
                         }
-                    }
-                } else {
-                    // Add Button or UI to trigger seeding
-                    // --- Cache Current Area Button ---
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            LinearProgressIndicator(
+                                progress = seedingProgress,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Button(
+                                onClick = { viewModel.cancelSeedingArea() },
+                                colors = ButtonDefaults.buttonColors(
+                                    backgroundColor = MaterialTheme.colors.error,
+                                    contentColor = Color.White
+                                )
+                            ) {
+                                Icon(
+                                    Icons.Default.Stop,
+                                    contentDescription = "Stop Caching"
+                                )
+                            }
+                        }
+                    } else {
+                        // --- Seeding is NOT in progress ---
                         Button(
                             onClick = {
-                                // We only proceed if the viewport has been measured.
                                 if (viewportSize != IntSize.Zero) {
-                                    // 1. Get the CURRENT map state from the ViewModel.
-                                    val centerPoint = viewModel.mapCenter.value
                                     val centerGeo = GeoPosition(
-                                        centerPoint.latitude.toDouble(),
-                                        centerPoint.longitude.toDouble()
+                                        viewModel.mapCenter.value.latitude.toDouble(),
+                                        viewModel.mapCenter.value.longitude.toDouble()
                                     )
                                     val currentZoom = viewModel.mapZoom.value
-
-                                    // 2. Calculate the viewport corners' geographic coordinates based on the CURRENT view.
-                                    // This is the crucial part that ensures we use what the user sees.
-                                    val topLeftGeo =
-                                        screenPixelToGeo(
-                                            IntOffset(0, 0),
-                                            centerGeo,
-                                            currentZoom,
-                                            viewportSize
-                                        )
-                                    val bottomRightGeo = screenPixelToGeo(
-                                        IntOffset(viewportSize.width, viewportSize.height),
-                                        centerGeo,
-                                        currentZoom,
-                                        viewportSize
-                                    )
-
-                                    // 3. Determine the zoom range for the download.
-                                    // Here, we'll download from the current integer zoom level up to the server's max.
-                                    // You could also define a fixed range if you prefer.
-                                    val tilServer =
-                                        viewModel.tileServerRepository.currentServerFlow().value
-                                    val minSeedZoom = viewModel.mapZoom.value.roundToInt()
-                                        .coerceIn(tilServer.tileLayerMin, tilServer.tileLayerMax)
+                                    val topLeftGeo = screenPixelToGeo(IntOffset(0, 0), centerGeo, currentZoom, viewportSize)
+                                    val bottomRightGeo = screenPixelToGeo(IntOffset(viewportSize.width, viewportSize.height), centerGeo, currentZoom, viewportSize)
+                                    val tilServer = viewModel.tileServerRepository.currentServerFlow().value
+                                    val minSeedZoom = viewModel.mapZoom.value.roundToInt().coerceIn(tilServer.tileLayerMin, tilServer.tileLayerMax)
                                     val maxSeedZoom = tilServer.tileLayerMax
 
-                                    // 4. Call the ViewModel function with the CORRECT bounds from the viewport.
                                     viewModel.startSeedingArea(
-                                        minLat = bottomRightGeo.latitude.toFloat(), // Min lat is bottom
-                                        maxLat = topLeftGeo.latitude.toFloat(),     // Max lat is top
-                                        minLon = topLeftGeo.longitude.toFloat(),    // Min lon is left
-                                        maxLon = bottomRightGeo.longitude.toFloat(), // Max lon is right
+                                        minLat = bottomRightGeo.latitude.toFloat(),
+                                        maxLat = topLeftGeo.latitude.toFloat(),
+                                        minLon = topLeftGeo.longitude.toFloat(),
+                                        maxLon = bottomRightGeo.longitude.toFloat(),
                                         minZoom = minSeedZoom,
                                         maxZoom = maxSeedZoom
                                     )
                                 } else {
-                                    // Optional: Show a message if size is not ready, though this is unlikely to happen.
                                     Napier.d("Viewport size not available yet for seeding.")
                                 }
                             },
@@ -378,62 +349,42 @@ fun MapScreen(viewModel: MapViewModel, navController: NavController) {
                             )
                             Text("Download Current Map Area")
                         }
-
-                        Button(
-                            onClick = {
-                                // Get bounds and zoom from user input or map viewport
-                                // Example fixed values:
-                                if (viewportSize != IntSize.Zero) {
-                                    // 1. Get current map state from ViewModel
-                                    val centerPoint = viewModel.mapCenter.value
-                                    val centerGeo = GeoPosition(
-                                        centerPoint.latitude.toDouble(),
-                                        centerPoint.longitude.toDouble()
-                                    )
-                                    val currentZoom = viewModel.mapZoom.value
-
-                                    // 2. Calculate viewport corners' geographic coordinates
-                                    val topLeftGeo =
-                                        screenPixelToGeo(
-                                            IntOffset(0, 0),
-                                            centerGeo,
-                                            currentZoom,
-                                            viewportSize
-                                        )
-                                    val bottomRightGeo = screenPixelToGeo(
-                                        IntOffset(viewportSize.width, viewportSize.height),
-                                        centerGeo,
-                                        currentZoom,
-                                        viewportSize
-                                    )
-
-                                    viewModel.startSeedingAreaToWatch(
-                                        centerGeo = centerGeo,
-                                        topLeftGeo = topLeftGeo,
-                                        bottomRightGeo = bottomRightGeo,
-                                    )
-                                } else {
-                                    // Optional: Show a message if size is not ready
-                                    // scope.launch { snackbarHostState.showSnackbar("Map not ready yet") }
-                                    Napier.d("Viewport size not available yet.")
-                                }
-                            },
-                        ) {
-                            Icon(
-                                Icons.Default.Watch,
-                                contentDescription = "Download map area on watch",
-                                modifier = Modifier.size(ButtonDefaults.IconSize),
-                            )
-                            Icon(
-                                Icons.Default.Download,
-                                contentDescription = "Download map area on watch",
-                                modifier = Modifier.size(ButtonDefaults.IconSize),
-                            )
-                        }
                     }
                 }
-            }
 
+                // --- This button is now outside the if/else and will ALWAYS be visible ---
+                Button(
+                    onClick = {
+                        if (viewportSize != IntSize.Zero) {
+                            val centerGeo = GeoPosition(
+                                viewModel.mapCenter.value.latitude.toDouble(),
+                                viewModel.mapCenter.value.longitude.toDouble()
+                            )
+                            val currentZoom = viewModel.mapZoom.value
+                            val topLeftGeo = screenPixelToGeo(IntOffset(0, 0), centerGeo, currentZoom, viewportSize)
+                            val bottomRightGeo = screenPixelToGeo(IntOffset(viewportSize.width, viewportSize.height), centerGeo, currentZoom, viewportSize)
+                            viewModel.startSeedingAreaToWatch(
+                                centerGeo = centerGeo,
+                                topLeftGeo = topLeftGeo,
+                                bottomRightGeo = bottomRightGeo,
+                            )
+                        } else {
+                            Napier.d("Viewport size not available yet.")
+                        }
+                    },
+                ) {
+                    Icon(
+                        Icons.Default.Watch,
+                        contentDescription = "Download map area on watch",
+                        modifier = Modifier.size(ButtonDefaults.IconSize),
+                    )
+                    Icon(
+                        Icons.Default.Download,
+                        contentDescription = "Download map area on watch",
+                        modifier = Modifier.size(ButtonDefaults.IconSize),
+                    )
+                }
+            } // This is the end of the corrected section
         }
 
         SendingFileOverlay(
@@ -441,6 +392,7 @@ fun MapScreen(viewModel: MapViewModel, navController: NavController) {
         )
     }
 }
+
 
 // Data class to hold calculated chart bounds and data
 private data class ChartData(

@@ -121,7 +121,7 @@ class MainActivity : ComponentActivity() {
             // If the app is already open, you don't want to navigate to the start screen.
             return
         }
-            
+
         var shortGoogleUrl: String? = null
         var komootUrl: String? = null
         var initialErrorMessage: String? = null
