@@ -41,13 +41,17 @@ data class GpxFile(
             return null
         }
 
-        return Route(name(), points.map { trackPoint ->
-            Point(
-                trackPoint.latitude?.toFloat().let { it ?: 0.0f },
-                trackPoint.longitude?.toFloat().let { it ?: 0.0f },
-                trackPoint.elevation?.toFloat().let { it ?: 0.0f }
-            )
-        })
+        return Route(
+            name(), points.map { trackPoint ->
+                Point(
+                    trackPoint.latitude?.toFloat().let { it ?: 0.0f },
+                    trackPoint.longitude?.toFloat().let { it ?: 0.0f },
+                    trackPoint.elevation?.toFloat().let { it ?: 0.0f }
+                )
+            },
+            // no directions for now (gpx does not always have them)
+            listOf()
+        )
     }
 
     override fun name(): String {

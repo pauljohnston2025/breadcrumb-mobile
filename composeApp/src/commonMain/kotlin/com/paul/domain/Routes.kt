@@ -2,6 +2,7 @@ package com.paul.domain
 
 import androidx.compose.material.SnackbarHostState
 import com.benasher44.uuid.uuid4
+import com.paul.protocol.todevice.DirectionPoint
 import com.paul.protocol.todevice.Point
 import com.paul.protocol.todevice.Route
 import kotlinx.datetime.Instant
@@ -19,7 +20,7 @@ abstract class IRoute(var id: String = uuid4().toString()) {
 abstract class GpxRoute : IRoute()
 
 @Serializable
-data class CoordinatesRoute(private var _name: String, private val _coordinates: List<Point>) :
+data class CoordinatesRoute(private var _name: String, private val _coordinates: List<Point>, private val _directions: List<DirectionPoint>) :
     IRoute() {
     companion object {
         fun fromBytes(bytes: ByteArray): CoordinatesRoute {
@@ -28,7 +29,7 @@ data class CoordinatesRoute(private var _name: String, private val _coordinates:
     }
 
     override suspend fun toRoute(snackbarHostState: SnackbarHostState): Route? {
-        return Route(_name, _coordinates)
+        return Route(_name, _coordinates, _directions)
     }
 
     override fun rawBytes(): ByteArray {
