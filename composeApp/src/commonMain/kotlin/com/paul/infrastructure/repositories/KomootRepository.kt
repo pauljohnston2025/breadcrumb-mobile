@@ -138,12 +138,9 @@ class KomootRepository {
                     }
                 }
             }
-            // As per your comment, the angle is stored in the 'altitude' field of the Point.
-            // Note the correction from your pseudo-code's '.long' to the data class's '.lng'.
             DirectionPoint(currentPoint.lat, currentPoint.lng, turnAngle.toFloat(), turnIndex.toFloat())
         }
 
-        // Assuming CoordinatesRoute is a data class that accepts a name, a list of points, and a list of directions.
         return CoordinatesRoute(name, points, directionPoints)
     }
 
