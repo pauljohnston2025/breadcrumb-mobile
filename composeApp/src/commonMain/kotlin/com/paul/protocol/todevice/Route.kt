@@ -11,7 +11,12 @@ data class RectPoint(val x: Float, val y: Float, val altitude: Float) {
     }
 }
 
-data class RectDirectionPoint(val x: Float, val y: Float, val angleDeg: Float, val routeIndex: Float) {
+data class RectDirectionPoint(
+    val x: Float,
+    val y: Float,
+    val angleDeg: Float,
+    val routeIndex: Float
+) {
     fun valid(): Boolean {
         return !x.isNaN() && !y.isNaN() && !angleDeg.isNaN()
     }
@@ -38,7 +43,12 @@ data class Point(val latitude: Float, val longitude: Float, val altitude: Float)
 }
 
 @Serializable
-data class DirectionPoint(val latitude: Float, val longitude: Float, val angleDeg: Float, val routeIndex: Float) {
+data class DirectionPoint(
+    val latitude: Float,
+    val longitude: Float,
+    val angleDeg: Float,
+    val routeIndex: Float
+) {
     // this function needs to exactly match RectangularPoint.latLon2xy on the watch app
     fun convert2XY(): RectDirectionPoint? {
         val latRect = ((ln(tan((90 + latitude) * _pi360)) / _pi180) * _lonConversion)
@@ -53,7 +63,8 @@ data class DirectionPoint(val latitude: Float, val longitude: Float, val angleDe
     }
 }
 
-class Route(val name: String, var route: List<Point>, var directions: List<DirectionPoint>) : Protocol {
+class Route(val name: String, var route: List<Point>, var directions: List<DirectionPoint>) :
+    Protocol {
     init {
         // truncate our points so we can send them to the device without it crashing/taking too long
         // the watch has this same cap on points already
@@ -68,7 +79,24 @@ class Route(val name: String, var route: List<Point>, var directions: List<Direc
             truncatedPoints.add(route[i])
         }
         route = truncatedPoints
-        // assume directions are very minimal, include them all and set the index to part way between the truncated route points
+        // hack for perf testing, every point is a direction
+//        directions =
+//            route.mapIndexed { index, it -> DirectionPoint(it.latitude, it.longitude, 0f, index.toFloat()) }
+
+
+        // assume directions are very minimal, we will still truncate them the same, this could skip important directions though
+        val truncatedDirections = mutableListOf<DirectionPoint>()
+        // only allow much fewer directions so we do not trip watchdog errors or run out of memory
+        var nthDirectionPoint = Math.ceil(directions.size / 100.0).toInt()
+        if (nthDirectionPoint == 0) {
+            // get all if less than 1000
+            // should never happen now we are doing ceil()
+            nthDirectionPoint = 1
+        }
+        for (i in 0 until directions.size step nthDirectionPoint) {
+            truncatedDirections.add(directions[i])
+        }
+        directions = truncatedDirections
         directions = directions.map { it.copy(routeIndex = it.routeIndex / nthPoint) }
     }
 
@@ -90,11 +118,18 @@ class Route(val name: String, var route: List<Point>, var directions: List<Direc
     }
 
     fun toV2(): Route2 {
-        return Route2(name, route.map { it.convert2XY() }.mapNotNull { it }, directions.map { it.convert2XY() }.mapNotNull { it })
+        return Route2(
+            name,
+            route.map { it.convert2XY() }.mapNotNull { it },
+            directions.map { it.convert2XY() }.mapNotNull { it })
     }
 }
 
-class Route2(private val name: String, private val route: List<RectPoint>, private val directions: List<RectDirectionPoint>) : Protocol {
+class Route2(
+    private val name: String,
+    private val route: List<RectPoint>,
+    private val directions: List<RectDirectionPoint>
+) : Protocol {
     override fun type(): ProtocolType {
         return ProtocolType.PROTOCOL_ROUTE_DATA2
     }
@@ -109,7 +144,14 @@ class Route2(private val name: String, private val route: List<RectPoint>, priva
             routeData.add(point.altitude)
         }
         data.add(routeData)
-        data.add(directions.map { listOf(it.x, it.y, it.angleDeg, it.routeIndex) })
+        val directionData = mutableListOf<Any>()
+        for (point in directions) {
+            directionData.add(point.x)
+            directionData.add(point.y)
+            directionData.add(point.angleDeg)
+            directionData.add(point.routeIndex)
+        }
+        data.add(directionData)
 
         return data
     }
