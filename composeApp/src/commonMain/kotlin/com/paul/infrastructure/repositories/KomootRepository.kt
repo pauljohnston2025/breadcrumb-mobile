@@ -14,6 +14,7 @@ import kotlinx.serialization.json.Json
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
+import kotlin.math.sqrt
 
 // there are other properties, we are just getting the ones we care about
 @Serializable
@@ -97,6 +98,12 @@ data class KomootTourDirection(
 class KomootRepository {
     private val client = KtorClient.client
 
+    companion object {
+        // The target distance (in meters) to look ahead and behind from a turn point
+        // to get a stable bearing. This avoids issues with dense points at intersections.
+        private const val BEARING_LOOKAROUND_METERS = 60.0
+    }
+
     suspend fun getRoute(url: String): CoordinatesRoute? {
         // inspired from https://github.com/DreiDe/komootGPXport
         val komootRoot = parseGpxRouteFromKomoot(url)
@@ -117,27 +124,46 @@ class KomootRepository {
 
             var turnAngle = 0.0
 
-            // To calculate a turn, we need a point before and a point after the turn.
-            if (turnIndex > 0 && turnIndex < coordinates.size - 1) {
-                val previousPoint = coordinates[turnIndex - 1]
-                val nextPoint = coordinates[turnIndex + 1]
-
-                // Ensure points are not identical to avoid calculation errors
-                if (previousPoint != currentPoint && currentPoint != nextPoint) {
-                    val bearingIn = calculateBearing(previousPoint, currentPoint)
-                    val bearingOut = calculateBearing(currentPoint, nextPoint)
-
-                    turnAngle = bearingOut - bearingIn
-
-                    // Normalize angle to be between -180 (left) and 180 (right)
-                    if (turnAngle <= -180) {
-                        turnAngle += 360
-                    }
-                    if (turnAngle > 180) {
-                        turnAngle -= 360
-                    }
+            // Find a point sufficiently far behind the turn to establish the incoming bearing.
+            // We iterate backward from the turn to find the first point that is further
+            // than our target lookaround distance.
+            var previousIndex = 0 // Default to the start of the route
+            for (i in turnIndex - 1 downTo 0) {
+                if (calculateDistanceInMeters(coordinates[i], currentPoint) > BEARING_LOOKAROUND_METERS) {
+                    previousIndex = i
+                    break // Found a suitable point
                 }
             }
+
+            // Find a point sufficiently far ahead of the turn to establish the outgoing bearing.
+            // We iterate forward to find a point further than our target distance.
+            var nextIndex = coordinates.size - 1 // Default to the end of the route
+            for (i in turnIndex + 1 until coordinates.size) {
+                if (calculateDistanceInMeters(coordinates[i], currentPoint) > BEARING_LOOKAROUND_METERS) {
+                    nextIndex = i
+                    break // Found a suitable point
+                }
+            }
+
+            val previousPoint = coordinates[previousIndex]
+            val nextPoint = coordinates[nextIndex]
+
+            // Ensure points are not identical to avoid calculation errors
+            if (previousPoint != currentPoint && currentPoint != nextPoint) {
+                val bearingIn = calculateBearing(previousPoint, currentPoint)
+                val bearingOut = calculateBearing(currentPoint, nextPoint)
+
+                turnAngle = bearingOut - bearingIn
+
+                // Normalize angle to be between -180 (left) and 180 (right)
+                if (turnAngle <= -180) {
+                    turnAngle += 360
+                }
+                if (turnAngle > 180) {
+                    turnAngle -= 360
+                }
+            }
+
             DirectionPoint(currentPoint.lat, currentPoint.lng, turnAngle.toFloat(), turnIndex.toFloat())
         }
 
@@ -160,6 +186,26 @@ class KomootRepository {
 
         val initialBearing = Math.toDegrees(atan2(y, x))
         return (initialBearing + 360) % 360 // Normalize to a 0-360 degree range
+    }
+
+    /**
+     * Calculates the great-circle distance between two points on Earth using the Haversine formula.
+     * @return The distance in meters.
+     */
+    private fun calculateDistanceInMeters(start: KomootTourCoordinate, end: KomootTourCoordinate): Double {
+        val earthRadius = 6371e3 // in meters
+
+        val lat1Rad = Math.toRadians(start.lat.toDouble())
+        val lat2Rad = Math.toRadians(end.lat.toDouble())
+        val deltaLat = Math.toRadians((end.lat - start.lat).toDouble())
+        val deltaLon = Math.toRadians((end.lng - start.lng).toDouble())
+
+        val a = sin(deltaLat / 2) * sin(deltaLat / 2) +
+                cos(lat1Rad) * cos(lat2Rad) *
+                sin(deltaLon / 2) * sin(deltaLon / 2)
+        val c = 2 * atan2(sqrt(a), sqrt(1 - a))
+
+        return earthRadius * c
     }
 
     private suspend fun parseGpxRouteFromKomoot(komootUrl: String): KomootSetPropsRoot? {
