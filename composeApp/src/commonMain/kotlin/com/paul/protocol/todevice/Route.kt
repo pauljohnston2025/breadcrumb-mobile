@@ -1,5 +1,6 @@
 package com.paul.protocol.todevice
 
+import com.garmin.monkeybrains.serialization.MonkeyChar
 import kotlinx.serialization.Serializable
 import kotlin.math.PI
 import kotlin.math.ln
@@ -79,9 +80,9 @@ class Route(val name: String, var route: List<Point>, var directions: List<Direc
             truncatedPoints.add(route[i])
         }
         route = truncatedPoints
-        // hack for perf testing, every point is a direction
-//        directions =
-//            route.mapIndexed { index, it -> DirectionPoint(it.latitude, it.longitude, 0f, index.toFloat()) }
+        // hack for perf/memory testing, every point is a direction
+        directions =
+            route.mapIndexed { index, it -> DirectionPoint(it.latitude, it.longitude, 0f, index.toFloat()) }
 
 
         // assume directions are very minimal, we will still truncate them the same, this could skip important directions though
@@ -148,7 +149,10 @@ class Route2(
         for (point in directions) {
             directionData.add(point.x)
             directionData.add(point.y)
-            directionData.add(point.angleDeg)
+            // char can only store -128 to 127
+            // so convert our -180 to 180 range down by 2
+            // this save 3 bytes on the device per direction, significant
+            directionData.add(MonkeyChar(point.angleDeg.toInt() / 2))
             directionData.add(point.routeIndex)
         }
         data.add(directionData)
