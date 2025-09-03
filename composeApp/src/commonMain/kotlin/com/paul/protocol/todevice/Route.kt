@@ -1,10 +1,21 @@
 package com.paul.protocol.todevice
 
-import com.garmin.monkeybrains.serialization.MonkeyChar
 import kotlinx.serialization.Serializable
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
 import kotlin.math.PI
 import kotlin.math.ln
 import kotlin.math.tan
+
+fun Float.toByteArrayBigEndian(): ByteArray {
+    val bits = this.toBits()
+    return byteArrayOf(
+        (bits shr 24).toByte(),
+        (bits shr 16).toByte(),
+        (bits shr 8).toByte(),
+        bits.toByte()
+    )
+}
 
 data class RectPoint(val x: Float, val y: Float, val altitude: Float) {
     fun valid(): Boolean {
@@ -135,6 +146,7 @@ class Route2(
         return ProtocolType.PROTOCOL_ROUTE_DATA2
     }
 
+    @OptIn(ExperimentalEncodingApi::class)
     override fun payload(): List<Any> {
         val data = mutableListOf<Any>(name)
 
@@ -145,17 +157,20 @@ class Route2(
             routeData.add(point.altitude)
         }
         data.add(routeData)
-        val directionData = mutableListOf<Any>()
+
+
+        val byteList = mutableListOf<Byte>()
         for (point in directions) {
-            directionData.add(point.x)
-            directionData.add(point.y)
-            // char can only store -128 to 127
-            // so convert our -180 to 180 range down by 2
-            // this save 3 bytes on the device per direction, significant
-            directionData.add(MonkeyChar(point.angleDeg.toInt() / 2))
-            directionData.add(point.routeIndex)
+            byteList.addAll(point.x.toByteArrayBigEndian().asIterable())
+            byteList.addAll(point.y.toByteArrayBigEndian().asIterable())
+            byteList.add((point.angleDeg.toInt() / 2).toByte())
+            byteList.addAll(point.routeIndex.toByteArrayBigEndian().asIterable())
         }
-        data.add(directionData)
+
+        val combinedData = byteList.toByteArray()
+        val base64EncodedString = Base64.Default.encode(combinedData)
+
+        data.add(base64EncodedString)
 
         return data
     }
