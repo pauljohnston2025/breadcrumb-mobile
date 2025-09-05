@@ -93,7 +93,14 @@ class Route(val name: String, var route: List<Point>, var directions: List<Direc
         route = truncatedPoints
         // hack for perf/memory testing, every point is a direction
         directions =
-            route.mapIndexed { index, it -> DirectionPoint(it.latitude, it.longitude, 0f, index.toFloat()) }
+            route.mapIndexed { index, it ->
+                DirectionPoint(
+                    it.latitude,
+                    it.longitude,
+                    0f,
+                    index.toFloat()
+                )
+            }
 
 
         // assume directions are very minimal, we will still truncate them the same, this could skip important directions though
@@ -146,6 +153,14 @@ class Route2(
         return ProtocolType.PROTOCOL_ROUTE_DATA2
     }
 
+    fun toV3(): Route3 {
+        return Route3(
+            name,
+            route,
+            directions
+        )
+    }
+
     @OptIn(ExperimentalEncodingApi::class)
     override fun payload(): List<Any> {
         val data = mutableListOf<Any>(name)
@@ -157,6 +172,36 @@ class Route2(
             routeData.add(point.altitude)
         }
         data.add(routeData)
+
+        return data
+    }
+}
+
+// identical to routev2 but adds compressed byte packing for route data
+// directions could have been added n a back compat way to v2, but had to break compat for
+// compressed byte format
+class Route3(
+    private val name: String,
+    private val route: List<RectPoint>,
+    private val directions: List<RectDirectionPoint>
+) : Protocol {
+    override fun type(): ProtocolType {
+        return ProtocolType.PROTOCOL_ROUTE_DATA3
+    }
+
+    @OptIn(ExperimentalEncodingApi::class)
+    override fun payload(): List<Any> {
+        val data = mutableListOf<Any>(name)
+
+        val routeDataByteList = mutableListOf<Byte>()
+        for (point in route) {
+            routeDataByteList.addAll(point.x.toByteArrayBigEndian().asIterable())
+            routeDataByteList.addAll(point.y.toByteArrayBigEndian().asIterable())
+            routeDataByteList.addAll(point.altitude.toByteArrayBigEndian().asIterable())
+        }
+        val routeDataCombinedData = routeDataByteList.toByteArray()
+        val routeDataBase64EncodedString = Base64.Default.encode(routeDataCombinedData)
+        data.add(routeDataBase64EncodedString)
 
 
         val byteList = mutableListOf<Byte>()
@@ -175,3 +220,7 @@ class Route2(
         return data
     }
 }
+
+
+
+

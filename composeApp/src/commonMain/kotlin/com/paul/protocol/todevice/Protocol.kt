@@ -10,6 +10,7 @@ enum class ProtocolType(val value: UByte) {
     PROTOCOL_COMPANION_APP_TILE_SERVER_CHANGED(6u),
     PROTOCOL_ROUTE_DATA2(7u),
     PROTOCOL_CACHE_CURRENT_AREA(8u),
+    PROTOCOL_ROUTE_DATA3(9u),
 }
 
 interface Protocol {
