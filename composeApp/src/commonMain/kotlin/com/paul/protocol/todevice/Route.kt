@@ -2,21 +2,10 @@ package com.paul.protocol.todevice
 
 import com.paul.infrastructure.repositories.RouteRepository
 import kotlinx.serialization.Serializable
-import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 import kotlin.math.PI
 import kotlin.math.ln
 import kotlin.math.tan
-
-fun Float.toByteArrayBigEndian(): ByteArray {
-    val bits = this.toBits()
-    return byteArrayOf(
-        (bits shr 24).toByte(),
-        (bits shr 16).toByte(),
-        (bits shr 8).toByte(),
-        bits.toByte()
-    )
-}
 
 data class RectPoint(val x: Float, val y: Float, val altitude: Float) {
     fun valid(): Boolean {
@@ -162,14 +151,6 @@ class Route2(
         return ProtocolType.PROTOCOL_ROUTE_DATA2
     }
 
-    fun toV3(): Route3 {
-        return Route3(
-            name,
-            route,
-            directions
-        )
-    }
-
     @OptIn(ExperimentalEncodingApi::class)
     override fun payload(): List<Any> {
         val data = mutableListOf<Any>(name)
@@ -182,54 +163,17 @@ class Route2(
         }
         data.add(routeData)
 
-        return data
-    }
-}
-
-// identical to routev2 but adds compressed byte packing for route data
-// directions could have been added n a back compat way to v2, but had to break compat for
-// compressed byte format
-class Route3(
-    private val name: String,
-    private val route: List<RectPoint>,
-    private val directions: List<RectDirectionPoint>
-) : Protocol {
-    override fun type(): ProtocolType {
-        return ProtocolType.PROTOCOL_ROUTE_DATA3
-    }
-
-    @OptIn(ExperimentalEncodingApi::class)
-    override fun payload(): List<Any> {
-        val data = mutableListOf<Any>(name)
-
-        val routeDataByteList = mutableListOf<Byte>()
-        for (point in route) {
-            routeDataByteList.addAll(point.x.toByteArrayBigEndian().asIterable())
-            routeDataByteList.addAll(point.y.toByteArrayBigEndian().asIterable())
-            routeDataByteList.addAll(point.altitude.toByteArrayBigEndian().asIterable())
-        }
-        val routeDataCombinedData = routeDataByteList.toByteArray()
-        val routeDataBase64EncodedString = Base64.Default.encode(routeDataCombinedData)
-        data.add(routeDataBase64EncodedString)
-
-
-        val byteList = mutableListOf<Byte>()
+        // old watch app ignores the extra data correctly
+        val directionData = mutableListOf<Any>()
         for (point in directions) {
-            byteList.addAll(point.x.toByteArrayBigEndian().asIterable())
-            byteList.addAll(point.y.toByteArrayBigEndian().asIterable())
-            byteList.add((point.angleDeg.toInt() / 2).toByte())
-            byteList.addAll(point.routeIndex.toByteArrayBigEndian().asIterable())
+            directionData.add(point.x)
+            directionData.add(point.y)
+            directionData.add(point.angleDeg)
+            directionData.add(point.routeIndex)
         }
+        data.add(directionData)
 
-        val combinedData = byteList.toByteArray()
-        val base64EncodedString = Base64.Default.encode(combinedData)
-
-        data.add(base64EncodedString)
 
         return data
     }
 }
-
-
-
-

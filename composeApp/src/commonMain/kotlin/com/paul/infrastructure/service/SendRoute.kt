@@ -58,11 +58,9 @@ class SendRoute {
             sendingMessage("Sending file") {
                 try {
                     val version = connection.appInfo(device).version
-                    if (version >= 16 ||
+                    if (version >= 10 ||
                         version == 0 // simulator or side loaded
                     ) {
-                        connection.send(device, route!!.toV2().toV3())
-                    } else if (version >= 10) {
                         connection.send(device, route!!.toV2())
                     } else {
                         connection.send(device, route!!)
