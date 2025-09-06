@@ -5,7 +5,9 @@ import com.paul.domain.CoordinatesRoute
 import com.paul.domain.GpxRoute
 import com.paul.domain.IRoute
 import com.paul.domain.RouteEntry
+import com.paul.domain.RouteSettings
 import com.paul.domain.RouteType
+import com.paul.infrastructure.repositories.TileServerRepo.Companion.settings
 import com.paul.infrastructure.service.IFileHelper
 import com.paul.infrastructure.service.IGpxFileLoader
 import com.russhwolf.settings.Settings
@@ -20,6 +22,30 @@ class RouteRepository(
     val ROUTES_KEY = "ROUTES"
     val settings: Settings = Settings()
     val routes = mutableStateListOf<RouteEntry>()
+
+    companion object {
+        private val SETTINGS_KEY = "ROUTE_SETTINGS"
+        private val defaultSettings = RouteSettings(400, 100);
+
+        fun getSettings(): RouteSettings {
+            val routeSettings = settings.getStringOrNull(SETTINGS_KEY)
+
+            if (routeSettings == null) {
+                return defaultSettings
+            }
+
+            return try {
+                Json.decodeFromString<RouteSettings>(routeSettings)
+            } catch (t: Throwable) {
+                // bad encoding, maybe we changed it
+                return defaultSettings
+            }
+        }
+
+        fun saveSettings(routeSettings: RouteSettings) {
+            settings.putString(SETTINGS_KEY, Json.encodeToString(routeSettings))
+        }
+    }
 
     init {
         val routesJson = settings.getStringOrNull(ROUTES_KEY)

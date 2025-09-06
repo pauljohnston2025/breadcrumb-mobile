@@ -1,5 +1,6 @@
 package com.paul.protocol.todevice
 
+import com.paul.infrastructure.repositories.RouteRepository
 import kotlinx.serialization.Serializable
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
@@ -78,17 +79,22 @@ data class DirectionPoint(
 class Route(val name: String, var route: List<Point>, var directions: List<DirectionPoint>) :
     Protocol {
     init {
+        val routeSettings = RouteRepository.getSettings()
+
         // truncate our points so we can send them to the device without it crashing/taking too long
         // the watch has this same cap on points already
         val truncatedPoints = mutableListOf<Point>()
-        var nthPoint = Math.ceil(route.size / 400.0).toInt()
-        if (nthPoint == 0) {
-            // get all if less than 1000
-            // should never happen now we are doing ceil()
-            nthPoint = 1
-        }
-        for (i in 0 until route.size step nthPoint) {
-            truncatedPoints.add(route[i])
+        if (routeSettings.coordinatesPointLimit != 0) {
+            var nthPoint =
+                Math.ceil(route.size.toDouble() / routeSettings.coordinatesPointLimit).toInt()
+            if (nthPoint == 0) {
+                // get all if less than 1000
+                // should never happen now we are doing ceil()
+                nthPoint = 1
+            }
+            for (i in 0 until route.size step nthPoint) {
+                truncatedPoints.add(route[i])
+            }
         }
         route = truncatedPoints
         // hack for perf/memory testing, every point is a direction
@@ -105,18 +111,21 @@ class Route(val name: String, var route: List<Point>, var directions: List<Direc
 
         // assume directions are very minimal, we will still truncate them the same, this could skip important directions though
         val truncatedDirections = mutableListOf<DirectionPoint>()
-        // only allow much fewer directions so we do not trip watchdog errors or run out of memory
-        var nthDirectionPoint = Math.ceil(directions.size / 100.0).toInt()
-        if (nthDirectionPoint == 0) {
-            // get all if less than 1000
-            // should never happen now we are doing ceil()
-            nthDirectionPoint = 1
-        }
-        for (i in 0 until directions.size step nthDirectionPoint) {
-            truncatedDirections.add(directions[i])
+        if (routeSettings.directionsPointLimit != 0) {
+            // only allow much fewer directions so we do not trip watchdog errors or run out of memory
+            var nthDirectionPoint =
+                Math.ceil(directions.size.toDouble() / routeSettings.directionsPointLimit).toInt()
+            if (nthDirectionPoint == 0) {
+                // get all if less than 1000
+                // should never happen now we are doing ceil()
+                nthDirectionPoint = 1
+            }
+            for (i in 0 until directions.size step nthDirectionPoint) {
+                val direction = directions[i]
+                truncatedDirections.add(direction.copy(routeIndex = direction.routeIndex / nthDirectionPoint))
+            }
         }
         directions = truncatedDirections
-        directions = directions.map { it.copy(routeIndex = it.routeIndex / nthPoint) }
     }
 
     override fun type(): ProtocolType {

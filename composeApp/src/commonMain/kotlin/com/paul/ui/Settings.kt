@@ -9,7 +9,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.AlertDialog
 import androidx.compose.material.Button
 import androidx.compose.material.Divider
@@ -281,6 +283,21 @@ fun Settings(
     val tileServerEnabled = viewModel.tileServerRepo.tileServerEnabledFlow().collectAsState(true)
     val authTokenFlow = viewModel.tileServerRepo.authTokenFlow().collectAsState("")
 
+    // --- State for Route Settings UI ---
+    val routeSettings by viewModel.routeSettings.collectAsState()
+    var coordsLimitString by remember { mutableStateOf("") }
+    var dirsLimitString by remember { mutableStateOf("") }
+
+    // This effect synchronizes the local string state with the ViewModel's state.
+    // This ensures that if the data is loaded or changed elsewhere, the UI reflects it.
+    LaunchedEffect(routeSettings) {
+        routeSettings?.let {
+            coordsLimitString = it.coordinatesPointLimit.toString()
+            dirsLimitString = it.directionsPointLimit.toString()
+        }
+    }
+
+
     // --- Call the Add Custom Server Dialog ---
     AddCustomServerDialog(
         showDialog = showAddDialog,
@@ -344,6 +361,7 @@ fun Settings(
     Column(
         modifier = modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState()) // Make the column scrollable
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -357,8 +375,6 @@ fun Settings(
                 text = "Phone Hosted Tile Server:",
                 style = MaterialTheme.typography.body1,
                 modifier = Modifier.fillMaxWidth() // Take full width for alignment
-                // You might want TextAligh.Start if your parent Column is CenterHorizontally
-                // textAlign = TextAlign.Start
             )
 
             Row(
@@ -423,8 +439,6 @@ fun Settings(
                 text = "Tile Server (map view and phone hosted):",
                 style = MaterialTheme.typography.body1,
                 modifier = Modifier.fillMaxWidth() // Take full width for alignment
-                // You might want TextAligh.Start if your parent Column is CenterHorizontally
-                // textAlign = TextAlign.Start
             )
 
 
@@ -535,6 +549,54 @@ fun Settings(
                     }
                 }
             }
+
+            Divider(modifier = Modifier.padding(vertical = 8.dp))
+
+            Text(
+                text = "Routes:",
+                style = MaterialTheme.typography.body1,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            // --- Updated Route Settings Section ---
+            // This section will only appear once the settings are loaded
+            routeSettings?.let { currentSettings ->
+                OutlinedTextField(
+                    value = coordsLimitString,
+                    onValueChange = { newValue ->
+                        // Allow user to type freely by updating local state
+                        coordsLimitString = newValue
+                        // Only update the ViewModel if the new value is a valid integer
+                        newValue.toIntOrNull()?.let { newLimit ->
+                            viewModel.onRouteSettingsChanged(
+                                currentSettings.copy(coordinatesPointLimit = newLimit)
+                            )
+                        }
+                    },
+                    label = { Text("Coordinates point limit") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                    isError = coordsLimitString.toIntOrNull() == null, // Show error if not a valid number
+                    singleLine = true
+                )
+
+                OutlinedTextField(
+                    value = dirsLimitString,
+                    onValueChange = { newValue ->
+                        dirsLimitString = newValue
+                        newValue.toIntOrNull()?.let { newLimit ->
+                            viewModel.onRouteSettingsChanged(
+                                currentSettings.copy(directionsPointLimit = newLimit)
+                            )
+                        }
+                    },
+                    label = { Text("Directions point limit") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                    isError = dirsLimitString.toIntOrNull() == null,
+                    singleLine = true
+                )
+            }
         }
         // Other settings...
         Spacer(Modifier.height(10.dp))
@@ -585,25 +647,11 @@ fun AuthTokenEditor(
     // Use a key in remember to update local state if the external currentAuthToken changes
     var textFieldValue by remember(currentAuthToken) { mutableStateOf(currentAuthToken) }
 
-    // Alternative using LaunchedEffect for synchronization (more robust if external changes are frequent):
-    /*
-    var textFieldValue by remember { mutableStateOf(currentAuthToken) }
-    LaunchedEffect(currentAuthToken) {
-        if (textFieldValue != currentAuthToken) { // Only update if different
-            textFieldValue = currentAuthToken
-        }
-    }
-    */
-
     Row(
         modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
-        // Use Start arrangement if you want label close to text field,
-        // or SpaceBetween if you want them at opposite ends (adjust TextField width accordingly)
-        horizontalArrangement = Arrangement.spacedBy(8.dp) // Add some space
-        // horizontalArrangement = Arrangement.SpaceBetween
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // Label on the left (optional, as OutlinedTextField has its own label)
         Text(
             text = "$label:", // Add colon for clarity if using external label
             style = MaterialTheme.typography.body2,
@@ -624,7 +672,6 @@ fun AuthTokenEditor(
             enabled = enabled,
             visualTransformation = if (obscureText) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
             keyboardOptions = KeyboardOptions(
-                // Suggest ASCII or Password based on obscurity, adjust as needed
                 keyboardType = if (obscureText) KeyboardType.Password else KeyboardType.Ascii
             )
         )

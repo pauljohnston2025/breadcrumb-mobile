@@ -29,6 +29,7 @@ import com.paul.infrastructure.connectiq.IConnection
 import com.paul.infrastructure.connectiq.IDeviceList
 import com.paul.infrastructure.repositories.ITileRepository
 import com.paul.infrastructure.repositories.ProfileRepo
+import com.paul.infrastructure.repositories.RouteRepository
 import com.paul.infrastructure.service.IClipboardHandler
 import com.paul.infrastructure.service.IFileHelper
 import com.paul.infrastructure.service.IGpxFileLoader
@@ -78,13 +79,15 @@ fun App(
                 )
             }
         val debugViewModel = viewModel { DebugViewModel() }
+        val routeRepo = RouteRepository(fileHelper, gpxFileLoader)
         val settingsViewModel = viewModel {
             SettingsViewModel(
                 deviceSelector,
                 connection,
                 scaffoldState.snackbarHostState,
                 webServerController,
-                tileRepo
+                tileRepo,
+                routeRepo
             )
         }
 
@@ -118,6 +121,7 @@ fun App(
                 fileHelper,
                 scaffoldState.snackbarHostState,
                 mapViewModel,
+                routeRepo
             )
         }
 

@@ -5,9 +5,11 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.paul.domain.RouteSettings
 import com.paul.domain.TileServerInfo
 import com.paul.infrastructure.connectiq.IConnection
 import com.paul.infrastructure.repositories.ITileRepository
+import com.paul.infrastructure.repositories.RouteRepository
 import com.paul.infrastructure.repositories.TileServerRepo
 import com.paul.infrastructure.web.TileType
 import com.paul.infrastructure.web.WebServerController
@@ -15,7 +17,10 @@ import com.paul.protocol.todevice.CompanionAppTileServerChanged
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.asStateFlow
 
 
 class Settings(
@@ -24,11 +29,43 @@ class Settings(
     private val snackbarHostState: SnackbarHostState,
     webServerController: WebServerController,
     tileRepo: ITileRepository,
+    routesRepo: RouteRepository,
 ) : ViewModel() {
 
     val tileServerRepo = TileServerRepo(webServerController, tileRepo)
 
     val sendingMessage: MutableState<String> = mutableStateOf("")
+
+    // --- State for RouteSettings ---
+    private val _routeSettings = MutableStateFlow<RouteSettings?>(null)
+    val routeSettings: StateFlow<RouteSettings?> = _routeSettings.asStateFlow()
+
+    init {
+        // Load initial route settings
+        viewModelScope.launch(Dispatchers.IO) {
+            _routeSettings.value = RouteRepository.getSettings()
+        }
+    }
+
+    /**
+     * Updates the route settings and persists them to the repository.
+     */
+    fun onRouteSettingsChanged(newSettings: RouteSettings) {
+        // Optimistically update the UI state
+        _routeSettings.value = newSettings
+
+        // Launch a coroutine to save the settings
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                RouteRepository.saveSettings(newSettings)
+            } catch (t: Throwable) {
+                Napier.d( "Failed to save route settings: $t")
+                snackbarHostState.showSnackbar("Error saving route settings")
+                // Optional: You could roll back the change here if saving fails
+                // _routeSettings.value = routesRepo.getSettings()
+            }
+        }
+    }
 
     fun onTileTypeSelected(tileType: TileType) {
         viewModelScope.launch(Dispatchers.IO) {

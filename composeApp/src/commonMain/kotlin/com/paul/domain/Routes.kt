@@ -10,6 +10,9 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 @Serializable
+data class RouteSettings(val coordinatesPointLimit: Int, val directionsPointLimit: Int)
+
+@Serializable
 abstract class IRoute(var id: String = uuid4().toString()) {
     abstract suspend fun toRoute(snackbarHostState: SnackbarHostState): Route?
     abstract fun name(): String

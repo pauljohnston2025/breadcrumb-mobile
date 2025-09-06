@@ -53,6 +53,7 @@ class StartViewModel(
     private val fileHelper: IFileHelper,
     private val snackbarHostState: SnackbarHostState,
     private val mapViewModel: MapViewModel,
+    val routeRepo: RouteRepository
 ) : ViewModel() {
     val settings: Settings = Settings()
 
@@ -61,7 +62,6 @@ class StartViewModel(
     val htmlErrorMessage: MutableState<String> = mutableStateOf("")
     private val client = KtorClient.client // Get the singleton client instance
     private val komootRepo = KomootRepository()
-    val routeRepo = RouteRepository(fileHelper, gpxFileLoader)
     val historyRepo = HistoryRepository()
     private val _deletingHistoryItem = MutableStateFlow<HistoryItem?>(null)
     val deletingHistoryItem: StateFlow<HistoryItem?> = _deletingHistoryItem.asStateFlow()
