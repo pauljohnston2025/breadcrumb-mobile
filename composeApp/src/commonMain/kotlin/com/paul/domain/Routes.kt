@@ -27,10 +27,13 @@ abstract class IRoute(var id: String = uuid4().toString()) {
 abstract class GpxRoute : IRoute()
 
 @Serializable
+data class DirectionInfo(val index: Int)
+
+@Serializable
 data class CoordinatesRoute(
     private var _name: String,
     private val _coordinates: List<Point>,
-    private val _directions: List<DirectionPoint> = emptyList() // need default for back compat fromBytes
+    private val _directions: List<DirectionInfo> = emptyList() // need default for back compat fromBytes
 ) :
     IRoute() {
     companion object {
