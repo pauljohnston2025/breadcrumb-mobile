@@ -59,12 +59,15 @@ The phone hosts a tile server for the watch to query tiles from. The tiles downl
 ### Routes
 
 **Coordinates Point Limit** - The maximum number of coordinates that will be sent to the watch, each coordinate is a latitude/longitude/altitude reading. A larger number of coordinates will result in a smoother route drawing, but will increase cpu and memory requirements on the watch.     
-**Turn Point Limit** - The maximum number of turn-by-turn coordinates that will be sent to the watch, each coordinate is a latitude/longitude/angle/index reading.
+**Turn Point Limit** - The maximum number of turn-by-turn coordinates that will be sent to the watch, each coordinate is an index in the coordinates and a direction to turn.
 
-Through testing on my device I have found that `Coordinates Point Limit` + `Turn Point Limit` should not exceed ~400 to ensure the full route can be sent to the watch over bluetooth. A lower limit will be needed if there are more routes since each point has associated memory and cpu considerations (watchdog), the watch app will crash if either are exceeded.
-Do not forget whe increasing these limits that the users current tack they are moving along must also be considered. Once the track points fill up it has essentially the same memory/cpu cost as a route with that many points.
+`Turn Point Limit` must be less than or equal `Coordinates Point Limit`
 
-When tweaking these settings I suggest loading 1 extra route on the watch to simulate a fully populated track, then go for a short walk to test stability.
+Through testing on my device I have found that `Coordinates Point Limit` should not exceed ~400 to ensure the full route can be sent to the watch over bluetooth. A lower limit will be needed if there are more routes since each point has associated memory and cpu considerations (watchdog), the watch app will crash if either are exceeded.  
+When using `Turn Point Limit`, `Coordinates Point Limit` should be lowered to account for the extra memory and cpu taken to process the upcoming turns.   
+Do not forget when increasing these limits that the users current track they are moving along must also be considered. Once the track points fill up it has essentially the same memory/cpu cost as a route with that many points.  
+
+When tweaking these settings I suggest loading 1 extra route on the watch to simulate a fully populated track, then go for a short walk to test stability.  
 
 Ensure to enable [Turn Alerts Distance (m)](https://github.com/pauljohnston2025/breadcrumb-garmin/blob/master/settings.md#turn-alerts-distance-m) on the watch when sending turn directions to ensure the watch processes them.  
 

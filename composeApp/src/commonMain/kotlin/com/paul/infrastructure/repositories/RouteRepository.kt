@@ -68,8 +68,16 @@ class RouteRepository(
     }
 
     suspend fun saveSettings(routeSettings: RouteSettings) {
-        currentSettings.emit(routeSettings)
-        settings.putString(SETTINGS_KEY, Json.encodeToString(routeSettings))
+        var toSave = routeSettings
+        if (routeSettings.directionsPointLimit > routeSettings.coordinatesPointLimit) {
+            // we must have at least as many coordinates kept, otherwise we cannot send the directions (direction is just an index to an existing coordinate)
+            toSave = RouteSettings(
+                routeSettings.directionsPointLimit,
+                routeSettings.directionsPointLimit
+            )
+        }
+        currentSettings.emit(toSave)
+        settings.putString(SETTINGS_KEY, Json.encodeToString(toSave))
     }
 
     suspend fun getGpxRoute(id: String): GpxRoute? {

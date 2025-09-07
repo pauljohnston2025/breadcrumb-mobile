@@ -99,9 +99,11 @@ class KomootRepository {
     private val client = KtorClient.client
 
     companion object {
-        // The target distance (in meters) to look ahead and behind from a turn point
-        // to get a stable bearing. This avoids issues with dense points at intersections.
-        private const val BEARING_LOOKAROUND_METERS = 60.0
+        // The distance (in meters) to look ahead and behind from a turn point
+        // to identify the path segment for analysis.
+        private const val BEARING_LOOKAROUND_METERS = 100.0
+        // The final portion of the path segment (in meters) to analyze for a stable bearing.
+        private const val BEARING_ANALYSIS_SEGMENT_METERS = 30.0
     }
 
     suspend fun getRoute(url: String): CoordinatesRoute? {
@@ -124,35 +126,34 @@ class KomootRepository {
 
             var turnAngle = 0.0
 
-            // Find a point sufficiently far behind the turn to establish the incoming bearing.
-            // We iterate backward from the turn to find the first point that is further
-            // than our target lookaround distance.
-            var previousIndex = 0 // Default to the start of the route
+            // ### MODIFICATION START ###
+
+            // 1. Identify the incoming and outgoing path segments around the turn.
+            val incomingSegment = mutableListOf<KomootTourCoordinate>()
             for (i in turnIndex - 1 downTo 0) {
                 if (calculateDistanceInMeters(coordinates[i], currentPoint) > BEARING_LOOKAROUND_METERS) {
-                    previousIndex = i
-                    break // Found a suitable point
+                    break
                 }
+                incomingSegment.add(0, coordinates[i])
             }
+            incomingSegment.add(currentPoint) // Add the turn point to the end of the incoming segment
 
-            // Find a point sufficiently far ahead of the turn to establish the outgoing bearing.
-            // We iterate forward to find a point further than our target distance.
-            var nextIndex = coordinates.size - 1 // Default to the end of the route
+            val outgoingSegment = mutableListOf<KomootTourCoordinate>()
+            outgoingSegment.add(currentPoint) // Add the turn point to the start of the outgoing segment
             for (i in turnIndex + 1 until coordinates.size) {
                 if (calculateDistanceInMeters(coordinates[i], currentPoint) > BEARING_LOOKAROUND_METERS) {
-                    nextIndex = i
-                    break // Found a suitable point
+                    break
                 }
+                outgoingSegment.add(coordinates[i])
             }
 
-            val previousPoint = coordinates[previousIndex]
-            val nextPoint = coordinates[nextIndex]
+            // 2. Calculate the dominant bearing for both segments.
+            val bearingIn = calculateDominantBearing(incomingSegment, BEARING_ANALYSIS_SEGMENT_METERS, true)
+            val bearingOut = calculateDominantBearing(outgoingSegment, BEARING_ANALYSIS_SEGMENT_METERS, false)
 
-            // Ensure points are not identical to avoid calculation errors
-            if (previousPoint != currentPoint && currentPoint != nextPoint) {
-                val bearingIn = calculateBearing(previousPoint, currentPoint)
-                val bearingOut = calculateBearing(currentPoint, nextPoint)
 
+            // Ensure we have valid bearings to calculate the turn angle
+            if (bearingIn != null && bearingOut != null) {
                 turnAngle = bearingOut - bearingIn
 
                 // Normalize angle to be between -180 (left) and 180 (right)
@@ -163,11 +164,60 @@ class KomootRepository {
                     turnAngle -= 360
                 }
             }
+            // ### MODIFICATION END ###
 
-            DirectionPoint(currentPoint.lat, currentPoint.lng, turnAngle.toFloat(), turnIndex.toFloat())
+            DirectionPoint(turnAngle.toFloat(), turnIndex)
         }
 
+        // todo this should store a komoot route, not a coordinates route. then we can process it differently in the future
         return CoordinatesRoute(name, points, directionPoints)
+    }
+
+    /**
+     * Calculates the dominant bearing of a path segment.
+     * @param segment The list of coordinates representing the path segment.
+     * @param analysisDistance The distance (in meters) from the end of the segment to analyze.
+     * @param fromEnd If true, the analysis is performed on the last part of the segment (for incoming paths).
+     *                If false, it's on the first part (for outgoing paths).
+     * @return The dominant bearing in degrees, or null if it cannot be determined.
+     */
+    private fun calculateDominantBearing(segment: List<KomootTourCoordinate>, analysisDistance: Double, fromEnd: Boolean): Double? {
+        if (segment.size < 2) {
+            return null // Not enough points to determine a bearing
+        }
+
+        val relevantBearings = mutableListOf<Double>()
+        var accumulatedDistance = 0.0
+
+        if (fromEnd) {
+            // Analyze the end of the segment (approaching a turn)
+            for (i in segment.size - 2 downTo 0) {
+                val point1 = segment[i]
+                val point2 = segment[i + 1]
+                val distance = calculateDistanceInMeters(point1, point2)
+                if (accumulatedDistance < analysisDistance) {
+                    relevantBearings.add(calculateBearing(point1, point2))
+                    accumulatedDistance += distance
+                } else {
+                    break
+                }
+            }
+        } else {
+            // Analyze the start of the segment (leaving a turn)
+            for (i in 0 until segment.size - 1) {
+                val point1 = segment[i]
+                val point2 = segment[i + 1]
+                val distance = calculateDistanceInMeters(point1, point2)
+                if (accumulatedDistance < analysisDistance) {
+                    relevantBearings.add(calculateBearing(point1, point2))
+                    accumulatedDistance += distance
+                } else {
+                    break
+                }
+            }
+        }
+
+        return if (relevantBearings.isNotEmpty()) relevantBearings.average() else null
     }
 
     /**
