@@ -143,18 +143,38 @@ private const val BEARING_LOOKAROUND_METERS = 100.0
 // The final portion of the path segment (in meters) to analyze for a stable bearing.
 private const val BEARING_ANALYSIS_SEGMENT_METERS = 30.0
 
+// The distance from the start or end of the route within which to ignore direction points.
+private const val IGNORE_EDGE_METERS = 30.0
+
 fun processDirectionInfo(
     coordinates: List<Point>,
     directions: List<DirectionInfo>
 ): List<DirectionPoint> {
-    // Map direction indices to DirectionPoints with calculated turn angles
-    return directions.map { direction ->
+    if (coordinates.size < 2) return emptyList()
+
+    val startPoint = coordinates.first()
+    val endPoint = coordinates.last()
+
+    // Filter out directions that are too close to the absolute start or end of the route,
+    // as these are often just initial orientation or arrival points that don't require a turn notification.
+    val filteredDirections = directions.filter { direction ->
+        // Ensure the index is valid to avoid crashes
+        if (direction.index >= coordinates.size) return@filter false
+
+        val point = coordinates[direction.index]
+        val distanceFromStart = calculateDistanceInMeters(startPoint, point)
+        val distanceFromEnd = calculateDistanceInMeters(endPoint, point)
+
+        // Keep the point only if it's sufficiently far from both the start and the end.
+        distanceFromStart > IGNORE_EDGE_METERS && distanceFromEnd > IGNORE_EDGE_METERS
+    }
+
+    // Map the filtered direction indices to DirectionPoints with calculated turn angles
+    return filteredDirections.map { direction ->
         val turnIndex = direction.index
         val currentPoint = coordinates[turnIndex]
 
         var turnAngle = 0.0
-
-        // ### MODIFICATION START ###
 
         // 1. Identify the incoming and outgoing path segments around the turn.
         val incomingSegment = mutableListOf<Point>()
@@ -202,7 +222,6 @@ fun processDirectionInfo(
                 turnAngle -= 360
             }
         }
-        // ### MODIFICATION END ###
 
         DirectionPoint(turnAngle.toFloat(), turnIndex)
     }
