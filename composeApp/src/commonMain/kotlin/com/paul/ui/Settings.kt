@@ -590,7 +590,7 @@ fun Settings(
                             )
                         }
                     },
-                    label = { Text("Directions point limit") },
+                    label = { Text("Turn point limit") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(),
                     isError = dirsLimitString.toIntOrNull() == null,
