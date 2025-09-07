@@ -36,6 +36,9 @@ data class GpxFile(
             val route = gpx.routes[0]
             Napier.d("loading route points for ${name()}")
             points = route.routePoints
+        } else if (gpx.wayPoints.size != 0) {
+            Napier.d("loading waypoints for ${name()}")
+            points = gpx.wayPoints
         } else {
             Napier.d("failed to get track or route")
             return null
@@ -78,7 +81,11 @@ data class GpxFile(
     }
 
     override fun hasDirectionInfo(): Boolean {
-        return false // not yet implemented
+        // wayPoints appear to be used as the track directions in sites like plotaroute.com
+        // we might have to let users specify where to find the directions for each route in the future, but this is fine for now
+        // If they are present we can combine them into the track/route we find
+        // because there is no guarantee that the lat/long exists in the track/route
+        return gpx.wayPoints.size != 0
     }
 
     override fun rawBytes(): ByteArray {
