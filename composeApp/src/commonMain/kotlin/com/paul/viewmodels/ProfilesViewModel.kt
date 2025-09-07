@@ -40,6 +40,7 @@ class ProfilesViewModel(
     private val tileServerRepo: TileServerRepo,
     val profileRepo: ProfileRepo,
     val clipboardHandler: IClipboardHandler,
+    val routeRepo: RouteRepository,
 ) : ViewModel() {
     val sendingMessage: MutableState<String> = mutableStateOf("")
 
@@ -207,7 +208,7 @@ class ProfilesViewModel(
             tileServerRepo.updateCurrentTileServer(tileServer)
             tileServerRepo.updateAuthToken(profile.appSettings.authToken)
             tileServerRepo.updateCurrentTileType(profile.appSettings.tileType)
-            RouteRepository.saveSettings(profile.appSettings.routeSettings)
+            routeRepo.saveSettings(profile.appSettings.routeSettings)
             delay(1000) // wait for a bit so users can read message
         }
     }
@@ -232,7 +233,7 @@ class ProfilesViewModel(
                     }
                 }
 
-                RouteRepository.saveSettings(exportedProfile.appSettings.routeSettings)
+                routeRepo.saveSettings(exportedProfile.appSettings.routeSettings)
 
                 val profile = exportedProfile.toProfile()
                 profileRepo.addProfile(profile)
@@ -291,7 +292,7 @@ class ProfilesViewModel(
             tileServerRepo.currentTileTypeFlow().value,
             tileServerRepo.currentTokenFlow().value,
             tileServerRepo.currentServerFlow().value.id,
-            RouteRepository.getSettings()
+            routeRepo.currentSettingsFlow().value
         )
     }
 

@@ -79,7 +79,6 @@ fun App(
                 )
             }
         val debugViewModel = viewModel { DebugViewModel() }
-        val routeRepo = RouteRepository(fileHelper, gpxFileLoader)
         val settingsViewModel = viewModel {
             SettingsViewModel(
                 deviceSelector,
@@ -87,7 +86,7 @@ fun App(
                 scaffoldState.snackbarHostState,
                 webServerController,
                 tileRepo,
-                routeRepo
+                RouteRepository(fileHelper, gpxFileLoader)
             )
         }
 
@@ -99,6 +98,7 @@ fun App(
                 settingsViewModel.tileServerRepo,
                 ProfileRepo(), // needs to be a singleton if anything else uses it
                 clipboardHandler,
+                settingsViewModel.routesRepo
             )
         }
 
@@ -121,7 +121,7 @@ fun App(
                 fileHelper,
                 scaffoldState.snackbarHostState,
                 mapViewModel,
-                routeRepo
+                settingsViewModel.routesRepo
             )
         }
 

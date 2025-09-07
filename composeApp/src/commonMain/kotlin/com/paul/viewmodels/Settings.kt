@@ -29,37 +29,23 @@ class Settings(
     private val snackbarHostState: SnackbarHostState,
     webServerController: WebServerController,
     tileRepo: ITileRepository,
-    routesRepo: RouteRepository,
+    public val routesRepo: RouteRepository,
 ) : ViewModel() {
 
     val tileServerRepo = TileServerRepo(webServerController, tileRepo)
 
     val sendingMessage: MutableState<String> = mutableStateOf("")
 
-    // --- State for RouteSettings ---
-    private val _routeSettings = MutableStateFlow<RouteSettings?>(null)
-    val routeSettings: StateFlow<RouteSettings?> = _routeSettings.asStateFlow()
-
-    init {
-        // Load initial route settings
-        viewModelScope.launch(Dispatchers.IO) {
-            _routeSettings.value = RouteRepository.getSettings()
-        }
-    }
-
     /**
      * Updates the route settings and persists them to the repository.
      */
     fun onRouteSettingsChanged(newSettings: RouteSettings) {
-        // Optimistically update the UI state
-        _routeSettings.value = newSettings
-
         // Launch a coroutine to save the settings
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                RouteRepository.saveSettings(newSettings)
+                routesRepo.saveSettings(newSettings)
             } catch (t: Throwable) {
-                Napier.d( "Failed to save route settings: $t")
+                Napier.d("Failed to save route settings: $t")
                 snackbarHostState.showSnackbar("Error saving route settings")
                 // Optional: You could roll back the change here if saving fails
                 // _routeSettings.value = routesRepo.getSettings()

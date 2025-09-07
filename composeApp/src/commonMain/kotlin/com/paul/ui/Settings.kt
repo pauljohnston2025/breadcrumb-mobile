@@ -43,6 +43,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.paul.composables.LoadingOverlay
+import com.paul.domain.RouteSettings
 import com.paul.domain.ServerType
 import com.paul.domain.TileServerInfo
 import com.paul.infrastructure.repositories.TileServerRepo
@@ -284,7 +285,7 @@ fun Settings(
     val authTokenFlow = viewModel.tileServerRepo.authTokenFlow().collectAsState("")
 
     // --- State for Route Settings UI ---
-    val routeSettings by viewModel.routeSettings.collectAsState()
+    val routeSettings by viewModel.routesRepo.currentSettingsFlow().collectAsState(RouteSettings.default)
     var coordsLimitString by remember { mutableStateOf("") }
     var dirsLimitString by remember { mutableStateOf("") }
 

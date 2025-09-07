@@ -7,11 +7,16 @@ import com.paul.domain.IRoute
 import com.paul.domain.RouteEntry
 import com.paul.domain.RouteSettings
 import com.paul.domain.RouteType
+import com.paul.domain.TileServerInfo
+import com.paul.infrastructure.repositories.TileServerRepo.Companion.defaultTileServer
 import com.paul.infrastructure.repositories.TileServerRepo.Companion.settings
 import com.paul.infrastructure.service.IFileHelper
 import com.paul.infrastructure.service.IGpxFileLoader
 import com.russhwolf.settings.Settings
 import io.github.aakira.napier.Napier
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.datetime.Clock
 import kotlinx.serialization.json.Json
 
@@ -22,6 +27,9 @@ class RouteRepository(
     val ROUTES_KEY = "ROUTES"
     val settings: Settings = Settings()
     val routes = mutableStateListOf<RouteEntry>()
+    private val currentSettings: MutableStateFlow<RouteSettings> = MutableStateFlow(
+        getSettings()
+    )
 
     companion object {
         private val SETTINGS_KEY = "ROUTE_SETTINGS"
@@ -40,10 +48,6 @@ class RouteRepository(
                 return RouteSettings.default
             }
         }
-
-        fun saveSettings(routeSettings: RouteSettings) {
-            settings.putString(SETTINGS_KEY, Json.encodeToString(routeSettings))
-        }
     }
 
     init {
@@ -57,6 +61,15 @@ class RouteRepository(
                 Napier.d("failed to hydrate routes items $t")
             }
         }
+    }
+
+    fun currentSettingsFlow(): StateFlow<RouteSettings> {
+        return currentSettings.asStateFlow()
+    }
+
+    suspend fun saveSettings(routeSettings: RouteSettings) {
+        currentSettings.emit(routeSettings)
+        settings.putString(SETTINGS_KEY, Json.encodeToString(routeSettings))
     }
 
     suspend fun getGpxRoute(id: String): GpxRoute? {
@@ -132,7 +145,15 @@ class RouteRepository(
             is CoordinatesRoute -> RouteType.COORDINATES
             else -> throw RuntimeException("unknown route type")
         }
-        routes.add(RouteEntry(route.id, route.name(), type, Clock.System.now(), route.rawBytes().size.toLong()))
+        routes.add(
+            RouteEntry(
+                route.id,
+                route.name(),
+                type,
+                Clock.System.now(),
+                route.rawBytes().size.toLong()
+            )
+        )
         saveRoutes()
     }
 
