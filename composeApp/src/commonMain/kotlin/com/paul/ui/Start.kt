@@ -3,7 +3,6 @@ package com.paul.ui
 import android.widget.TextView
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
@@ -27,14 +27,13 @@ import androidx.compose.material.Divider
 import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
-import androidx.compose.material.ListItem
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.OutlinedButton
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Directions
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.LocationOn
@@ -54,15 +53,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.text.HtmlCompat
-import androidx.navigation.NavHostController
 import com.paul.composables.LoadingOverlay
 import com.paul.domain.HistoryItem
 import com.paul.domain.RouteEntry
-import com.paul.infrastructure.service.formatBytes
 import com.paul.viewmodels.StartViewModel
 import kotlinx.datetime.TimeZone.Companion.currentSystemDefault
-import kotlinx.datetime.format
-import kotlinx.datetime.format.DateTimeComponents
 import kotlinx.datetime.toLocalDateTime
 
 @Composable
@@ -346,6 +341,15 @@ private fun HistoryListItem(
             .padding(start = 8.dp)
             .fillMaxWidth()
     ) {
+        if (route != null && route.hasDirectionInfo) {
+            Icon(
+                imageVector = Icons.Default.Directions,
+                contentDescription = "Contains direction info",
+                modifier = Modifier.size(18.dp), // Adjust size as needed
+                tint = MaterialTheme.colors.primary
+            )
+            Spacer(Modifier.width(6.dp)) // Space between icon and text
+        }
         Text(
             text = name,
             style = MaterialTheme.typography.subtitle1,

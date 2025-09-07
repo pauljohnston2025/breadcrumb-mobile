@@ -159,7 +159,8 @@ class RouteRepository(
                 route.name(),
                 type,
                 Clock.System.now(),
-                route.rawBytes().size.toLong()
+                route.rawBytes().size.toLong(),
+                route.hasDirectionInfo()
             )
         )
         saveRoutes()

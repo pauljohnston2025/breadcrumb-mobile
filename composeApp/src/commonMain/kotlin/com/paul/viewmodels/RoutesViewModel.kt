@@ -5,8 +5,6 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.navigation.NavController
-import androidx.navigation.NavGraph.Companion.findStartDestination
 import com.paul.domain.IRoute
 import com.paul.domain.RouteEntry
 import com.paul.infrastructure.connectiq.IConnection

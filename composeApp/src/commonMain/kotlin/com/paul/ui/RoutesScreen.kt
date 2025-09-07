@@ -15,16 +15,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items // Use items, not itemsIndexed if index not needed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.runtime.snapshots.SnapshotStateList
-import androidx.navigation.NavController
 import com.paul.domain.RouteEntry
 import com.paul.infrastructure.service.formatBytes
 import kotlinx.datetime.TimeZone.Companion.currentSystemDefault
 import kotlinx.datetime.toLocalDateTime
-import okhttp3.internal.wait
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Directions
+import androidx.compose.ui.unit.sp
 
 
 @Composable
@@ -137,10 +138,21 @@ private fun RouteListItem(
 ) {
 
     Row(
-        Modifier
-            .padding(start = 8.dp)
-            .fillMaxWidth()
+        modifier = Modifier
+            .padding(start = 8.dp, top = 4.dp)
+            .fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically // Align icon and text vertically
     ) {
+        // Conditionally display the checkmark if direction info is available
+        if (route.hasDirectionInfo) {
+            Icon(
+                imageVector = Icons.Default.Directions,
+                contentDescription = "Contains direction info",
+                modifier = Modifier.size(18.dp), // Adjust size as needed
+                tint = MaterialTheme.colors.primary
+            )
+            Spacer(Modifier.width(6.dp)) // Space between icon and text
+        }
         Text(
             text = if (route.name.isNotBlank()) route.name else "<No Name>",
             style = MaterialTheme.typography.subtitle1,
@@ -168,7 +180,7 @@ private fun RouteListItem(
         verticalAlignment = Alignment.Top,
         // Add some space between info and buttons if needed
         modifier = Modifier
-            .padding(start = 8.dp)
+            .padding(start = 8.dp, bottom = 4.dp)
             .fillMaxWidth()
     ) {
         Column {

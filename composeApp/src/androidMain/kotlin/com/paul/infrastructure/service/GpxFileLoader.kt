@@ -77,8 +77,12 @@ data class GpxFile(
         _name = name
     }
 
+    override fun hasDirectionInfo(): Boolean {
+        return false // not yet implemented
+    }
+
     override fun rawBytes(): ByteArray {
-        return _rawBytes;
+        return _rawBytes
     }
 }
 

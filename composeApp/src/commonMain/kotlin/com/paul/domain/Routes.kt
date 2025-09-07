@@ -22,6 +22,7 @@ abstract class IRoute(var id: String = uuid4().toString()) {
     abstract fun name(): String
     abstract fun rawBytes(): ByteArray
     abstract fun setName(name: String)
+    abstract fun hasDirectionInfo(): Boolean
 }
 
 abstract class GpxRoute : IRoute()
@@ -60,6 +61,10 @@ data class CoordinatesRoute(
         _name = name
     }
 
+    override fun hasDirectionInfo(): Boolean {
+        return _directions.isNotEmpty()
+    }
+
     fun coordinates(): List<Point> {
         return _coordinates
     }
@@ -78,4 +83,5 @@ data class RouteEntry(
     val type: RouteType,
     val createdAt: Instant,
     val sizeBytes: Long,
+    val hasDirectionInfo: Boolean = false,
 )
