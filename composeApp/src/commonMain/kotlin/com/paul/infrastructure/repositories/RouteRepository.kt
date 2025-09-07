@@ -25,20 +25,19 @@ class RouteRepository(
 
     companion object {
         private val SETTINGS_KEY = "ROUTE_SETTINGS"
-        private val defaultSettings = RouteSettings(400, 100);
 
         fun getSettings(): RouteSettings {
             val routeSettings = settings.getStringOrNull(SETTINGS_KEY)
 
             if (routeSettings == null) {
-                return defaultSettings
+                return RouteSettings.default
             }
 
             return try {
                 Json.decodeFromString<RouteSettings>(routeSettings)
             } catch (t: Throwable) {
                 // bad encoding, maybe we changed it
-                return defaultSettings
+                return RouteSettings.default
             }
         }
 

@@ -22,6 +22,7 @@ data class AppSettings(
     val tileType: TileType,
     val authToken: String,
     val tileServerId: String,
+    val routeSettings: RouteSettings = RouteSettings.default,
 )
 
 @Serializable

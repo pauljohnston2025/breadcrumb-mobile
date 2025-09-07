@@ -205,6 +205,11 @@ val labelOverrides: Map<String, String> = mapOf(
     "mapMoveScreenSize" to "Map Move Screen Size (ratio)",
     "storageSeedBoundingBox" to "Seed Entire Bounding Box",
     "storageSeedRouteDistanceM" to "Seed Route Path Distance (m)",
+    "directionDistanceM" to "Turn Alerts Distance (m)",
+    "maxTrackPoints" to "Max Track Points",
+    "drawHitBoxes" to "Draw Hit Boxes",
+    "showDirectionPoints" to "Show Turn Points",
+    "showDirectionPointTextUnderIndex" to "Show Turn Point Text Under Index",
 )
 
 val descriptions: Map<String, String> = mapOf(
@@ -213,6 +218,7 @@ val descriptions: Map<String, String> = mapOf(
     "fullTileSize" to "Should usually be 256. The size of the tiles on the remote tile server",
     "scaledTileSize" to "The tile size to fetch images from the web (or companion app). Setting this to something like 128 will result in 4 times the performance (compared to 256), since the images we need to download are much smaller. Smaller sizes such as 128 come at the cost of resolution as each pixel of the downloaded tile will be 4 pixels on the screen (at full resolution). Smaller values are much faster, but may not look as nice (slightly blurry)",
     "tileUrl" to "Tile url should be 'http://127.0.0.1:8080' for companion app, it can also be a template.\neg. 'https://a.tile.opentopomap.org/{z}/{x}/{y}.png'.\nTile size should generally be 256 if using a template.",
+    "directionDistanceM" to "How far away to trigger a turn alert, -1 to disable."
 )
 
 fun padColorString(original: String): String {
@@ -256,6 +262,9 @@ class DeviceSettings(
             } else {
                 when (key) {
                     // --- Numbers ---
+                    "directionDistanceM",
+                    "maxTrackPoints",
+                    "showDirectionPointTextUnderIndex",
                     "mode",
                     "uiMode",
                     "alertType",
@@ -322,6 +331,8 @@ class DeviceSettings(
                     "cacheTilesInStorage",
                     "storageMapTilesOnly",
                     "displayLatLong",
+                    "drawHitBoxes",
+                    "showDirectionPoints",
                     "scaleRestrictedToTileLayers",
                     "resetDefaults",
                     "enableOffTrackAlerts",

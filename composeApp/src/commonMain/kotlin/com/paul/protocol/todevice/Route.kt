@@ -87,15 +87,15 @@ class Route(val name: String, var route: List<Point>, var directions: List<Direc
         }
         route = truncatedPoints
         // hack for perf/memory testing, every point is a direction
-        directions =
-            route.mapIndexed { index, it ->
-                DirectionPoint(
-                    it.latitude,
-                    it.longitude,
-                    0f,
-                    index.toFloat()
-                )
-            }
+//        directions =
+//            route.mapIndexed { index, it ->
+//                DirectionPoint(
+//                    it.latitude,
+//                    it.longitude,
+//                    0f,
+//                    index.toFloat()
+//                )
+//            }
 
 
         // assume directions are very minimal, we will still truncate them the same, this could skip important directions though

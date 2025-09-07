@@ -14,6 +14,7 @@ import com.paul.domain.Profile
 import com.paul.domain.ProfileSettings
 import com.paul.infrastructure.connectiq.IConnection
 import com.paul.infrastructure.repositories.ProfileRepo
+import com.paul.infrastructure.repositories.RouteRepository
 import com.paul.infrastructure.repositories.TileServerRepo
 import com.paul.infrastructure.service.IClipboardHandler
 import com.paul.infrastructure.service.SendMessageHelper
@@ -206,6 +207,7 @@ class ProfilesViewModel(
             tileServerRepo.updateCurrentTileServer(tileServer)
             tileServerRepo.updateAuthToken(profile.appSettings.authToken)
             tileServerRepo.updateCurrentTileType(profile.appSettings.tileType)
+            RouteRepository.saveSettings(profile.appSettings.routeSettings)
             delay(1000) // wait for a bit so users can read message
         }
     }
@@ -229,6 +231,8 @@ class ProfilesViewModel(
                         tileServerRepo.onAddCustomServer(server)
                     }
                 }
+
+                RouteRepository.saveSettings(exportedProfile.appSettings.routeSettings)
 
                 val profile = exportedProfile.toProfile()
                 profileRepo.addProfile(profile)
@@ -274,8 +278,6 @@ class ProfilesViewModel(
             )
 
             profileRepo.addProfile(profile)
-
-            // todo open navhost to the newly created profile
         }
     }
 
@@ -289,6 +291,7 @@ class ProfilesViewModel(
             tileServerRepo.currentTileTypeFlow().value,
             tileServerRepo.currentTokenFlow().value,
             tileServerRepo.currentServerFlow().value.id,
+            RouteRepository.getSettings()
         )
     }
 

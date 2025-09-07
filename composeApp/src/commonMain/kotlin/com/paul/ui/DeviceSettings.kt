@@ -97,6 +97,9 @@ fun DeviceSettings(
     val displayLatLongProp = remember(editableProperties) {
         editableProperties.find { it.id == "displayLatLong" } as? EditableProperty<Boolean>
     }
+    val maxTrackPointsProp = remember(editableProperties) {
+        editableProperties.find { it.id == "maxTrackPoints" } as? EditableProperty<Boolean>
+    }
     val showOffTrackSection by offTrackAlertsEnabledProp?.state
         ?: remember { mutableStateOf(false) }
     val showOffTrackWrongDirectionSection by offTrackWrongDirectionProp?.state
@@ -153,6 +156,9 @@ fun DeviceSettings(
                     )
                 }
                 displayLatLongProp?.let { toggleProp ->
+                    item(key = toggleProp.id) { PropertyEditorResolver(toggleProp) }
+                }
+                maxTrackPointsProp?.let { toggleProp ->
                     item(key = toggleProp.id) { PropertyEditorResolver(toggleProp) }
                 }
 
@@ -307,7 +313,7 @@ fun DeviceSettings(
 
                 // --- Group: offTrackAlertsGroup (Conditional) ---
                 item(key = "off_track_alerts_header") {
-                    SectionHeader("Off Track Alerts")
+                    SectionHeader("Alerts")
                 }
                 // Render the toggle first
                 val distProp = findProp("offTrackAlertsDistanceM")
@@ -348,11 +354,17 @@ fun DeviceSettings(
                                 if (alertIntervalProp != null) PropertyEditorResolver(
                                     alertIntervalProp
                                 )
-                                val alertTypeProp = findProp("alertType")
-                                if (alertTypeProp != null) PropertyEditorResolver(alertTypeProp)
                             }
                         }
                     }
+                }
+                val alertTypeProp = findProp("alertType")
+                alertTypeProp?.let { toggleProp ->
+                    item(key = toggleProp.id) { PropertyEditorResolver(toggleProp) }
+                }
+                val directionDistanceMProp = findProp("directionDistanceM")
+                directionDistanceMProp?.let { toggleProp ->
+                    item(key = toggleProp.id) { PropertyEditorResolver(toggleProp) }
                 }
 
                 // --- Group: colours ---
@@ -459,6 +471,24 @@ fun DeviceSettings(
                 if (includeDebugPageInOnScreenUiProp != null) item(key = includeDebugPageInOnScreenUiProp.id) {
                     PropertyEditorResolver(
                         includeDebugPageInOnScreenUiProp
+                    )
+                }
+                val drawHitBoxesProp = findProp("drawHitBoxes")
+                if (drawHitBoxesProp != null) item(key = drawHitBoxesProp.id) {
+                    PropertyEditorResolver(
+                        drawHitBoxesProp
+                    )
+                }
+                val showDirectionPointsProp = findProp("showDirectionPoints")
+                if (showDirectionPointsProp != null) item(key = showDirectionPointsProp.id) {
+                    PropertyEditorResolver(
+                        showDirectionPointsProp
+                    )
+                }
+                val showDirectionPointTextUnderIndexProp = findProp("showDirectionPointTextUnderIndex")
+                if (showDirectionPointTextUnderIndexProp != null) item(key = showDirectionPointTextUnderIndexProp.id) {
+                    PropertyEditorResolver(
+                        showDirectionPointTextUnderIndexProp
                     )
                 }
 

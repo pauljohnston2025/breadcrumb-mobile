@@ -50,21 +50,23 @@ Configure the app settings. Note some of the tile server settings will clear the
 
 The phone hosts a tile server for the watch to query tiles from. The tiles downloaded are cached locally on the phone for use with offline map support. To stop the tile server (and stop getting the 'tile server running' notifications), you need to close the app, not just background it. ie. open recent apps draw on android and swipe the app away to close it.    
 
-Tile Server Enabled - enable/disable the tile server. You may want to disable the tile server if you are using a templated url on the watch, and not using the companion app to host offline tiles. This will remove some notifications, and not start the tile server process.
-Tile Type - Different ways of sending tiles to the watch, note: full colour may need a smaller tile size on the watch (64 was too large in some of my testing).  
-Add Custom Server - Manually configure a tile server for use on the companion app, this tile server will be added to the  'Select Server' dropdown.  
-Select Server - Select the tile server you wsh the companion app to serve tiles from.
-Auth Token - will be used for any tile server that specifies '{authToken}' in the template url.
+**Tile Server Enabled** - enable/disable the tile server. You may want to disable the tile server if you are using a templated url on the watch, and not using the companion app to host offline tiles. This will remove some notifications, and not start the tile server process.
+**Tile Type** - Different ways of sending tiles to the watch, note: full colour may need a smaller tile size on the watch (64 was too large in some of my testing).  
+**Add Custom Server** - Manually configure a tile server for use on the companion app, this tile server will be added to the  'Select Server' dropdown.  
+**Select Server** - Select the tile server you wsh the companion app to serve tiles from.
+**Auth Token** - will be used for any tile server that specifies '{authToken}' in the template url.
 
 ### Routes
 
-Coordinates Point Limit: The maximum number of coordinates that will be sent to the watch, each coordinate is a latitude/longitude/altitude reading. A larger number of coordinates will result in a smoother route drawing, but will increase cpu and memory requirements on the watch.     
-Turn Point Limit: The maximum number of turn-by-turn coordinates that will be sent to the watch, each coordinate is a latitude/longitude/angle/index reading.
+**Coordinates Point Limit** - The maximum number of coordinates that will be sent to the watch, each coordinate is a latitude/longitude/altitude reading. A larger number of coordinates will result in a smoother route drawing, but will increase cpu and memory requirements on the watch.     
+**Turn Point Limit** - The maximum number of turn-by-turn coordinates that will be sent to the watch, each coordinate is a latitude/longitude/angle/index reading.
 
 Through testing on my device I have found that `Coordinates Point Limit` + `Turn Point Limit` should not exceed ~400 to ensure the full route can be sent to the watch over bluetooth. A lower limit will be needed if there are more routes since each point has associated memory and cpu considerations (watchdog), the watch app will crash if either are exceeded.
 Do not forget whe increasing these limits that the users current tack they are moving along must also be considered. Once the track points fill up it has essentially the same memory/cpu cost as a route with that many points.
 
-When tweaking these settings I suggest loading 1 extra route on the watch to simulate a fully populated track, then go for a short walk to test stability.  
+When tweaking these settings I suggest loading 1 extra route on the watch to simulate a fully populated track, then go for a short walk to test stability.
+
+Ensure to enable [Turn Alerts Distance (m)](https://github.com/pauljohnston2025/breadcrumb-garmin/blob/master/settings.md#turn-alerts-distance-m) on the watch when sending turn directions to ensure the watch processes them.  
 
 ---
 
