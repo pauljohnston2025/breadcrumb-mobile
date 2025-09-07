@@ -59,7 +59,8 @@ The phone hosts a tile server for the watch to query tiles from. The tiles downl
 ### Routes
 
 **Coordinates Point Limit** - The maximum number of coordinates that will be sent to the watch, each coordinate is a latitude/longitude/altitude reading. A larger number of coordinates will result in a smoother route drawing, but will increase cpu and memory requirements on the watch.     
-**Turn Point Limit** - The maximum number of turn-by-turn coordinates that will be sent to the watch, each coordinate is an index in the coordinates and a direction to turn.
+**Turn Point Limit** - The maximum number of turn-by-turn coordinates that will be sent to the watch, each coordinate is an index in the coordinates and a direction to turn.  
+**Mock Directions** - Attempt to calculate directions from the coordinates of the route only, this setting only applies if the route loaded does not already contain directions (indicated by direction icon next to the route label).    
 
 `Turn Point Limit` must be less than or equal `Coordinates Point Limit`
 

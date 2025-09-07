@@ -187,8 +187,7 @@ fun App(
                     navController = navController,
                     drawerState = drawerState,
                     modifier = Modifier, // Pass modifier if needed for drawer content styling
-                    scope = scope,
-                    deviceSelector = deviceSelector,
+                    scope = scope
                 )
             }
         ) {

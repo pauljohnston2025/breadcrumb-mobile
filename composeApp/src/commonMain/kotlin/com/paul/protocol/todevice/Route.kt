@@ -1,6 +1,7 @@
 package com.paul.protocol.todevice
 
 import com.paul.domain.DirectionInfo
+import com.paul.domain.RouteSettings
 import com.paul.infrastructure.repositories.RouteRepository
 import kotlinx.serialization.Serializable
 import kotlin.io.encoding.ExperimentalEncodingApi
@@ -146,34 +147,115 @@ private const val BEARING_ANALYSIS_SEGMENT_METERS = 30.0
 // The distance from the start or end of the route within which to ignore direction points.
 private const val IGNORE_EDGE_METERS = 30.0
 
+// The minimum angle change (in degrees) to be considered a turn for mock directions.
+private const val ANGLE_CHANGE_THRESHOLD_DEGREES = 45.0
+
+
 fun processDirectionInfo(
+    routeSettings: RouteSettings,
     coordinates: List<Point>,
     directions: List<DirectionInfo>
 ): List<DirectionPoint> {
     if (coordinates.size < 2) return emptyList()
 
+    var effectiveDirections = directions
+
+    // If directions are empty, generate mock directions by analyzing the track's geometry.
+    if(routeSettings.mockDirections) {
+        if (directions.isEmpty() && coordinates.size > 2) {
+            val mockDirections = mutableListOf<DirectionInfo>()
+            var i = 1
+            while (i < coordinates.size - 1) {
+                val turnIndex = i
+                val currentPoint = coordinates[turnIndex]
+
+                // 1. Identify incoming and outgoing path segments around the potential turn point.
+                val incomingSegment = mutableListOf<Point>()
+                for (j in turnIndex - 1 downTo 0) {
+                    incomingSegment.add(0, coordinates[j])
+                    if (calculateDistanceInMeters(
+                            coordinates[j],
+                            currentPoint
+                        ) > BEARING_LOOKAROUND_METERS
+                    ) {
+                        break
+                    }
+                }
+                incomingSegment.add(currentPoint)
+
+                val outgoingSegment = mutableListOf<Point>()
+                outgoingSegment.add(currentPoint)
+                for (j in turnIndex + 1 until coordinates.size) {
+                    outgoingSegment.add(coordinates[j])
+                    if (calculateDistanceInMeters(
+                            coordinates[j],
+                            currentPoint
+                        ) > BEARING_LOOKAROUND_METERS
+                    ) {
+                        break
+                    }
+                }
+
+                // 2. Calculate the dominant bearing for both segments.
+                val bearingIn =
+                    calculateDominantBearing(incomingSegment, BEARING_ANALYSIS_SEGMENT_METERS, true)
+                val bearingOut =
+                    calculateDominantBearing(
+                        outgoingSegment,
+                        BEARING_ANALYSIS_SEGMENT_METERS,
+                        false
+                    )
+
+                if (bearingIn != null && bearingOut != null) {
+                    var turnAngle = bearingOut - bearingIn
+                    // Normalize angle between -180 and 180
+                    if (turnAngle <= -180) turnAngle += 360
+                    if (turnAngle > 180) turnAngle -= 360
+
+                    if (kotlin.math.abs(turnAngle) > ANGLE_CHANGE_THRESHOLD_DEGREES) {
+                        mockDirections.add(DirectionInfo(index = turnIndex))
+
+                        // Advance index past this turn to avoid detecting it multiple times.
+                        val turnPoint = coordinates[turnIndex]
+                        var nextIndex = turnIndex + 1
+                        while (nextIndex < coordinates.size - 1) {
+                            if (calculateDistanceInMeters(
+                                    turnPoint,
+                                    coordinates[nextIndex]
+                                ) > BEARING_ANALYSIS_SEGMENT_METERS
+                            ) {
+                                break
+                            }
+                            nextIndex++
+                        }
+                        i = nextIndex
+                        continue // Continue to the next iteration of the while loop
+                    }
+                }
+                i++ // Move to the next point if no significant turn was found
+            }
+            effectiveDirections = mockDirections
+        }
+    }
+
     val startPoint = coordinates.first()
     val endPoint = coordinates.last()
 
-    // Filter out directions that are too close to the absolute start or end of the route,
-    // as these are often just initial orientation or arrival points that don't require a turn notification.
-    val filteredDirections = directions.filter { direction ->
-        // Ensure the index is valid to avoid crashes
+    // Filter out directions that are too close to the absolute start or end of the route.
+    val filteredDirections = effectiveDirections.filter { direction ->
         if (direction.index >= coordinates.size) return@filter false
 
         val point = coordinates[direction.index]
         val distanceFromStart = calculateDistanceInMeters(startPoint, point)
         val distanceFromEnd = calculateDistanceInMeters(endPoint, point)
 
-        // Keep the point only if it's sufficiently far from both the start and the end.
         distanceFromStart > IGNORE_EDGE_METERS && distanceFromEnd > IGNORE_EDGE_METERS
     }
 
-    // Map the filtered direction indices to DirectionPoints with calculated turn angles
+    // Map the filtered direction indices to DirectionPoints with calculated turn angles.
     return filteredDirections.map { direction ->
         val turnIndex = direction.index
         val currentPoint = coordinates[turnIndex]
-
         var turnAngle = 0.0
 
         // 1. Identify the incoming and outgoing path segments around the turn.
@@ -209,7 +291,6 @@ fun processDirectionInfo(
         val bearingOut =
             calculateDominantBearing(outgoingSegment, BEARING_ANALYSIS_SEGMENT_METERS, false)
 
-
         // Ensure we have valid bearings to calculate the turn angle
         if (bearingIn != null && bearingOut != null) {
             turnAngle = bearingOut - bearingIn
@@ -229,12 +310,10 @@ fun processDirectionInfo(
 
 class Route(val name: String, var route: List<Point>, directionsIn: List<DirectionInfo>) :
     Protocol {
-    private var directions = processDirectionInfo(route, directionsIn)
+    private val routeSettings = RouteRepository.getSettings()
+    private var directions = processDirectionInfo(routeSettings, route, directionsIn)
 
     init {
-        val routeSettings = RouteRepository.getSettings()
-
-
         // hack for perf/memory testing, every point is a direction
 //        directions =
 //            route.mapIndexed { index, it ->

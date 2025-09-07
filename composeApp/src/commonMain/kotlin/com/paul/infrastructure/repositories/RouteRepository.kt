@@ -7,8 +7,6 @@ import com.paul.domain.IRoute
 import com.paul.domain.RouteEntry
 import com.paul.domain.RouteSettings
 import com.paul.domain.RouteType
-import com.paul.domain.TileServerInfo
-import com.paul.infrastructure.repositories.TileServerRepo.Companion.defaultTileServer
 import com.paul.infrastructure.repositories.TileServerRepo.Companion.settings
 import com.paul.infrastructure.service.IFileHelper
 import com.paul.infrastructure.service.IGpxFileLoader
@@ -71,10 +69,7 @@ class RouteRepository(
         var toSave = routeSettings
         if (routeSettings.directionsPointLimit > routeSettings.coordinatesPointLimit) {
             // we must have at least as many coordinates kept, otherwise we cannot send the directions (direction is just an index to an existing coordinate)
-            toSave = RouteSettings(
-                routeSettings.directionsPointLimit,
-                routeSettings.directionsPointLimit
-            )
+            toSave = routeSettings.copy(coordinatesPointLimit = routeSettings.directionsPointLimit)
         }
         currentSettings.emit(toSave)
         settings.putString(SETTINGS_KEY, Json.encodeToString(toSave))

@@ -23,8 +23,7 @@ fun AppDrawerContent(
     navController: NavHostController,
     drawerState: DrawerState,
     scope: CoroutineScope,
-    modifier: Modifier = Modifier,
-    deviceSelector: DeviceSelector
+    modifier: Modifier = Modifier
 ) {
     // Get current route to highlight the selected item
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -63,15 +62,16 @@ fun AppDrawerContent(
                                 // avoid building up a large stack of destinations
                                 // on the back stack as users select items
                                 popUpTo(navController.graph.startDestinationId) {
-                                    inclusive = true
+                                    // we want to be able to press back and get to the original app page, do not keep any other part of the stack
+                                    inclusive = false
                                     // do not save the state, when a user switches back to the device page they should not see 'device settings'
-                                     saveState = false
+                                    saveState = false
                                 }
                                 // Avoid multiple copies of the same destination when
                                 // reselecting the same item
                                 launchSingleTop = true
                                 // Restore state when reselecting a previously selected item
-                                 restoreState = false
+                                restoreState = false
                             }
                         }
                     }

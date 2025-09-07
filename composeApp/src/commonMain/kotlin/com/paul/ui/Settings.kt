@@ -597,6 +597,27 @@ fun Settings(
                     isError = dirsLimitString.toIntOrNull() == null,
                     singleLine = true
                 )
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp), // Add some space above
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Mock Directions:",
+                        style = MaterialTheme.typography.body2,
+                    )
+                    Switch(
+                        checked = currentSettings.mockDirections,
+                        onCheckedChange = { newBooleanValue ->
+                            viewModel.onRouteSettingsChanged(
+                                currentSettings.copy(mockDirections = newBooleanValue)
+                            )
+                        }
+                    )
+                }
             }
         }
         // Other settings...
