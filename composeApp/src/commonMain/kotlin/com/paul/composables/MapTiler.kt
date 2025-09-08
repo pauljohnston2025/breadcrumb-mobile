@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.input.pointer.pointerInput
@@ -71,6 +72,13 @@ import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sin
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
+import android.graphics.Paint
+import android.graphics.Rect
+import kotlin.math.cos
+import kotlin.math.roundToInt
+import kotlin.math.sin
 
 private const val OVERZOOM_LEVELS = 3f
 
@@ -85,6 +93,31 @@ fun MapTilerComposable(
     routeStrokeWidth: Float = 5f,
     fitToBoundsPaddingPercent: Float = 0.1f
 ) {
+    // Create and remember Paint objects for drawing the angle text
+    val textPaint = remember {
+        Paint().apply {
+            color = android.graphics.Color.BLACK
+            textSize = 30f // Pixel size, adjust as needed
+            textAlign = Paint.Align.CENTER
+            isAntiAlias = true
+        }
+    }
+    val textBackgroundPaint = remember {
+        Paint().apply {
+            color = android.graphics.Color.WHITE
+            style = Paint.Style.FILL
+            isAntiAlias = true
+        }
+    }
+    val textBackgroundStrokePaint = remember {
+        Paint().apply {
+            color = android.graphics.Color.DKGRAY
+            style = Paint.Style.STROKE
+            strokeWidth = 2f
+            isAntiAlias = true
+        }
+    }
+
     val vmMapCenter by viewModel.mapCenter.collectAsState()
     val vmZoom by viewModel.mapZoom.collectAsState()
     val userLocation by viewModel.userLocation.collectAsState()
@@ -303,6 +336,111 @@ fun MapTilerComposable(
                             color = routeColor,
                             style = Stroke(width = routeStrokeWidth / scale, cap = StrokeCap.Round)
                         )
+
+                        // ... inside the Canvas composable, after drawing the blue route path ...
+
+                        routeToDisplay?.let { route ->
+                            // Draw direction arrows and angle text for each turn
+                            route.directions.forEach { direction ->
+                                val turnIndex = direction.routeIndex
+                                if (turnIndex > 0 && turnIndex < route.route.size) {
+                                    val turnPointGeo = route.route[turnIndex]
+                                    val prevPointGeo = route.route[turnIndex - 1]
+
+                                    val turnScreenPoint = geoToScreenPixel(
+                                        GeoPosition(turnPointGeo.latitude.toDouble(), turnPointGeo.longitude.toDouble()),
+                                        localCenterGeo, integerZoom.toFloat(), viewportSize
+                                    ).let { Offset(it.x.toFloat(), it.y.toFloat()) }
+
+                                    val prevScreenPoint = geoToScreenPixel(
+                                        GeoPosition(prevPointGeo.latitude.toDouble(), prevPointGeo.longitude.toDouble()),
+                                        localCenterGeo, integerZoom.toFloat(), viewportSize
+                                    ).let { Offset(it.x.toFloat(), it.y.toFloat()) }
+
+                                    val dx = turnScreenPoint.x - prevScreenPoint.x
+                                    val dy = turnScreenPoint.y - prevScreenPoint.y
+                                    val incomingBearingOnScreen = Math.toDegrees(kotlin.math.atan2(dy, dx).toDouble()).toFloat()
+
+                                    val finalAngleDeg = incomingBearingOnScreen + direction.angleDeg
+
+                                    // --- 1. Draw the Arrow ---
+                                    // The arrow is now defined with its BASE at (0,0) and pointing to the right.
+                                    val arrowLength = 35f / scale
+                                    val arrowPath = Path().apply {
+                                        val headWidth = arrowLength / 2.5f
+                                        val headLength = arrowLength / 2f
+
+                                        // Main tail line of the arrow
+                                        moveTo(0f, 0f)      // Base of the tail
+                                        lineTo(arrowLength, 0f) // Tip of the arrow
+
+                                        // The two lines that form the arrowhead
+                                        moveTo(arrowLength - headLength, -headWidth)
+                                        lineTo(arrowLength, 0f)
+                                        lineTo(arrowLength - headLength, headWidth)
+                                    }
+
+                                    // The transformation logic is the same, but now it correctly positions the arrow's base.
+                                    withTransform({
+                                        translate(left = turnScreenPoint.x, top = turnScreenPoint.y)
+                                        rotate(degrees = finalAngleDeg, pivot = Offset.Zero)
+                                    }) {
+                                        drawPath(
+                                            path = arrowPath,
+                                            color = Color.Red,
+                                            style = Stroke(
+                                                width = 7f / scale,
+                                                cap = StrokeCap.Round
+                                            )
+                                        )
+                                    }
+
+                                    // --- 2. Draw the Angle Text ---
+//                                    drawIntoCanvas { canvas ->
+//                                        textPaint.textSize = 30f / scale
+//                                        textBackgroundStrokePaint.strokeWidth = 2f / scale
+//
+//                                        val angleText = direction.angleDeg.roundToInt().toString() + "°"
+//                                        val textBounds = Rect()
+//                                        textPaint.getTextBounds(angleText, 0, angleText.length, textBounds)
+//
+//                                        // Position the text just off the tip of the arrow.
+//                                        // The position is calculated from the base (turnScreenPoint) along the arrow's angle.
+//                                        val textOffset = arrowLength + 10f // Place it slightly beyond the arrow's tip
+//                                        val angleRad = Math.toRadians(finalAngleDeg.toDouble())
+//                                        val textX = turnScreenPoint.x + textOffset * cos(angleRad).toFloat()
+//                                        val textY = turnScreenPoint.y + textOffset * sin(angleRad).toFloat() + textBounds.height() / 2f
+//
+//                                        // Draw a background for readability
+//                                        val padding = 8f
+//                                        canvas.nativeCanvas.drawRoundRect(
+//                                            textX - textBounds.width() / 2f - padding,
+//                                            textY - textBounds.height() - padding,
+//                                            textX + textBounds.width() / 2f + padding,
+//                                            textY + padding,
+//                                            10f, 10f, // corner radius
+//                                            textBackgroundPaint
+//                                        )
+//                                        canvas.nativeCanvas.drawRoundRect(
+//                                            textX - textBounds.width() / 2f - padding,
+//                                            textY - textBounds.height() - padding,
+//                                            textX + textBounds.width() / 2f + padding,
+//                                            textY + padding,
+//                                            10f, 10f, // corner radius
+//                                            textBackgroundStrokePaint
+//                                        )
+//
+//                                        // Draw the actual text
+//                                        canvas.nativeCanvas.drawText(
+//                                            angleText,
+//                                            textX,
+//                                            textY,
+//                                            textPaint
+//                                        )
+//                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -337,7 +475,8 @@ fun MapTilerComposable(
                     }) {
                         // Define the arrow path relative to its own center (0,0)
                         val arrowPath = Path().apply {
-                            val halfHeight = arrowSize * 1.5f // Make the arrow taller than it is wide
+                            val halfHeight =
+                                arrowSize * 1.5f // Make the arrow taller than it is wide
                             moveTo(0f, -halfHeight / 2) // Tip of the arrow
                             lineTo(-arrowSize, halfHeight / 2) // Bottom left
                             lineTo(arrowSize, halfHeight / 2)  // Bottom right

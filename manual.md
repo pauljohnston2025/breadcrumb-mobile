@@ -72,6 +72,8 @@ When tweaking these settings I suggest loading 1 extra route on the watch to sim
 
 Ensure to enable [Turn Alerts Distance (m)](https://github.com/pauljohnston2025/breadcrumb-garmin/blob/master/settings.md#turn-alerts-distance-m) on the watch when sending turn directions to ensure the watch processes them.  
 
+The best way I have found to create a route with directions is komoot, it allows you to import any gpx and then convert it to turn-by-turn. Once the route is saved in komoot its as simple as sharing the url to the breadcrumb app (saved routes/<desired route>/share/share with link). You can also use site like https://www.plotaroute.com/routeplanner to create a route that will have the correct waypoints for use with turn-by-turn. Note, importing routes seems to be a paid thing so this only works with freshly created routes.    
+
 ---
 
 # Profiles Page

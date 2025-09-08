@@ -311,7 +311,7 @@ fun processDirectionInfo(
 class Route(val name: String, var route: List<Point>, directionsIn: List<DirectionInfo>) :
     Protocol {
     private val routeSettings = RouteRepository.getSettings()
-    private var directions = processDirectionInfo(routeSettings, route, directionsIn)
+    public var directions = processDirectionInfo(routeSettings, route, directionsIn)
 
     init {
         // hack for perf/memory testing, every point is a direction
