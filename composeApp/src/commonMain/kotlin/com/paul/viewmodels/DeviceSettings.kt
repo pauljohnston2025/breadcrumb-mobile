@@ -133,6 +133,7 @@ val listOptionsMapping: Map<String, List<ListOption>> = mapOf(
     "alertType" to listOf(
         ListOption(0, "Toast (notification)"),
         ListOption(1, "Alerts (requires enable in garmin settings)"),
+        ListOption(2, "Image"),
     ),
     "renderMode" to listOf(
         ListOption(0, "Buffered Rotations - performance"),
