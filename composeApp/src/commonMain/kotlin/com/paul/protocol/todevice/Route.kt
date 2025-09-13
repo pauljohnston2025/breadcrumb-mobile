@@ -46,9 +46,12 @@ data class DirectionPoint(
 )
 
 /**
- * Calculates the dominant bearing of a path segment.
+ * Calculates the dominant bearing of a path segment by determining the direction
+ * of a single vector over a specified distance. This method is more robust against
+ * GPS noise and curvature than averaging bearings of smaller segments.
+ *
  * @param segment The list of coordinates representing the path segment.
- * @param analysisDistance The distance (in meters) from the end of the segment to analyze.
+ * @param analysisDistance The distance (in meters) from the start or end of the segment to analyze.
  * @param fromEnd If true, the analysis is performed on the last part of the segment (for incoming paths).
  *                If false, it's on the first part (for outgoing paths).
  * @return The dominant bearing in degrees, or null if it cannot be determined.
@@ -62,39 +65,72 @@ private fun calculateDominantBearing(
         return null // Not enough points to determine a bearing
     }
 
-    val relevantBearings = mutableListOf<Double>()
-    var accumulatedDistance = 0.0
-
     if (fromEnd) {
-        // Analyze the end of the segment (approaching a turn)
+        // Analyze the end of the segment (approaching a turn).
+        val endPoint = segment.last()
+        var accumulatedDistance = 0.0
+        var startOfAnalysis: Point? = null
+        var analysisIndex = -1
+
+        // Find a point that is approximately analysisDistance away from the end.
         for (i in segment.size - 2 downTo 0) {
-            val point1 = segment[i]
-            val point2 = segment[i + 1]
-            val distance = calculateDistanceInMeters(point1, point2)
-            if (accumulatedDistance < analysisDistance) {
-                relevantBearings.add(calculateBearing(point1, point2))
-                accumulatedDistance += distance
-            } else {
+            accumulatedDistance += calculateDistanceInMeters(segment[i], segment[i + 1])
+            if (accumulatedDistance >= analysisDistance) {
+                startOfAnalysis = segment[i]
+                analysisIndex = i
                 break
             }
         }
+
+        // To improve stability with sparse coordinates, if the analysis only used the point
+        // immediately adjacent to the turn, and a point further back exists, use it instead.
+        if (analysisIndex == segment.size - 2 && segment.size > 2) {
+            startOfAnalysis = segment[segment.size - 3]
+        }
+
+        // If the entire segment is shorter than the analysis distance, use its first point.
+        val effectiveStartPoint = startOfAnalysis ?: segment.first()
+
+        return if (effectiveStartPoint != endPoint) {
+            calculateBearing(effectiveStartPoint, endPoint)
+        } else {
+            null
+        }
+
     } else {
-        // Analyze the start of the segment (leaving a turn)
+        // Analyze the start of the segment (leaving a turn).
+        val startPoint = segment.first()
+        var accumulatedDistance = 0.0
+        var endOfAnalysis: Point? = null
+        var analysisIndex = -1
+
+        // Find a point that is approximately analysisDistance away from the start.
         for (i in 0 until segment.size - 1) {
-            val point1 = segment[i]
-            val point2 = segment[i + 1]
-            val distance = calculateDistanceInMeters(point1, point2)
-            if (accumulatedDistance < analysisDistance) {
-                relevantBearings.add(calculateBearing(point1, point2))
-                accumulatedDistance += distance
-            } else {
+            accumulatedDistance += calculateDistanceInMeters(segment[i], segment[i + 1])
+            if (accumulatedDistance >= analysisDistance) {
+                endOfAnalysis = segment[i + 1]
+                analysisIndex = i + 1
                 break
             }
+        }
+
+        // To improve stability with sparse coordinates, if the analysis only used the point
+        // immediately after the turn, and a point further ahead exists, use it instead.
+        if (analysisIndex == 1 && segment.size > 2) {
+            endOfAnalysis = segment[2]
+        }
+
+        // If the entire segment is shorter than the analysis distance, use its last point.
+        val effectiveEndPoint = endOfAnalysis ?: segment.last()
+
+        return if (startPoint != effectiveEndPoint) {
+            calculateBearing(startPoint, effectiveEndPoint)
+        } else {
+            null
         }
     }
-
-    return if (relevantBearings.isNotEmpty()) relevantBearings.average() else null
 }
+
 
 /**
  * Calculates the initial bearing (in degrees) from a start coordinate to an end coordinate.
@@ -164,6 +200,8 @@ fun processDirectionInfo(
     if(routeSettings.mockDirections) {
         if (directions.isEmpty() && coordinates.size > 2) {
             val mockDirections = mutableListOf<DirectionInfo>()
+            // The loop condition `i < coordinates.size - 1` already ensures we don't process
+            // the very first or last point as a turn.
             var i = 1
             while (i < coordinates.size - 1) {
                 val turnIndex = i
@@ -171,8 +209,9 @@ fun processDirectionInfo(
 
                 // 1. Identify incoming and outgoing path segments around the potential turn point.
                 val incomingSegment = mutableListOf<Point>()
-                for (j in turnIndex - 1 downTo 0) {
-                    incomingSegment.add(0, coordinates[j])
+                // SAFE ACCESS: The loop condition guarantees turnIndex > 0.
+                incomingSegment.add(coordinates[turnIndex - 1])
+                for (j in turnIndex - 2 downTo 0) {
                     if (calculateDistanceInMeters(
                             coordinates[j],
                             currentPoint
@@ -180,13 +219,15 @@ fun processDirectionInfo(
                     ) {
                         break
                     }
+                    incomingSegment.add(0, coordinates[j]) // Prepending to keep order
                 }
                 incomingSegment.add(currentPoint)
 
                 val outgoingSegment = mutableListOf<Point>()
                 outgoingSegment.add(currentPoint)
-                for (j in turnIndex + 1 until coordinates.size) {
-                    outgoingSegment.add(coordinates[j])
+                // SAFE ACCESS: The loop condition guarantees turnIndex < coordinates.size - 1.
+                outgoingSegment.add(coordinates[turnIndex + 1])
+                for (j in turnIndex + 2 until coordinates.size) {
                     if (calculateDistanceInMeters(
                             coordinates[j],
                             currentPoint
@@ -194,6 +235,7 @@ fun processDirectionInfo(
                     ) {
                         break
                     }
+                    outgoingSegment.add(coordinates[j])
                 }
 
                 // 2. Calculate the dominant bearing for both segments.
@@ -255,12 +297,21 @@ fun processDirectionInfo(
     // Map the filtered direction indices to DirectionPoints with calculated turn angles.
     return filteredDirections.map { direction ->
         val turnIndex = direction.index
+
+        // SAFETY GUARD: Explicitly check if the index is at the start or end of the array.
+        // A turn angle cannot be calculated for the first or last point.
+        if (turnIndex <= 0 || turnIndex >= coordinates.size - 1) {
+            return@map DirectionPoint(0.0f, turnIndex)
+        }
+
         val currentPoint = coordinates[turnIndex]
         var turnAngle = 0.0
 
         // 1. Identify the incoming and outgoing path segments around the turn.
         val incomingSegment = mutableListOf<Point>()
-        for (i in turnIndex - 1 downTo 0) {
+        // SAFE ACCESS: The guard above ensures turnIndex > 0.
+        incomingSegment.add(coordinates[turnIndex - 1])
+        for (i in turnIndex - 2 downTo 0) {
             if (calculateDistanceInMeters(
                     coordinates[i],
                     currentPoint
@@ -268,13 +319,15 @@ fun processDirectionInfo(
             ) {
                 break
             }
-            incomingSegment.add(0, coordinates[i])
+            incomingSegment.add(0, coordinates[i]) // Prepending to keep order
         }
-        incomingSegment.add(currentPoint) // Add the turn point to the end of the incoming segment
+        incomingSegment.add(currentPoint)
 
         val outgoingSegment = mutableListOf<Point>()
-        outgoingSegment.add(currentPoint) // Add the turn point to the start of the outgoing segment
-        for (i in turnIndex + 1 until coordinates.size) {
+        outgoingSegment.add(currentPoint)
+        // SAFE ACCESS: The guard above ensures turnIndex < coordinates.size - 1.
+        outgoingSegment.add(coordinates[turnIndex + 1])
+        for (i in turnIndex + 2 until coordinates.size) {
             if (calculateDistanceInMeters(
                     coordinates[i],
                     currentPoint

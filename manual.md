@@ -62,7 +62,7 @@ The phone hosts a tile server for the watch to query tiles from. The tiles downl
 **Turn Point Limit** - The maximum number of turn-by-turn coordinates that will be sent to the watch, each coordinate is an index in the coordinates and a direction to turn. `Turn points` are extracted frm gpx waypoint data, or can be generated using `mock directions`. The gpx file should have a route or track, and also include waypoints for each turn. Komoot directions shared by url are special cased, and will include directions also.   
 **Mock Directions** - Attempt to calculate directions from the coordinates of the route only, this setting only applies if the route loaded does not already contain directions (indicated by direction icon next to the route label).    
 
-`Turn Point Limit` must be less than or equal `Coordinates Point Limit`
+`Turn Point Limit` must be less than or equal `Coordinates Point Limit`, the settings will assert this when you change them.
 
 Through testing on my device I have found that `Coordinates Point Limit` should not exceed ~400 to ensure the full route can be sent to the watch over bluetooth. A lower limit will be needed if there are more routes since each point has associated memory and cpu considerations (watchdog), the watch app will crash if either are exceeded.  
 When using `Turn Point Limit`, `Coordinates Point Limit` should be lowered to account for the extra memory and cpu taken to process the upcoming turns.   
