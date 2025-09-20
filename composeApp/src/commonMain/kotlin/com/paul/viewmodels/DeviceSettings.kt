@@ -368,6 +368,7 @@ class DeviceSettings(
                     // --- Colors (Treated as String for editing, but typed as COLOR) ---
                     "tileErrorColour",
                     "trackColour",
+                    "defaultRouteColour",
                     "elevationColour",
                     "userColour",
                     "normalModeColour",

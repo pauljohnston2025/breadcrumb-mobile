@@ -228,6 +228,7 @@ class Connection(private val context: Context) : IConnection {
 //            settings = mapOf(
 //                "fixedLatitude" to 0.0,
 //                "trackColour" to "FF00FF00",
+//                "defaultRouteColour" to "FF00FF00",
 //                "tileUrl" to "http://127.0.0.1:8080",
 //                "uiMode" to 0,
 //                "fullTileSize" to 256,

@@ -376,6 +376,12 @@ fun DeviceSettings(
                         trackColProp
                     )
                 }
+                val defaultRouteColourProp = findProp("defaultRouteColour")
+                if (defaultRouteColourProp != null) item(key = defaultRouteColourProp.id) {
+                    PropertyEditorResolver(
+                        defaultRouteColourProp
+                    )
+                }
                 val elevColProp = findProp("elevationColour")
                 if (elevColProp != null) item(key = elevColProp.id) {
                     PropertyEditorResolver(
