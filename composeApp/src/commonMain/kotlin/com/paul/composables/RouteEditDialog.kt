@@ -132,7 +132,7 @@ fun RouteEditDialog(
                         },
                         enabled = isNameValid
                     ) {
-                        Text("Save")
+                        Text("Done")
                     }
                 }
             } // End main Column in Card
