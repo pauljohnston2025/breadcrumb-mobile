@@ -362,8 +362,8 @@ fun DeviceSettings(
                 alertTypeProp?.let { toggleProp ->
                     item(key = toggleProp.id) { PropertyEditorResolver(toggleProp) }
                 }
-                val directionDistanceMProp = findProp("directionDistanceM")
-                directionDistanceMProp?.let { toggleProp ->
+                val turnAlertSProp = findProp("turnAlertS")
+                turnAlertSProp?.let { toggleProp ->
                     item(key = toggleProp.id) { PropertyEditorResolver(toggleProp) }
                 }
 

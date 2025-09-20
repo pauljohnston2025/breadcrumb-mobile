@@ -304,7 +304,7 @@ class Connection(private val context: Context) : IConnection {
 //                "storageSeedRouteDistanceM" to 10.0,
 //                "centerUserOffsetY" to 0.75,
 //                "mapMoveScreenSize" to 0.3,
-//                "directionDistanceM" to -1,
+//                "turnAlertS" to -1,
 //                "maxTrackPoints" to 400,
 //                "drawHitBoxes" to false,
 //                "showDirectionPoints" to false,
