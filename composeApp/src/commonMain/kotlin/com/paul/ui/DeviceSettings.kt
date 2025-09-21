@@ -3,6 +3,7 @@ package com.paul.ui
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
@@ -39,6 +40,7 @@ import androidx.compose.material.Switch
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
@@ -49,6 +51,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.paul.composables.ColorPickerDialog
@@ -66,44 +69,18 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
 @Preview
 fun DeviceSettings(
-    deviceSettings: DeviceSettings
+    deviceSettings: DeviceSettings,
 ) {
-
     BackHandler(enabled = deviceSettings.settingsSaving.value) {
         // prevent back handler when we are trying to do things, todo cancel the job we are trying to do
     }
 
     val editableProperties = deviceSettings.propertyDefinitions
-    // --- State Management (remains the same) ---
+    // --- State Management ---
     val mapEnabledProp = remember(editableProperties) {
         editableProperties.find { it.id == "mapEnabled" } as? EditableProperty<Boolean>
     }
     val showMapSection by mapEnabledProp?.state ?: remember { mutableStateOf(false) }
-
-    val offTrackAlertsEnabledProp = remember(editableProperties) {
-        editableProperties.find { it.id == "enableOffTrackAlerts" } as? EditableProperty<Boolean>
-    }
-
-    val offTrackWrongDirectionProp = remember(editableProperties) {
-        editableProperties.find { it.id == "offTrackWrongDirection" } as? EditableProperty<Boolean>
-    }
-
-    val drawLineToClosestPointProp = remember(editableProperties) {
-        editableProperties.find { it.id == "drawLineToClosestPoint" } as? EditableProperty<Boolean>
-    }
-    val drawCheveronsProp = remember(editableProperties) {
-        editableProperties.find { it.id == "drawCheverons" } as? EditableProperty<Boolean>
-    }
-    val displayLatLongProp = remember(editableProperties) {
-        editableProperties.find { it.id == "displayLatLong" } as? EditableProperty<Boolean>
-    }
-    val maxTrackPointsProp = remember(editableProperties) {
-        editableProperties.find { it.id == "maxTrackPoints" } as? EditableProperty<Boolean>
-    }
-    val showOffTrackSection by offTrackAlertsEnabledProp?.state
-        ?: remember { mutableStateOf(false) }
-    val showOffTrackWrongDirectionSection by offTrackWrongDirectionProp?.state
-        ?: remember { mutableStateOf(false) }
 
     val findProp = remember<(String) -> EditableProperty<*>?>(editableProperties) {
         { id -> editableProperties.find { it.id == id } }
@@ -112,404 +89,167 @@ fun DeviceSettings(
     // Box enables stacking the loading overlay on top
     Box(
         modifier = Modifier
-            .fillMaxSize()
+            .fillMaxSize(),
     ) {
         Column(
             Modifier
-                .fillMaxSize()
+                .fillMaxSize(),
         ) {
             LazyColumn(modifier = Modifier.weight(1f)) {
-
-                // --- Top Level Settings ---
-                val modeProp = findProp("mode")
-                if (modeProp != null) item(key = modeProp.id) { PropertyEditorResolver(modeProp) }
-                val uiModeProp = findProp("uiMode")
-                if (uiModeProp != null) item(key = uiModeProp.id) {
-                    PropertyEditorResolver(
-                        uiModeProp
-                    )
-                }
-                val elevationModeProp = findProp("elevationMode")
-                if (elevationModeProp != null) item(key = elevationModeProp.id) {
-                    PropertyEditorResolver(
-                        elevationModeProp
-                    )
-                }
-                val scaleProp = findProp("scale")
-                if (scaleProp != null) item(key = scaleProp.id) { PropertyEditorResolver(scaleProp) }
-                val recalculateIntervalSProp = findProp("recalculateIntervalS")
-                if (recalculateIntervalSProp != null) item(key = recalculateIntervalSProp.id) {
-                    PropertyEditorResolver(
-                        recalculateIntervalSProp
-                    )
-                }
-                val renderModeProp = findProp("renderMode")
-                if (renderModeProp != null) item(key = renderModeProp.id) {
-                    PropertyEditorResolver(
-                        renderModeProp
-                    )
-                }
-                val centerUserOffsetYProp = findProp("centerUserOffsetY")
-                if (centerUserOffsetYProp != null) item(key = centerUserOffsetYProp.id) {
-                    PropertyEditorResolver(
-                        centerUserOffsetYProp
-                    )
-                }
-                displayLatLongProp?.let { toggleProp ->
-                    item(key = toggleProp.id) { PropertyEditorResolver(toggleProp) }
-                }
-                maxTrackPointsProp?.let { toggleProp ->
-                    item(key = toggleProp.id) { PropertyEditorResolver(toggleProp) }
+                item {
+                    CollapsibleSection("General") {
+                        findProp("mode")?.let { PropertyEditorResolver(it) }
+                        findProp("uiMode")?.let { PropertyEditorResolver(it) }
+                        findProp("elevationMode")?.let { PropertyEditorResolver(it) }
+                        findProp("scale")?.let { PropertyEditorResolver(it) }
+                        findProp("recalculateIntervalS")?.let { PropertyEditorResolver(it) }
+                        findProp("renderMode")?.let { PropertyEditorResolver(it) }
+                        findProp("centerUserOffsetY")?.let { PropertyEditorResolver(it) }
+                        findProp("displayLatLong")?.let { PropertyEditorResolver(it) }
+                        findProp("maxTrackPoints")?.let { PropertyEditorResolver(it) }
+                    }
                 }
 
-                // --- Group: zoomAtPace ---
-                item { SectionHeader("Zoom At Pace") } // Keep header separate if group is always visible
-                val zoomModeProp = findProp("zoomAtPaceMode")
-                if (zoomModeProp != null) item(key = zoomModeProp.id) {
-                    PropertyEditorResolver(
-                        zoomModeProp
-                    )
-                }
-                val metersAroundProp = findProp("metersAroundUser")
-                if (metersAroundProp != null) item(key = metersAroundProp.id) {
-                    PropertyEditorResolver(
-                        metersAroundProp
-                    )
-                }
-                val zoomSpeedProp = findProp("zoomAtPaceSpeedMPS")
-                if (zoomSpeedProp != null) item(key = zoomSpeedProp.id) {
-                    PropertyEditorResolver(
-                        zoomSpeedProp
-                    )
+                item {
+                    CollapsibleSection("Zoom At Pace") {
+                        findProp("zoomAtPaceMode")?.let { PropertyEditorResolver(it) }
+                        findProp("metersAroundUser")?.let { PropertyEditorResolver(it) }
+                        findProp("zoomAtPaceSpeedMPS")?.let { PropertyEditorResolver(it) }
+                    }
                 }
 
-
-                item(key = "map_settings_header") {
-                    SectionHeader("Map Settings")
+                // --- Map Settings Section ---
+                // The main toggle is placed outside the collapsible section, so the entire
+                // section can be hidden if maps are disabled.
+                mapEnabledProp?.let {
+                    item(key = it.id) {
+                        PropertyEditorResolver(it)
+                    }
                 }
 
-                // --- Group: mapSettings (Conditional) ---
-                // Render the toggle first (this is its own item)
-                mapEnabledProp?.let { toggleProp ->
-                    item(key = toggleProp.id) { PropertyEditorResolver(toggleProp) }
+                item(key = "map_settings_section") {
+                    AnimatedVisibility(
+                        visible = showMapSection,
+                        enter = fadeIn(),
+                        exit = fadeOut(),
+                    ) {
+                        CollapsibleSection("Map Settings") {
+                            // Map Cache & Performance
+                            findProp("tileCacheSize")?.let { PropertyEditorResolver(it) }
+                            findProp("mapMoveScreenSize")?.let { PropertyEditorResolver(it) }
+                            findProp("tileCachePadding")?.let { PropertyEditorResolver(it) }
+                            findProp("maxPendingWebRequests")?.let { PropertyEditorResolver(it) }
+                            findProp("disableMapsFailure")?.let { PropertyEditorResolver(it) }
+                            findProp("httpErrorTileTTLS")?.let { PropertyEditorResolver(it) }
+                            findProp("errorTileTTLS")?.let { PropertyEditorResolver(it) }
+                            findProp("fixedLatitude")?.let { PropertyEditorResolver(it) }
+                            findProp("fixedLongitude")?.let { PropertyEditorResolver(it) }
+                            findProp("scaleRestrictedToTileLayers")?.let { PropertyEditorResolver(it) }
+                            findProp("packingFormat")?.let { PropertyEditorResolver(it) }
+                            findProp("useDrawBitmap")?.let { PropertyEditorResolver(it) }
+                        }
+                    }
                 }
-                // Now, create ONE item for the rest of the map section (header + conditional content)
-                item(key = "map_settings_section") { // Add a stable key for this combined item
-                    Column(modifier = Modifier.animateContentSize()) { // Column wraps header and AnimatedVisibility
-                        AnimatedVisibility(
-                            visible = showMapSection,
-                            enter = fadeIn(),
-                            exit = fadeOut()
-                        ) {
-                            // This inner Column holds the actual settings
-                            Column {
-                                val tileCacheSizeProp = findProp("tileCacheSize")
-                                if (tileCacheSizeProp != null) PropertyEditorResolver(
-                                    tileCacheSizeProp
-                                )
-                                val mapMoveScreenSizeProp = findProp("mapMoveScreenSize")
-                                if (mapMoveScreenSizeProp != null) PropertyEditorResolver(
-                                    mapMoveScreenSizeProp
-                                )
-                                val tileCachePaddingProp = findProp("tileCachePadding")
-                                if (tileCachePaddingProp != null) PropertyEditorResolver(
-                                    tileCachePaddingProp
-                                )
-                                val maxPendingWebRequestsProp = findProp("maxPendingWebRequests")
-                                if (maxPendingWebRequestsProp != null) PropertyEditorResolver(
-                                    maxPendingWebRequestsProp
-                                )
-                                val disableMapsFailureProp = findProp("disableMapsFailure")
-                                if (disableMapsFailureProp != null) PropertyEditorResolver(
-                                    disableMapsFailureProp
-                                )
-                                val httpErrorTileTTLSProp = findProp("httpErrorTileTTLS")
-                                if (httpErrorTileTTLSProp != null) PropertyEditorResolver(
-                                    httpErrorTileTTLSProp
-                                )
-                                val errorTileTTLSProp = findProp("errorTileTTLS")
-                                if (errorTileTTLSProp != null) PropertyEditorResolver(
-                                    errorTileTTLSProp
-                                )
-                                val fixedLatProp = findProp("fixedLatitude")
-                                if (fixedLatProp != null) PropertyEditorResolver(fixedLatProp)
-                                val fixedLonProp = findProp("fixedLongitude")
-                                if (fixedLonProp != null) PropertyEditorResolver(fixedLonProp)
-                                val scaleRestrictedToTileLayersProp =
-                                    findProp("scaleRestrictedToTileLayers")
-                                if (scaleRestrictedToTileLayersProp != null) PropertyEditorResolver(
-                                    scaleRestrictedToTileLayersProp
-                                )
-                                val packingFormatProp =
-                                    findProp("packingFormat")
-                                if (packingFormatProp != null) PropertyEditorResolver(
-                                    packingFormatProp
-                                )
-                                val useDrawBitmapProp =
-                                    findProp("useDrawBitmap")
-                                if (useDrawBitmapProp != null) PropertyEditorResolver(
-                                    useDrawBitmapProp
-                                )
-
-                                SectionHeader("Tile Server Settings")
-
-
-                                val mapChoiceProp = findProp("mapChoice")
-                                if (mapChoiceProp != null) {
-                                    PropertyEditorResolver(
-                                        mapChoiceProp
-                                    )
-                                }
-                                val tileUrlProp = findProp("tileUrl")
-                                if (tileUrlProp != null) PropertyEditorResolver(tileUrlProp)
-                                val authTokenProp = findProp("authToken")
-                                if (authTokenProp != null) PropertyEditorResolver(authTokenProp)
-                                val tileSizeProp = findProp("tileSize")
-                                if (tileSizeProp != null) PropertyEditorResolver(tileSizeProp)
-                                val scaledTileSizeProp = findProp("scaledTileSize")
-                                if (scaledTileSizeProp != null) PropertyEditorResolver(
-                                    scaledTileSizeProp
-                                )
-                                val tileLayerMaxProp = findProp("tileLayerMax")
-                                if (tileLayerMaxProp != null) PropertyEditorResolver(
-                                    tileLayerMaxProp
-                                )
-                                val tileLayerMinProp = findProp("tileLayerMin")
-                                if (tileLayerMinProp != null) PropertyEditorResolver(
-                                    tileLayerMinProp
-                                )
-                                val fullTileSizeProp = findProp("fullTileSize")
-                                if (fullTileSizeProp != null) PropertyEditorResolver(
-                                    fullTileSizeProp
-                                )
-
-                                SectionHeader("Offline Tile Storage")
-
-                                val cacheTilesInStorageProp = findProp("cacheTilesInStorage")
-                                if (cacheTilesInStorageProp != null) PropertyEditorResolver(
-                                    cacheTilesInStorageProp
-                                )
-                                val storageMapTilesOnlyProp = findProp("storageMapTilesOnly")
-                                if (storageMapTilesOnlyProp != null) PropertyEditorResolver(
-                                    storageMapTilesOnlyProp
-                                )
-                                val storageTileCacheSizeProp = findProp("storageTileCacheSize")
-                                if (storageTileCacheSizeProp != null) PropertyEditorResolver(
-                                    storageTileCacheSizeProp
-                                )
-                                val storageTileCachePageCountProp = findProp("storageTileCachePageCount")
-                                if (storageTileCachePageCountProp != null) PropertyEditorResolver(
-                                    storageTileCachePageCountProp
-                                )
-                                val storageSeedBoundingBoxProp = findProp("storageSeedBoundingBox")
-                                if (storageSeedBoundingBoxProp != null) PropertyEditorResolver(
-                                    storageSeedBoundingBoxProp
-                                )
-                                val storageSeedRouteDistanceMProp =
-                                    findProp("storageSeedRouteDistanceM")
-                                if (storageSeedRouteDistanceMProp != null) PropertyEditorResolver(
-                                    storageSeedRouteDistanceMProp
-                                )
-                            }
+                item(key = "tile_Server_section") {
+                    AnimatedVisibility(
+                        visible = showMapSection,
+                        enter = fadeIn(),
+                        exit = fadeOut(),
+                    ) {
+                        CollapsibleSection("Tile Server Settings") {
+                            findProp("mapChoice")?.let { PropertyEditorResolver(it) }
+                            findProp("tileUrl")?.let { PropertyEditorResolver(it) }
+                            findProp("authToken")?.let { PropertyEditorResolver(it) }
+                            findProp("tileSize")?.let { PropertyEditorResolver(it) }
+                            findProp("scaledTileSize")?.let { PropertyEditorResolver(it) }
+                            findProp("tileLayerMax")?.let { PropertyEditorResolver(it) }
+                            findProp("tileLayerMin")?.let { PropertyEditorResolver(it) }
+                            findProp("fullTileSize")?.let { PropertyEditorResolver(it) }
                         }
                     }
                 }
 
-                // --- Group: offTrackAlertsGroup (Conditional) ---
-                item(key = "off_track_alerts_header") {
-                    SectionHeader("Alerts")
-                }
-                // Render the toggle first
-                val distProp = findProp("offTrackAlertsDistanceM")
-                distProp?.let { distProp ->
-                    item(key = distProp.id) { PropertyEditorResolver(distProp) }
-                }
-                val offTrackCheckIntervalSProp = findProp("offTrackCheckIntervalS")
-                offTrackCheckIntervalSProp?.let { offTrackCheckIntervalSProp ->
-                    item(key = offTrackCheckIntervalSProp.id) {
-                        PropertyEditorResolver(
-                            offTrackCheckIntervalSProp
-                        )
-                    }
-                }
-                drawLineToClosestPointProp?.let { toggleProp ->
-                    item(key = toggleProp.id) { PropertyEditorResolver(toggleProp) }
-                }
-                drawCheveronsProp?.let { toggleProp ->
-                    item(key = toggleProp.id) { PropertyEditorResolver(toggleProp) }
-                }
-                offTrackWrongDirectionProp?.let { toggleProp ->
-                    item(key = toggleProp.id) { PropertyEditorResolver(toggleProp) }
-                }
-                offTrackAlertsEnabledProp?.let { toggleProp ->
-                    item(key = toggleProp.id) { PropertyEditorResolver(toggleProp) }
-                }
-                // ONE item for the rest of the off-track section
-                item(key = "off_track_section") { // Stable key
-                    Column(modifier = Modifier.animateContentSize()) { // Wrap in Column
-                        AnimatedVisibility(
-                            visible = showOffTrackSection || showOffTrackWrongDirectionSection,
-                            enter = fadeIn(),
-                            exit = fadeOut()
-                        ) {
-                            // Inner Column for the settings
-                            Column {
-                                val alertIntervalProp = findProp("offTrackAlertsMaxReportIntervalS")
-                                if (alertIntervalProp != null) PropertyEditorResolver(
-                                    alertIntervalProp
-                                )
-                            }
+                item(key = "offline_tile_storage_section") {
+                    AnimatedVisibility(
+                        visible = showMapSection,
+                        enter = fadeIn(),
+                        exit = fadeOut(),
+                    ) {
+                        CollapsibleSection("Offline Tile Storage") {
+                            findProp("cacheTilesInStorage")?.let { PropertyEditorResolver(it) }
+                            findProp("storageMapTilesOnly")?.let { PropertyEditorResolver(it) }
+                            findProp("storageTileCacheSize")?.let { PropertyEditorResolver(it) }
+                            findProp("storageTileCachePageCount")?.let { PropertyEditorResolver(it) }
+                            findProp("storageSeedBoundingBox")?.let { PropertyEditorResolver(it) }
+                            findProp("storageSeedRouteDistanceM")?.let { PropertyEditorResolver(it) }
                         }
                     }
                 }
-                val alertTypeProp = findProp("alertType")
-                alertTypeProp?.let { toggleProp ->
-                    item(key = toggleProp.id) { PropertyEditorResolver(toggleProp) }
-                }
-                val turnAlertTimeSProp = findProp("turnAlertTimeS")
-                turnAlertTimeSProp?.let { toggleProp ->
-                    item(key = toggleProp.id) { PropertyEditorResolver(toggleProp) }
-                }
-                val minTurnAlertDistanceMProp = findProp("minTurnAlertDistanceM")
-                minTurnAlertDistanceMProp?.let { toggleProp ->
-                    item(key = toggleProp.id) { PropertyEditorResolver(toggleProp) }
-                }
 
-                // --- Group: colours ---
-                item { SectionHeader("Colours") } // Header is separate
-                // Render individual color properties as separate items
-                val trackColProp = findProp("trackColour")
-                if (trackColProp != null) item(key = trackColProp.id) {
-                    PropertyEditorResolver(
-                        trackColProp
-                    )
-                }
-                val defaultRouteColourProp = findProp("defaultRouteColour")
-                if (defaultRouteColourProp != null) item(key = defaultRouteColourProp.id) {
-                    PropertyEditorResolver(
-                        defaultRouteColourProp
-                    )
-                }
-                val elevColProp = findProp("elevationColour")
-                if (elevColProp != null) item(key = elevColProp.id) {
-                    PropertyEditorResolver(
-                        elevColProp
-                    )
-                }
-                val userColourProp = findProp("userColour")
-                if (userColourProp != null) item(key = userColourProp.id) {
-                    PropertyEditorResolver(
-                        userColourProp
-                    )
-                }
-                val normalModeColourProp = findProp("normalModeColour")
-                if (normalModeColourProp != null) item(key = normalModeColourProp.id) {
-                    PropertyEditorResolver(
-                        normalModeColourProp
-                    )
-                }
-                val uiColourProp = findProp("uiColour")
-                if (uiColourProp != null) item(key = uiColourProp.id) {
-                    PropertyEditorResolver(
-                        uiColourProp
-                    )
-                }
-                val debugColProp = findProp("debugColour")
-                if (debugColProp != null) item(key = debugColProp.id) {
-                    PropertyEditorResolver(
-                        debugColProp
-                    )
-                }
-
-                // --- Group: routesdesc (Route Configuration) ---
-                item { SectionHeader("Route Configuration") } // Header is separate
-                val routesEnabledProp = findProp("routesEnabled")
-                if (routesEnabledProp != null) item(key = routesEnabledProp.id) {
-                    PropertyEditorResolver(
-                        routesEnabledProp
-                    )
-                }
-                val displayNamesProp = findProp("displayRouteNames")
-                if (displayNamesProp != null) item(key = displayNamesProp.id) {
-                    PropertyEditorResolver(
-                        displayNamesProp
-                    )
-                }
-                val routeMaxProp = findProp("routeMax")
-                if (routeMaxProp != null) item(key = routeMaxProp.id) {
-                    PropertyEditorResolver(
-                        routeMaxProp
-                    )
-                }
-
-                // --- Setting: routes (Array - Special Handling) ---
-                findProp("routes")?.let { prop ->
-                    item(key = prop.id) { // Create an item for the routes editor
-                        // Directly call the resolver, which will choose RoutesArrayEditor
-                        PropertyEditorResolver(property = prop)
+                item {
+                    CollapsibleSection("Alerts") {
+                        findProp("enableOffTrackAlerts")?.let { PropertyEditorResolver(it) }
+                        findProp("offTrackAlertsDistanceM")?.let { PropertyEditorResolver(it) }
+                        findProp("offTrackCheckIntervalS")?.let { PropertyEditorResolver(it) }
+                        findProp("offTrackWrongDirection")?.let { PropertyEditorResolver(it) }
+                        findProp("offTrackAlertsMaxReportIntervalS")?.let {
+                            PropertyEditorResolver(
+                                it
+                            )
+                        }
+                        findProp("drawLineToClosestPoint")?.let { PropertyEditorResolver(it) }
+                        findProp("drawCheverons")?.let { PropertyEditorResolver(it) }
+                        findProp("alertType")?.let { PropertyEditorResolver(it) }
+                        findProp("turnAlertTimeS")?.let { PropertyEditorResolver(it) }
+                        findProp("minTurnAlertDistanceM")?.let { PropertyEditorResolver(it) }
                     }
                 }
 
-                item { SectionHeader("Debug") } // Header is separate
-                val showPointsProp = findProp("showPoints")
-                if (showPointsProp != null) item(key = showPointsProp.id) {
-                    PropertyEditorResolver(
-                        showPointsProp
-                    )
+
+                item {
+                    CollapsibleSection("Colours") {
+                        findProp("trackColour")?.let { PropertyEditorResolver(it) }
+                        findProp("defaultRouteColour")?.let { PropertyEditorResolver(it) }
+                        findProp("elevationColour")?.let { PropertyEditorResolver(it) }
+                        findProp("userColour")?.let { PropertyEditorResolver(it) }
+                        findProp("normalModeColour")?.let { PropertyEditorResolver(it) }
+                        findProp("uiColour")?.let { PropertyEditorResolver(it) }
+                        findProp("debugColour")?.let { PropertyEditorResolver(it) }
+                    }
                 }
-                val drawLineToClosestTrackProp = findProp("drawLineToClosestTrack")
-                if (drawLineToClosestTrackProp != null) item(key = drawLineToClosestTrackProp.id) {
-                    PropertyEditorResolver(
-                        drawLineToClosestTrackProp
-                    )
+
+                item {
+                    CollapsibleSection("Route Configuration") {
+                        findProp("routesEnabled")?.let { PropertyEditorResolver(it) }
+                        findProp("displayRouteNames")?.let { PropertyEditorResolver(it) }
+                        findProp("routeMax")?.let { PropertyEditorResolver(it) }
+                        findProp("routes")?.let { PropertyEditorResolver(it) }
+                    }
                 }
-                val showTileBordersProp = findProp("showTileBorders")
-                if (showTileBordersProp != null) item(key = showTileBordersProp.id) {
-                    PropertyEditorResolver(
-                        showTileBordersProp
-                    )
-                }
-                val showErrorTileMessagesProp = findProp("showErrorTileMessages")
-                if (showErrorTileMessagesProp != null) item(key = showErrorTileMessagesProp.id) {
-                    PropertyEditorResolver(
-                        showErrorTileMessagesProp
-                    )
-                }
-                val tileErrorColourProp = findProp("tileErrorColour")
-                if (tileErrorColourProp != null) item(key = tileErrorColourProp.id) {
-                    PropertyEditorResolver(
-                        tileErrorColourProp
-                    )
-                }
-                val includeDebugPageInOnScreenUiProp = findProp("includeDebugPageInOnScreenUi")
-                if (includeDebugPageInOnScreenUiProp != null) item(key = includeDebugPageInOnScreenUiProp.id) {
-                    PropertyEditorResolver(
-                        includeDebugPageInOnScreenUiProp
-                    )
-                }
-                val drawHitBoxesProp = findProp("drawHitBoxes")
-                if (drawHitBoxesProp != null) item(key = drawHitBoxesProp.id) {
-                    PropertyEditorResolver(
-                        drawHitBoxesProp
-                    )
-                }
-                val showDirectionPointsProp = findProp("showDirectionPoints")
-                if (showDirectionPointsProp != null) item(key = showDirectionPointsProp.id) {
-                    PropertyEditorResolver(
-                        showDirectionPointsProp
-                    )
-                }
-                val showDirectionPointTextUnderIndexProp = findProp("showDirectionPointTextUnderIndex")
-                if (showDirectionPointTextUnderIndexProp != null) item(key = showDirectionPointTextUnderIndexProp.id) {
-                    PropertyEditorResolver(
-                        showDirectionPointTextUnderIndexProp
-                    )
+
+                item {
+                    CollapsibleSection("Debug") {
+                        findProp("showPoints")?.let { PropertyEditorResolver(it) }
+                        findProp("drawLineToClosestTrack")?.let { PropertyEditorResolver(it) }
+                        findProp("showTileBorders")?.let { PropertyEditorResolver(it) }
+                        findProp("showErrorTileMessages")?.let { PropertyEditorResolver(it) }
+                        findProp("tileErrorColour")?.let { PropertyEditorResolver(it) }
+                        findProp("includeDebugPageInOnScreenUi")?.let { PropertyEditorResolver(it) }
+                        findProp("drawHitBoxes")?.let { PropertyEditorResolver(it) }
+                        findProp("showDirectionPoints")?.let { PropertyEditorResolver(it) }
+                        findProp("showDirectionPointTextUnderIndex")?.let {
+                            PropertyEditorResolver(
+                                it
+                            )
+                        }
+                    }
                 }
 
                 // --- Setting: resetDefaults ---
                 val resetProp = findProp("resetDefaults")
-                if (resetProp != null) item(key = resetProp.id) { PropertyEditorResolver(resetProp) }
-
+                if (resetProp != null) {
+                    item(key = resetProp.id) { PropertyEditorResolver(resetProp) }
+                }
             } // End LazyColumn
 
             // --- Action Buttons (remains the same) ---
@@ -517,7 +257,7 @@ fun DeviceSettings(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                horizontalArrangement = Arrangement.SpaceEvenly,
             ) {
                 Button(onClick = {
                     val updatedValues = editableProperties.associate { prop ->
@@ -537,20 +277,13 @@ fun DeviceSettings(
                                 }
                                 // Pair the "routes" key with the transformed List<Map<String, Any>>
                                 key to serializableRouteList
-
                             } catch (e: Exception) {
                                 // Handle potential casting errors or other issues during transformation
                                 Napier.d("Error transforming routes list for saving for key '$key': ${e.message}")
-                                // Decide how to handle the error:
-                                // Option 1: Return the original (potentially problematic) list
-                                // key to currentValue
-                                // Option 2: Return an empty list
                                 key to emptyList<Map<String, Any>>()
-                                // Option 3: Don't include the key at all (might require filtering later)
-                                // null // Requires filtering null pairs after associate if used directly
                             }
                         } else {
-                            // For all other properties, use the value directly (Int, String, Boolean, Float, etc.)
+                            // For all other properties, use the value directly
                             key to currentValue
                         }
                     }
@@ -558,19 +291,81 @@ fun DeviceSettings(
                 }) {
                     Text("Save")
                 }
-                // Optional: A dedicated Reset button
             } // End Button Row
-
         } // End Main Column
 
         LoadingOverlay(
             isLoading = deviceSettings.settingsSaving.value,
-            loadingText = "Settings Saving"
+            loadingText = "Settings Saving",
         )
     }
 }
 
 // --- Helper Composables ---
+
+/**
+ * A reusable composable that displays a clickable header to expand or collapse its content.
+ *
+ * @param title The text to display in the section header.
+ * @param initiallyExpanded Whether the section should be expanded by default.
+ * @param content The composable content to be displayed inside the collapsible area.
+ */
+@Composable
+fun CollapsibleSection(
+    title: String,
+    initiallyExpanded: Boolean = false,
+    content: @Composable () -> Unit,
+) {
+    var isExpanded by remember { mutableStateOf(initiallyExpanded) }
+    val angle: Float by animateFloatAsState(
+        targetValue = if (isExpanded) 180f else 0f,
+        label = "Arrow Angle"
+    )
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .animateContentSize(), // Smoothly animates the size change when collapsing/expanding
+    ) {
+        // Header Row
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { isExpanded = !isExpanded }
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.subtitle1,
+                color = MaterialTheme.colors.primary,
+                modifier = Modifier.weight(1f), // Title takes up available space
+            )
+            Icon(
+                imageVector = Icons.Default.KeyboardArrowDown,
+                contentDescription = if (isExpanded) "Collapse" else "Expand",
+                modifier = Modifier.rotate(angle), // Rotate the icon based on state
+            )
+        }
+
+        Divider(modifier = Modifier.padding(horizontal = 16.dp))
+
+        // Collapsible Content
+        AnimatedVisibility(
+            visible = isExpanded,
+            enter = fadeIn(),
+            exit = fadeOut(),
+        ) {
+            Column(modifier = Modifier.padding(bottom = 8.dp)) { // Add padding for content
+                content()
+            }
+        }
+    }
+}
+
+/**
+ * A simple, non-collapsible header for use inside other sections.
+ */
 @Composable
 fun SectionHeader(title: String) {
     Column(Modifier.fillMaxWidth()) { // Use Column to contain Divider
@@ -579,11 +374,12 @@ fun SectionHeader(title: String) {
             style = MaterialTheme.typography.subtitle1, // Or h6
             color = MaterialTheme.colors.primary, // Optional styling
             modifier = Modifier
-                .padding(horizontal = 16.dp, vertical = 12.dp) // Adjust padding
+                .padding(horizontal = 16.dp, vertical = 12.dp), // Adjust padding
         )
         Divider(modifier = Modifier.padding(horizontal = 16.dp)) // Indent divider slightly
     }
 }
+
 
 // Extracted editor resolver to avoid repetition
 @Suppress("UNCHECKED_CAST")
@@ -603,7 +399,7 @@ fun PropertyEditorResolver(property: EditableProperty<*>) {
                     stringVal = property.stringVal,
                     options = property.options,
                     label = property.label,
-                    description = property.description
+                    description = property.description,
                 )
             }
             RoutesArrayEditor(property = typedProperty)
@@ -638,7 +434,7 @@ fun PropertyEditorRow(
     modifier: Modifier = Modifier,
     description: String? = null, // Add description parameter
 //    content: @Composable BoxScope.() -> Unit
-    content: @Composable RowScope.() -> Unit
+    content: @Composable RowScope.() -> Unit,
 ) {
     Column { // Wrap the Row and Divider in a Column for better structure
         Row(
@@ -646,22 +442,22 @@ fun PropertyEditorRow(
                 .fillMaxWidth()
                 .defaultMinSize(minHeight = 56.dp)
                 .padding(vertical = 8.dp, horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             // Column for Label and Description
             Column(
-                modifier = Modifier
+                modifier = Modifier,
 //                    .weight(1f) // Takes available horizontal space
 //                    .padding(end = 16.dp) // Padding between label/desc and controls
             ) {
                 Row(
                     Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     // Main Label Text
                     Text(
                         text = label,
-                        style = MaterialTheme.typography.body1 // Or subtitle1
+                        style = MaterialTheme.typography.body1, // Or subtitle1
                     )
 
                     Spacer(Modifier.weight(1f)) // fill the gap in the iddle to push the box to the right
@@ -685,7 +481,7 @@ fun PropertyEditorRow(
                         color = LocalContentColor.current.copy(alpha = ContentAlpha.medium), // De-emphasize
                         modifier = Modifier
                             .padding(top = 2.dp)
-                            .fillMaxWidth()
+                            .fillMaxWidth(),
                     )
                 }
             }
@@ -706,7 +502,7 @@ fun StringEditor(property: EditableProperty<String>) {
             value = currentValue,
             onValueChange = { newValue -> currentValue = newValue },
             modifier = Modifier.widthIn(min = 150.dp), // Adjust width as needed
-            singleLine = true
+            singleLine = true,
         )
     }
 }
@@ -725,7 +521,7 @@ fun ColorEditor(property: EditableProperty<String>) {
 
     PropertyEditorRow(
         label = property.label,
-        description = property.description
+        description = property.description,
     ) { // Assuming you still use this layout helper
         Row(verticalAlignment = Alignment.CenterVertically) {
             // Clickable Color Preview Box
@@ -740,7 +536,7 @@ fun ColorEditor(property: EditableProperty<String>) {
                         color = LocalContentColor.current.copy(alpha = ContentAlpha.disabled),
                         shape = MaterialTheme.shapes.small,
                     )
-                    .clickable { showDialog = true } // Open the dialog on click
+                    .clickable { showDialog = true }, // Open the dialog on click
             )
 
             Spacer(modifier = Modifier.width(12.dp))
@@ -752,7 +548,7 @@ fun ColorEditor(property: EditableProperty<String>) {
                 modifier = Modifier
                     .align(Alignment.CenterVertically)
                     .width(90.dp)
-                    .clickable { showDialog = true } // Open the dialog on click
+                    .clickable { showDialog = true }, // Open the dialog on click
             )
         }
     }
@@ -770,7 +566,7 @@ fun ColorEditor(property: EditableProperty<String>) {
             // and the preview box will update.
             property.state.value = colorToHexString(selectedColor)
             // Dialog dismissal is handled by its own buttons triggering onDismissRequest
-        }
+        },
     )
 }
 
@@ -781,7 +577,7 @@ fun BooleanEditor(property: EditableProperty<Boolean>) {
         // Use Switch or Checkbox based on preference
         Switch(
             checked = currentValue,
-            onCheckedChange = { newValue -> currentValue = newValue }
+            onCheckedChange = { newValue -> currentValue = newValue },
         )
         /* Alternative: Checkbox
         Checkbox(
@@ -820,7 +616,7 @@ fun NumberEditor(property: EditableProperty<Int>) {
             modifier = Modifier.width(100.dp),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             singleLine = true,
-            isError = textValue.isNotEmpty() && textValue != "-" && textValue.toIntOrNull() == null // Basic validation indication
+            isError = textValue.isNotEmpty() && textValue != "-" && textValue.toIntOrNull() == null, // Basic validation indication
         )
     }
 }
@@ -853,7 +649,7 @@ fun FloatEditor(property: EditableProperty<Float>) {
             modifier = Modifier.width(100.dp),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             singleLine = true,
-            isError = textValue.isNotEmpty() && textValue != "-" && textValue != "." && textValue != "-." && textValue.toFloatOrNull() == null // Basic validation indication
+            isError = textValue.isNotEmpty() && textValue != "-" && textValue != "." && textValue != "-." && textValue.toFloatOrNull() == null, // Basic validation indication
         )
     }
 }
@@ -886,7 +682,7 @@ fun ZeroDisabledFloatEditor(property: EditableProperty<Float>) { // Takes Editab
 
     PropertyEditorRow(
         label = property.label,
-        description = property.description
+        description = property.description,
     ) { // Assuming you still use this layout helper
         OutlinedTextField(
             value = textValue,
@@ -934,11 +730,11 @@ fun ZeroDisabledFloatEditor(property: EditableProperty<Float>) { // Takes Editab
                     }) {
                         Icon(
                             imageVector = Icons.Filled.Clear,
-                            contentDescription = "Clear (set to 0)"
+                            contentDescription = "Clear (set to 0)",
                         )
                     }
                 }
-            }
+            },
         )
     }
 }
@@ -960,7 +756,7 @@ fun UnknownTypeEditor(property: EditableProperty<*>) {
             value = property.state.value.toString(), // Display raw value
             onValueChange = { /* Read-only or basic string edit */ },
             modifier = Modifier.widthIn(min = 150.dp),
-            readOnly = true // Or allow basic string editing if appropriate
+            readOnly = true, // Or allow basic string editing if appropriate
         )
     }
 }
@@ -988,7 +784,7 @@ fun ListNumberEditor(property: EditableProperty<Int>) {
 
     PropertyEditorRow(
         label = property.label,
-        description = property.description
+        description = property.description,
     ) { // Reuse your existing row layout
         ExposedDropdownMenuBox(
             expanded = expanded,
@@ -1010,7 +806,7 @@ fun ListNumberEditor(property: EditableProperty<Int>) {
             // The actual dropdown menu
             ExposedDropdownMenu(
                 expanded = expanded,
-                onDismissRequest = { expanded = false }
+                onDismissRequest = { expanded = false },
             ) {
                 options.forEach { option ->
                     DropdownMenuItem(
@@ -1018,7 +814,7 @@ fun ListNumberEditor(property: EditableProperty<Int>) {
                             property.state.value =
                                 option.value // Update the state with the selected Int
                             expanded = false // Close the dropdown
-                        }
+                        },
                     ) {
                         Text(text = option.display)
                     }
