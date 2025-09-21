@@ -90,18 +90,6 @@ fun App(
             )
         }
 
-        val profilesViewModel = viewModel {
-            ProfilesViewModel(
-                deviceSelector,
-                connection,
-                scaffoldState.snackbarHostState,
-                settingsViewModel.tileServerRepo,
-                ProfileRepo(), // needs to be a singleton if anything else uses it
-                clipboardHandler,
-                settingsViewModel.routesRepo
-            )
-        }
-
         val mapViewModel = viewModel {
             MapViewModel(
                 connection,
@@ -266,6 +254,17 @@ fun App(
                     }
 
                     composable(Screen.Profiles.route) {
+                        val profilesViewModel = viewModel {
+                            ProfilesViewModel(
+                                deviceSelector,
+                                connection,
+                                scaffoldState.snackbarHostState,
+                                settingsViewModel.tileServerRepo,
+                                ProfileRepo(), // needs to be a singleton if anything else uses it
+                                clipboardHandler,
+                                settingsViewModel.routesRepo
+                            )
+                        }
                         ProfilesScreen(
                             viewModel = profilesViewModel,
                         )

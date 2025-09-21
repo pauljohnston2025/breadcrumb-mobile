@@ -297,6 +297,10 @@ fun DeviceSettings(
                                 if (storageTileCacheSizeProp != null) PropertyEditorResolver(
                                     storageTileCacheSizeProp
                                 )
+                                val storageTileCachePageCountProp = findProp("storageTileCachePageCount")
+                                if (storageTileCachePageCountProp != null) PropertyEditorResolver(
+                                    storageTileCachePageCountProp
+                                )
                                 val storageSeedBoundingBoxProp = findProp("storageSeedBoundingBox")
                                 if (storageSeedBoundingBoxProp != null) PropertyEditorResolver(
                                     storageSeedBoundingBoxProp

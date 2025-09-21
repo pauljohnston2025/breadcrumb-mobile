@@ -298,6 +298,7 @@ class Connection(private val context: Context) : IConnection {
 //                "drawCheverons" to false,
 //                "includeDebugPageInOnScreenUi" to false,
 //                "storageTileCacheSize" to 100,
+//                "storageTileCachePageCount" to 1,
 //                "httpErrorTileTTLS" to 60,
 //                "errorTileTTLS" to 20,
 //                "storageSeedBoundingBox" to false,
