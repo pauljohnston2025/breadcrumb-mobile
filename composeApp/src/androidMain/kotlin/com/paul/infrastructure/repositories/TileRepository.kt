@@ -7,6 +7,7 @@ import com.paul.infrastructure.service.IFileHelper
 import com.paul.infrastructure.service.ImageProcessor
 import com.paul.infrastructure.web.LoadTileRequest
 import com.paul.infrastructure.web.LoadTileResponse
+import com.paul.infrastructure.web.PALETTE_ID
 import com.paul.protocol.todevice.Colour
 import com.paul.protocol.todevice.MapTile
 import io.github.aakira.napier.Napier
@@ -20,7 +21,8 @@ class TileRepository(
 
     override suspend fun getWatchTile(req: LoadTileRequest): Pair<Int, LoadTileResponse?> {
 //        Napier.d("small tile req: $req")
-        val smallTilesPerScaledTile = Math.ceil(req.scaledTileSize.toDouble() / req.tileSize).toInt()
+        val smallTilesPerScaledTile =
+            Math.ceil(req.scaledTileSize.toDouble() / req.tileSize).toInt()
         val scaleUpSize = smallTilesPerScaledTile * req.tileSize
         val x = req.x / smallTilesPerScaledTile
         val y = req.y / smallTilesPerScaledTile
@@ -60,6 +62,9 @@ class TileRepository(
 
         val tile = MapTile(req.x, req.y, req.z, colourData)
 
-        return Pair(200, LoadTileResponse(tileType.value.toInt(), tile.colourString(tileType)))
+        return Pair(
+            200,
+            LoadTileResponse(tileType.value.toInt(), tile.colourString(tileType), PALETTE_ID)
+        )
     }
 }

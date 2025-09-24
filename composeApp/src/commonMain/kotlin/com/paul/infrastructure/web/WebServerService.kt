@@ -2,6 +2,7 @@ package com.paul.infrastructure.web
 
 import android.app.Service.START_STICKY
 import com.paul.infrastructure.repositories.ITileRepository
+import com.paul.protocol.todevice.HardCodedColourPalette
 import io.github.aakira.napier.Napier
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
@@ -166,6 +167,14 @@ class WebServerService(
 
             resourcesGet<TileServerDetails> {
                 call.respond(tileGetter.serverDetails())
+            }
+
+            resourcesGet<GetTilePalette> {
+                call.respond(
+                    GetTilePaletteResponse(
+                        PALETTE_ID,
+                        HardCodedColourPalette.colorPalette64.map { it.toMonkeyCColourInt() })
+                )
             }
 
             post<ChangeTileServer> { params ->

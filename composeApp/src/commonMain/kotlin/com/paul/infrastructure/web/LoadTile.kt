@@ -31,9 +31,11 @@ data class LoadTileRequest(
 @Serializable
 data class LoadTileResponse(
     val type: Int,
-    val data: String
+    val data: String,
+    val paletteId: Int?,
 )
 
 @Serializable
 class ErrorJson
+
 // without a json response garmin fails with '-400 INVALID_HTTP_BODY_IN_NETWORK_RESPONSE'
