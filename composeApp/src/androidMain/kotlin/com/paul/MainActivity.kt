@@ -25,6 +25,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.content.ContextCompat
 import com.paul.infrastructure.connectiq.Connection
 import com.paul.infrastructure.connectiq.DeviceList
+import com.paul.infrastructure.repositories.ColourPaletteRepository
 import com.paul.infrastructure.repositories.TileRepository
 import com.paul.infrastructure.service.AndroidLocationService
 import com.paul.infrastructure.service.ClipboardHandler
@@ -55,6 +56,7 @@ class MainActivity : ComponentActivity() {
         FileHelper(this)
     )
     val locationService = AndroidLocationService(this)
+    val colourPaletteRepo = ColourPaletteRepository(tileRepo)
 
     // based on ActivityResultContracts.OpenDocument()
     val getFileContent =
@@ -96,6 +98,7 @@ class MainActivity : ComponentActivity() {
             PermissionHandler {
                 App(
                     tileRepo,
+                    colourPaletteRepo,
                     connection,
                     deviceList,
                     gpxFileLoader,

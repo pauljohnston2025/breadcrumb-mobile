@@ -1,6 +1,10 @@
 package com.paul.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -9,7 +13,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.AlertDialog
@@ -28,7 +36,9 @@ import androidx.compose.material.Text
 import androidx.compose.material.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -38,16 +48,24 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.paul.composables.ColorPickerDialog
 import com.paul.composables.LoadingOverlay
+import com.paul.domain.ColourPalette
+import com.paul.domain.RGBColor
 import com.paul.domain.RouteSettings
 import com.paul.domain.ServerType
 import com.paul.domain.TileServerInfo
+import com.paul.infrastructure.repositories.ColourPaletteRepository
 import com.paul.infrastructure.repositories.TileServerRepo
+import com.paul.infrastructure.web.TileType
 import com.paul.viewmodels.Settings as SettingsViewModel
+import java.util.UUID // Required for cloning
+import kotlin.math.roundToInt
 
 // Function to validate template (basic example)
 fun isValidTileUrlTemplate(url: String): Boolean {
@@ -59,24 +77,23 @@ fun isValidTileUrlTemplate(url: String): Boolean {
 fun AddCustomServerDialog(
     showDialog: Boolean,
     onDismissRequest: () -> Unit,
-    onSave: (name: String, url: String, tileLayerMin: Int, tileLayerMax: Int) -> Unit // Callback with validated data
+    onSave: (TileServerInfo) -> Unit, // Callback with the full server object
+    serverToEdit: TileServerInfo?, // Null for new/clone, non-null for editing
 ) {
-    var name by remember { mutableStateOf("") }
-    var url by remember { mutableStateOf("") }
-    // --- State for Tile Layer Min ---
-    var tileLayerMin by remember { mutableStateOf(0) } // Your actual Int state
-    var tileLayerMinString by remember { mutableStateOf(tileLayerMin.toString()) } // String state for TextField
-    var tileLayerMinError by remember { mutableStateOf<String?>(null) } // Error message state
+    if (!showDialog) return
 
-    // --- State for Tile Layer Max ---
-    var tileLayerMax by remember { mutableStateOf(15) } // Your actual Int state
-    var tileLayerMaxString by remember { mutableStateOf(tileLayerMax.toString()) } // String state for TextField
-    var tileLayerMaxError by remember { mutableStateOf<String?>(null) } // Error message state
+    var name by remember(serverToEdit) { mutableStateOf(serverToEdit?.title ?: "") }
+    var url by remember(serverToEdit) { mutableStateOf(serverToEdit?.url ?: "") }
+    var tileLayerMin by remember(serverToEdit) { mutableStateOf(serverToEdit?.tileLayerMin ?: 0) }
+    var tileLayerMinString by remember(serverToEdit) { mutableStateOf(tileLayerMin.toString()) }
+    var tileLayerMax by remember(serverToEdit) { mutableStateOf(serverToEdit?.tileLayerMax ?: 15) }
+    var tileLayerMaxString by remember(serverToEdit) { mutableStateOf(tileLayerMax.toString()) }
 
     var nameError by remember { mutableStateOf<String?>(null) }
     var urlError by remember { mutableStateOf<String?>(null) }
+    var tileLayerMinError by remember { mutableStateOf<String?>(null) }
+    var tileLayerMaxError by remember { mutableStateOf<String?>(null) }
 
-    // Function to validate input fields
     fun validate(): Boolean {
         nameError = if (name.isBlank()) "Name cannot be empty" else null
         urlError = when {
@@ -84,185 +101,282 @@ fun AddCustomServerDialog(
             !isValidTileUrlTemplate(url) -> "Invalid template (must contain {z}, {x}, {y} and start with http:// or https://)"
             else -> null
         }
-        return nameError == null && urlError == null
+        tileLayerMinError = if (tileLayerMinString.toIntOrNull() == null) "Invalid number" else null
+        tileLayerMaxError = if (tileLayerMaxString.toIntOrNull() == null) "Invalid number" else null
+        return nameError == null && urlError == null && tileLayerMinError == null && tileLayerMaxError == null
     }
 
-    // Reset state when dialog appears (important if reusing the dialog state)
-    LaunchedEffect(showDialog) {
-        if (showDialog) {
-            name = ""
-            url = ""
-            tileLayerMin = 0
-            tileLayerMax = 15
-            nameError = null
-            urlError = null
-        }
-    }
-
-
-    if (showDialog) {
-        AlertDialog(
-            onDismissRequest = onDismissRequest,
-            title = { Text("Add Custom Tile Server") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    // --- Name Input ---
-                    OutlinedTextField(
-                        value = name,
-                        onValueChange = {
-                            name = it
-                            nameError = null // Clear error on change
-                        },
-                        label = { Text("Display Name") },
-                        placeholder = { Text("e.g., My Map Server") },
-                        singleLine = true,
-                        isError = nameError != null,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    if (nameError != null) {
-                        Text(
-                            nameError!!,
-                            color = MaterialTheme.colors.error,
-                            style = MaterialTheme.typography.body1
-                        )
-                    }
-
-                    Spacer(Modifier.height(8.dp)) // Space between fields
-
-                    // --- URL Input ---
-                    OutlinedTextField(
-                        value = url,
-                        onValueChange = {
-                            url = it
-                            urlError = null // Clear error on change
-                        },
-                        label = { Text("URL Template") },
-                        placeholder = { Text("e.g., https://server.com/{z}/{x}/{y}.png") },
-                        singleLine = true,
-                        isError = urlError != null,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    if (urlError != null) {
-                        Text(
-                            urlError!!,
-                            color = MaterialTheme.colors.error,
-                            style = MaterialTheme.typography.body1
-                        )
-                    }
+    AlertDialog(
+        onDismissRequest = onDismissRequest,
+        title = {
+            Text(
+                if (serverToEdit?.isCustom == true && serverToEdit.title.startsWith("Copy of ")
+                        .not()
+                ) "Edit Custom Tile Server" else "Add Custom Tile Server"
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it; nameError = null },
+                    label = { Text("Display Name") },
+                    placeholder = { Text("e.g., My Map Server") },
+                    singleLine = true,
+                    isError = nameError != null,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (nameError != null) {
                     Text(
-                        "Include {z}, {x}, {y} placeholders.",
-                        style = MaterialTheme.typography.body1,
-                        modifier = Modifier.padding(start = 4.dp)
+                        nameError!!,
+                        color = MaterialTheme.colors.error,
+                        style = MaterialTheme.typography.body1
                     )
+                }
 
-                    Spacer(modifier = Modifier.height(8.dp)) // Add space between fields
+                Spacer(Modifier.height(8.dp))
 
-                    // --- TextField for Tile Layer Min ---
+                OutlinedTextField(
+                    value = url,
+                    onValueChange = { url = it; urlError = null },
+                    label = { Text("URL Template") },
+                    placeholder = { Text("e.g., https://server.com/{z}/{x}/{y}.png") },
+                    singleLine = true,
+                    isError = urlError != null,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (urlError != null) {
+                    Text(
+                        urlError!!,
+                        color = MaterialTheme.colors.error,
+                        style = MaterialTheme.typography.body1
+                    )
+                }
+                Text(
+                    "Include {z}, {x}, {y} placeholders.",
+                    style = MaterialTheme.typography.caption
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
                         value = tileLayerMinString,
-                        onValueChange = { newValue: String ->
-                            tileLayerMinString = newValue // Update the string state immediately
-                            tileLayerMinError = null // Clear error on change
-
-                            // Try to parse the string to an Int
-                            val parsedInt = newValue.toIntOrNull()
-
-                            if (newValue.isEmpty()) {
-                                // Option 1: Handle empty input (e.g., reset to default or allow temporary empty state)
-                                // tileLayerMin = 0 // Or some other default
-                                // Or maybe set an error if empty is not allowed:
-                                // tileLayerMinError = "Value cannot be empty"
-                            } else if (parsedInt != null) {
-                                // Successfully parsed to an Int
-                                tileLayerMin = parsedInt // Update the actual Int state
-                                // Optional: Add range validation
-                                // if (parsedInt < 0) {
-                                //     tileLayerMinError = "Min cannot be negative"
-                                // }
-                            } else {
-                                // Failed to parse (not a valid integer)
-                                tileLayerMinError = "Enter a valid number"
-                            }
+                        onValueChange = {
+                            tileLayerMinString = it
+                            tileLayerMinError = null
+                            it.toIntOrNull()?.let { parsed -> tileLayerMin = parsed }
                         },
-                        label = { Text("Tile Layer Min") },
-                        placeholder = { Text("e.g., 0") },
+                        label = { Text("Min Zoom") },
                         singleLine = true,
                         isError = tileLayerMinError != null,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), // Use number keyboard
-                        modifier = Modifier.fillMaxWidth()
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.weight(1f)
                     )
-                    if (tileLayerMinError != null) {
-                        Text(
-                            tileLayerMinError!!,
-                            color = MaterialTheme.colors.error,
-                            style = MaterialTheme.typography.body1
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp)) // Add space between fields
-
-                    // --- TextField for Tile Layer Max ---
                     OutlinedTextField(
                         value = tileLayerMaxString,
-                        onValueChange = { newValue: String ->
-                            tileLayerMaxString = newValue // Update the string state
-                            tileLayerMaxError = null // Clear error
-
-                            val parsedInt = newValue.toIntOrNull()
-
-                            if (newValue.isEmpty()) {
-                                // Handle empty (similar options as above)
-                                // tileLayerMax = 18 // Default
-                                // tileLayerMaxError = "Value cannot be empty"
-                            } else if (parsedInt != null) {
-                                tileLayerMax = parsedInt // Update the actual Int state
-                                // Optional: Add range validation (e.g., max >= min)
-                                // if (parsedInt < tileLayerMin) {
-                                //     tileLayerMaxError = "Max must be >= Min ($tileLayerMin)"
-                                // } else if (parsedInt > 22) { // Example upper limit
-                                //     tileLayerMaxError = "Max zoom typically <= 22"
-                                // }
-                            } else {
-                                tileLayerMaxError = "Enter a valid number"
-                            }
+                        onValueChange = {
+                            tileLayerMaxString = it
+                            tileLayerMaxError = null
+                            it.toIntOrNull()?.let { parsed -> tileLayerMax = parsed }
                         },
-                        label = { Text("Tile Layer Max") },
-                        placeholder = { Text("e.g., 18") },
+                        label = { Text("Max Zoom") },
                         singleLine = true,
                         isError = tileLayerMaxError != null,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), // Use number keyboard
-                        modifier = Modifier.fillMaxWidth()
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.weight(1f)
                     )
-                    if (tileLayerMaxError != null) {
-                        Text(
-                            tileLayerMaxError!!,
-                            color = MaterialTheme.colors.error,
-                            style = MaterialTheme.typography.body1
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (validate()) {
+                        val finalServer = TileServerInfo(
+                            id = serverToEdit?.id ?: UUID.randomUUID()
+                                .toString(), // Preserve ID if editing
+                            serverType = serverToEdit?.serverType ?: ServerType.CUSTOM,
+                            title = name,
+                            url = url,
+                            tileLayerMin = tileLayerMin,
+                            tileLayerMax = tileLayerMax,
+                            isCustom = true // Any saved server from this dialog is custom
                         )
+                        onSave(finalServer)
                     }
                 }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (validate()) {
-                            onSave(name, url, tileLayerMin, tileLayerMax)
-                        }
-                    }
-                ) {
-                    Text("Save")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = onDismissRequest) {
-                    Text("Cancel")
-                }
+            ) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismissRequest) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+
+@Composable
+fun ColourPaletteDialog(
+    showDialog: Boolean,
+    onDismissRequest: () -> Unit,
+    onSave: (ColourPalette) -> Unit,
+    paletteToEdit: ColourPalette?, // Null for new, non-null for editing or cloning
+) {
+    if (!showDialog) return
+
+    var name by remember(paletteToEdit) { mutableStateOf(paletteToEdit?.name ?: "") }
+    var colors by remember(paletteToEdit) {
+        mutableStateOf(
+            paletteToEdit?.colors?.toMutableList()
+                ?: mutableListOf(
+                    RGBColor(255, 255, 255),
+                    RGBColor(0, 0, 0)
+                ) // Default for a new palette
+        )
+    }
+    var nameError by remember { mutableStateOf<String?>(null) }
+    var colorToEditInfo by remember { mutableStateOf<Pair<Int, RGBColor>?>(null) }
+
+
+    fun validate(): Boolean {
+        nameError = if (name.isBlank()) "Palette name cannot be empty" else null
+        // Color validation is implicit with the picker, but we can keep it for safety
+        val colorsAreValid = colors.all { it.r in 0..255 && it.g in 0..255 && it.b in 0..255 }
+        return nameError == null && colors.isNotEmpty() && colorsAreValid
+    }
+
+    // --- Color Picker Dialog ---
+    colorToEditInfo?.let { (index, color) ->
+        ColorPickerDialog(
+            initialColor = Color(color.r, color.g, color.b),
+            showDialog = true,
+            onDismissRequest = { colorToEditInfo = null },
+            onColorSelected = { newComposeColor ->
+                val newRgbColor = RGBColor(
+                    r = (newComposeColor.red * 255).roundToInt().coerceIn(0, 255),
+                    g = (newComposeColor.green * 255).roundToInt().coerceIn(0, 255),
+                    b = (newComposeColor.blue * 255).roundToInt().coerceIn(0, 255)
+                )
+                val newColors = colors.toMutableList()
+                newColors[index] = newRgbColor
+                colors = newColors
+                colorToEditInfo = null // Close the dialog
             }
         )
     }
+
+    AlertDialog(
+        onDismissRequest = onDismissRequest,
+        title = { Text(if (paletteToEdit == null) "Create New Colour Palette" else "Edit Colour Palette") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it; nameError = null },
+                    label = { Text("Palette Name") },
+                    isError = nameError != null,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (nameError != null) {
+                    Text(
+                        nameError!!,
+                        color = MaterialTheme.colors.error,
+                        style = MaterialTheme.typography.body1
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                Text("Colors: (${colors.size}/64)", style = MaterialTheme.typography.subtitle1)
+                Spacer(Modifier.height(4.dp))
+                LazyColumn(modifier = Modifier.height(200.dp)) {
+                    itemsIndexed(colors) { index, color ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .background(Color(color.r, color.g, color.b))
+                                    .border(1.dp, Color.Gray, RoundedCornerShape(4.dp))
+                                    .clickable { colorToEditInfo = index to color }
+                            )
+
+                            Text(
+                                "R:${color.r} G:${color.g} B:${color.b}",
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.body2
+                            )
+
+                            IconButton(
+                                onClick = {
+                                    val newColors =
+                                        colors.toMutableList(); newColors.removeAt(index); colors =
+                                    newColors
+                                },
+                                enabled = colors.size > 1
+                            ) {
+                                Icon(Icons.Default.Delete, contentDescription = "Remove color")
+                            }
+                        }
+                    }
+                }
+                Button(
+                    onClick = { colors = (colors + RGBColor(0, 0, 0)).toMutableList() },
+                    enabled = colors.size < 64,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp)
+                ) {
+                    Text("Add Color")
+                }
+                if (colors.size >= 64) {
+                    Text(
+                        "Maximum of 64 colors reached.",
+                        color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f),
+                        style = MaterialTheme.typography.caption,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (validate()) {
+                        // A new palette is indicated by an id of 0, which will be handled by the repository.
+                        val paletteId = paletteToEdit?.id ?: 0
+                        val finalColors = colors.take(64)
+                        val newPalette = ColourPalette(
+                            id = paletteId,
+                            name = name,
+                            colors = finalColors,
+                            isEditable = true
+                        )
+                        onSave(newPalette)
+                    }
+                }
+            ) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismissRequest) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
-@OptIn(ExperimentalMaterialApi::class) // Needed for ExposedDropdownMenuBox
+@OptIn(ExperimentalMaterialApi::class)
 @Composable
 fun Settings(
     modifier: Modifier = Modifier,
@@ -270,27 +384,42 @@ fun Settings(
 ) {
     var expanded by remember { mutableStateOf(false) }
     var tileTypeExpanded by remember { mutableStateOf(false) }
-    var showAddDialog by remember { mutableStateOf(false) }
+    var colourPaletteExpanded by remember { mutableStateOf(false) }
+
+    var serverToEdit by remember { mutableStateOf<TileServerInfo?>(null) }
+    var showAddServerDialog by remember { mutableStateOf(false) }
     var serverToDelete by remember { mutableStateOf<TileServerInfo?>(null) }
     val showDeleteConfirmDialog = serverToDelete != null
-    val currentTileServer = viewModel.tileServerRepo.currentServerFlow()
-        .collectAsState(TileServerRepo.defaultTileServer)
-    val currentTileType = viewModel.tileServerRepo.currentTileTypeFlow()
-        .collectAsState(TileServerRepo.defaultTileType)
-    val availableServers = viewModel.tileServerRepo.availableServersFlow()
-        .collectAsState(listOf(TileServerRepo.defaultTileServer))
-    val availableTileTypes = viewModel.tileServerRepo.availableTileTypesFlow()
-        .collectAsState(listOf(TileServerRepo.defaultTileType))
-    val tileServerEnabled = viewModel.tileServerRepo.tileServerEnabledFlow().collectAsState(true)
-    val authTokenFlow = viewModel.tileServerRepo.authTokenFlow().collectAsState("")
 
-    // --- State for Route Settings UI ---
-    val routeSettings by viewModel.routesRepo.currentSettingsFlow().collectAsState(RouteSettings.default)
+    var showPaletteDialog by remember { mutableStateOf(false) }
+    var paletteToEdit by remember { mutableStateOf<ColourPalette?>(null) }
+    var paletteToDelete by remember { mutableStateOf<ColourPalette?>(null) }
+    val showDeletePaletteConfirmDialog = paletteToDelete != null
+
+
+    val currentTileServer by viewModel.tileServerRepo.currentServerFlow()
+        .collectAsState(TileServerRepo.defaultTileServer)
+    val currentTileType by viewModel.tileServerRepo.currentTileTypeFlow()
+        .collectAsState(TileServerRepo.defaultTileType)
+    val availableServers by viewModel.tileServerRepo.availableServersFlow()
+        .collectAsState(listOf(TileServerRepo.defaultTileServer))
+    val availableTileTypes by viewModel.tileServerRepo.availableTileTypesFlow()
+        .collectAsState(listOf(TileType.TILE_DATA_TYPE_64_COLOUR))
+    val tileServerEnabled by viewModel.tileServerRepo.tileServerEnabledFlow().collectAsState(true)
+    val authTokenFlow by viewModel.tileServerRepo.authTokenFlow().collectAsState("")
+
+    val currentColourPalette by viewModel.currentColourPalette.collectAsState(
+        ColourPaletteRepository.opentopoPalette
+    )
+    val availableColourPalettes by viewModel.availableColourPalettes.collectAsState(
+        ColourPaletteRepository.systemPalettes
+    )
+
+    val routeSettings by viewModel.routesRepo.currentSettingsFlow()
+        .collectAsState(RouteSettings.default)
     var coordsLimitString by remember { mutableStateOf("") }
     var dirsLimitString by remember { mutableStateOf("") }
 
-    // This effect synchronizes the local string state with the ViewModel's state.
-    // This ensures that if the data is loaded or changed elsewhere, the UI reflects it.
     LaunchedEffect(routeSettings) {
         routeSettings?.let {
             coordsLimitString = it.coordinatesPointLimit.toString()
@@ -298,251 +427,260 @@ fun Settings(
         }
     }
 
-
-    // --- Call the Add Custom Server Dialog ---
     AddCustomServerDialog(
-        showDialog = showAddDialog,
-        onDismissRequest = { showAddDialog = false },
-        onSave = { name, url, tileLayerMin, tileLayerMax ->
-            // Create the new TileServer object
-            val newServer = TileServerInfo(
-                serverType = ServerType.CUSTOM,
-                title = name,
-                url = url,
-                tileLayerMin = tileLayerMin,
-                tileLayerMax = tileLayerMax,
-                isCustom = true
-            )
-            viewModel.onAddCustomServer(newServer) // Pass it up to be saved and added to the list
-            showAddDialog = false // Close the dialog
-        }
+        showDialog = showAddServerDialog,
+        onDismissRequest = { showAddServerDialog = false; serverToEdit = null },
+        onSave = { server ->
+            viewModel.onSaveCustomServer(server)
+            showAddServerDialog = false
+            serverToEdit = null
+        },
+        serverToEdit = serverToEdit
+    )
+
+    ColourPaletteDialog(
+        showDialog = showPaletteDialog,
+        onDismissRequest = { showPaletteDialog = false; paletteToEdit = null },
+        onSave = { palette ->
+            viewModel.onAddOrUpdateCustomPalette(palette)
+            showPaletteDialog = false
+            paletteToEdit = null
+        },
+        paletteToEdit = paletteToEdit
     )
 
     if (showDeleteConfirmDialog) {
         AlertDialog(
-            onDismissRequest = {
-                // User dismissed the dialog (clicked outside, back button)
-                serverToDelete = null
-            },
-            title = {
-                Text("Confirm Deletion")
-            },
-            text = {
-                // Use ?.let for safety when accessing the potentially null serverToDelete
-                serverToDelete?.let { server ->
-                    Text("Are you sure you want to delete the custom tile server '${server.title}'?")
-                }
-                    ?: Text("Are you sure you want to delete this custom tile server?") // Fallback text
-            },
+            onDismissRequest = { serverToDelete = null },
+            title = { Text("Confirm Deletion") },
+            text = { serverToDelete?.let { Text("Are you sure you want to delete '${it.title}'?") } },
             confirmButton = {
-                Button(
-                    onClick = {
-                        serverToDelete?.let { server ->
-                            viewModel.onRemoveCustomServer(server)
-                        }
-                        serverToDelete = null
-                    },
-                ) {
-                    Text("Delete")
-                }
+                Button(onClick = {
+                    serverToDelete?.let(viewModel::onRemoveCustomServer); serverToDelete = null
+                }) { Text("Delete") }
             },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        // User clicked Cancel button
-                        serverToDelete = null // Hide dialog
-                    }
-                ) {
-                    Text("Cancel")
-                }
-            }
+            dismissButton = { TextButton(onClick = { serverToDelete = null }) { Text("Cancel") } }
+        )
+    }
+
+    if (showDeletePaletteConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { paletteToDelete = null },
+            title = { Text("Confirm Deletion") },
+            text = { paletteToDelete?.let { Text("Are you sure you want to delete '${it.name}'?") } },
+            confirmButton = {
+                Button(onClick = {
+                    paletteToDelete?.let(viewModel::onRemoveCustomPalette); paletteToDelete = null
+                }) { Text("Delete") }
+            },
+            dismissButton = { TextButton(onClick = { paletteToDelete = null }) { Text("Cancel") } }
         )
     }
 
     Column(
         modifier = modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState()) // Make the column scrollable
+            .verticalScroll(rememberScrollState())
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Column( // Use a Column for this specific setting
+        Column(
             modifier = Modifier.fillMaxWidth(),
-            // Add vertical spacing between label and dropdown if desired
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text(
-                text = "Phone Hosted Tile Server:",
-                style = MaterialTheme.typography.body1,
-                modifier = Modifier.fillMaxWidth() // Take full width for alignment
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween // Align label and add button
-            ) {
-                Text(
-                    text = "Tile Server Enabled:",
-                    style = MaterialTheme.typography.body2,
-                )
+            Text("Phone Hosted Tile Server:", style = MaterialTheme.typography.body1)
+            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                Text("Tile Server Enabled:", style = MaterialTheme.typography.body2)
                 Switch(
-                    checked = tileServerEnabled.value,
-                    onCheckedChange = { newValue ->
-                        viewModel.onTileServerEnabledChange(newValue)
-                    },
+                    checked = tileServerEnabled,
+                    onCheckedChange = viewModel::onTileServerEnabledChange
                 )
             }
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
+            if (tileServerEnabled) {
                 ExposedDropdownMenuBox(
                     expanded = tileTypeExpanded,
-                    onExpandedChange = { tileTypeExpanded = !tileTypeExpanded },
-                    modifier = Modifier.weight(1.5f)
+                    onExpandedChange = { tileTypeExpanded = !tileTypeExpanded }
                 ) {
                     OutlinedTextField(
-                        value = currentTileType.value.label(),
-                        onValueChange = {},
-                        readOnly = true,
+                        value = currentTileType.label(), onValueChange = {}, readOnly = true,
                         label = { Text("Tile Type") },
-                        trailingIcon = {
-                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = tileTypeExpanded)
-                        },
-                        colors = ExposedDropdownMenuDefaults.textFieldColors(),
-                        modifier = Modifier.fillMaxWidth() // Just standard modifiers
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = tileTypeExpanded) },
+                        modifier = Modifier.fillMaxWidth()
                     )
-
                     ExposedDropdownMenu(
                         expanded = tileTypeExpanded,
-                        onDismissRequest = { tileTypeExpanded = false }
-                    ) {
-                        availableTileTypes.value.forEach { tileType ->
-                            DropdownMenuItem(
-                                onClick = {
-                                    viewModel.onTileTypeSelected(tileType)
-                                    tileTypeExpanded = false
-                                }
-                            ) {
-                                Text(tileType.label())
-
-                                Spacer(modifier = Modifier.weight(1f))
+                        onDismissRequest = { tileTypeExpanded = false }) {
+                        availableTileTypes.forEach { type ->
+                            DropdownMenuItem(onClick = {
+                                viewModel.onTileTypeSelected(type); tileTypeExpanded = false
+                            }) {
+                                Text(type.label())
                             }
+                        }
+                    }
+                }
+
+                if (currentTileType == TileType.TILE_DATA_TYPE_64_COLOUR) {
+                    Spacer(Modifier.height(8.dp))
+                    Text("Colour Palette:", style = MaterialTheme.typography.body1)
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        Arrangement.SpaceBetween,
+                        Alignment.CenterVertically
+                    ) {
+                        ExposedDropdownMenuBox(
+                            expanded = colourPaletteExpanded,
+                            onExpandedChange = {
+                                colourPaletteExpanded = !colourPaletteExpanded
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            OutlinedTextField(
+                                value = currentColourPalette.name,
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("Select Colour Palette") },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = colourPaletteExpanded) },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            ExposedDropdownMenu(
+                                expanded = colourPaletteExpanded,
+                                onDismissRequest = { colourPaletteExpanded = false }) {
+                                availableColourPalettes.forEach { palette ->
+                                    DropdownMenuItem(onClick = {
+                                        viewModel.onColourPaletteSelected(
+                                            palette
+                                        ); colourPaletteExpanded = false
+                                    }) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                palette.name,
+                                                Modifier.weight(1f),
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            IconButton(onClick = {
+                                                paletteToEdit = palette.copy(
+                                                    id = 0,
+                                                    name = "Copy of ${palette.name}",
+                                                    isEditable = true
+                                                )
+                                                showPaletteDialog = true; colourPaletteExpanded =
+                                                false
+                                            }, modifier = Modifier.size(24.dp)) {
+                                                Icon(
+                                                    Icons.Default.ContentCopy,
+                                                    "Clone palette"
+                                                )
+                                            }
+                                            if (palette.isEditable) {
+                                                IconButton(onClick = {
+                                                    paletteToEdit =
+                                                        palette; showPaletteDialog =
+                                                    true; colourPaletteExpanded = false
+                                                }, modifier = Modifier.size(24.dp)) {
+                                                    Icon(Icons.Default.Edit, "Edit palette")
+                                                }
+                                                IconButton(onClick = {
+                                                    paletteToDelete =
+                                                        palette; colourPaletteExpanded =
+                                                    false
+                                                }, modifier = Modifier.size(24.dp)) {
+                                                    Icon(
+                                                        Icons.Default.Delete,
+                                                        "Delete palette",
+                                                        tint = MaterialTheme.colors.error
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        IconButton(onClick = { paletteToEdit = null; showPaletteDialog = true }) {
+                            Icon(Icons.Filled.Add, "Add new blank colour palette")
                         }
                     }
                 }
             }
 
-            Text(
-                text = "Tile Server (map view and phone hosted):",
-                style = MaterialTheme.typography.body1,
-                modifier = Modifier.fillMaxWidth() // Take full width for alignment
-            )
 
-
+            Spacer(Modifier.height(8.dp))
+            Text("Tile Server (map view and phone hosted):", style = MaterialTheme.typography.body1)
 
             AuthTokenEditor(
-                currentAuthToken = authTokenFlow.value,
-                onAuthTokenChange = { updatedToken ->
-                    viewModel.onAuthKeyChange(updatedToken)
-                },
-                enabled = true,
-                obscureText = false // Set to true if you want dots/asterisks
+                currentAuthToken = authTokenFlow,
+                onAuthTokenChange = viewModel::onAuthKeyChange
             )
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween // Align label and add button
-            ) {
-                Text(
-                    text = "Add Custom Server:",
-                    style = MaterialTheme.typography.body2,
-                )
-                // --- Add Custom Server Button ---
-                IconButton(onClick = { showAddDialog = true }) {
-                    Icon(Icons.Filled.Add, contentDescription = "Add custom tile server")
+            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                Text("Add Custom Server:", style = MaterialTheme.typography.body2)
+                IconButton(onClick = { serverToEdit = null; showAddServerDialog = true }) {
+                    Icon(Icons.Filled.Add, "Add custom tile server")
                 }
             }
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                ExposedDropdownMenuBox(
-                    expanded = expanded,
-                    onExpandedChange = { expanded = !expanded },
-                    modifier = Modifier.weight(1.5f)
-                ) {
-                    OutlinedTextField(
-                        value = "${currentTileServer.value.title}\nlayers - min: ${currentTileServer.value.tileLayerMin} max: ${currentTileServer.value.tileLayerMax}",
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Select Server") },
-                        trailingIcon = {
-                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
-                        },
-                        colors = ExposedDropdownMenuDefaults.textFieldColors(),
-                        modifier = Modifier.fillMaxWidth() // Just standard modifiers
-                    )
-
-                    ExposedDropdownMenu(
-                        expanded = expanded,
-                        onDismissRequest = { expanded = false }
-                    ) {
-                        availableServers.value.forEach { server ->
-                            DropdownMenuItem(
-                                onClick = {
-                                    viewModel.onServerSelected(server)
-                                    expanded = false
-                                }
+            ExposedDropdownMenuBox(
+                expanded = expanded,
+                onExpandedChange = { expanded = !expanded }) { // *** BUG FIX 3 ***
+                OutlinedTextField(
+                    value = "${currentTileServer.title}\nlayers - min: ${currentTileServer.tileLayerMin} max: ${currentTileServer.tileLayerMax}",
+                    onValueChange = {}, readOnly = true,
+                    label = { Text("Select Server") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                    availableServers.forEach { server ->
+                        DropdownMenuItem(onClick = {
+                            viewModel.onServerSelected(server); expanded = false
+                        }) {
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier
-                                        .padding(start = 8.dp)
-                                        .fillMaxWidth()
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            server.title,
-                                            style = MaterialTheme.typography.subtitle1,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                        Text(
-                                            "layers - min: ${server.tileLayerMin} max: ${server.tileLayerMax}",
-                                            style = MaterialTheme.typography.caption,
-                                            maxLines = 1
-                                        )
-                                        Spacer(modifier = Modifier.height(5.dp))
-                                        Divider()
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        server.title,
+                                        style = MaterialTheme.typography.subtitle1,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        "layers - min: ${server.tileLayerMin} max: ${server.tileLayerMax}",
+                                        style = MaterialTheme.typography.caption,
+                                        maxLines = 1
+                                    )
+                                }
+                                IconButton(onClick = {
+                                    serverToEdit = server.copy(
+                                        id = UUID.randomUUID().toString(),
+                                        title = "Copy of ${server.title}",
+                                        isCustom = true
+                                    )
+                                    showAddServerDialog = true; expanded = false
+                                }, modifier = Modifier.size(24.dp)) {
+                                    Icon(Icons.Default.ContentCopy, "Clone server")
+                                }
+                                if (server.isCustom) {
+                                    IconButton(onClick = {
+                                        serverToEdit = server; showAddServerDialog =
+                                        true; expanded = false
+                                    }, modifier = Modifier.size(24.dp)) {
+                                        Icon(Icons.Default.Edit, "Edit server")
                                     }
-
-                                    if (server.isCustom) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.End
-                                        ) {
-                                            IconButton(
-                                                onClick = {
-                                                    serverToDelete = server
-                                                    expanded = false // Close menu after delete
-                                                },
-                                                modifier = Modifier
-                                                    .size(24.dp)
-                                                    .padding(start = 8.dp)
-                                            ) {
-                                                Icon(
-                                                    Icons.Filled.Delete,
-                                                    contentDescription = "Delete custom server ${server.title}",
-                                                    tint = MaterialTheme.colors.error
-                                                )
-                                            }
-                                        }
+                                    IconButton(onClick = {
+                                        serverToDelete = server; expanded = false
+                                    }, modifier = Modifier.size(24.dp)) {
+                                        Icon(
+                                            Icons.Filled.Delete,
+                                            "Delete custom server",
+                                            tint = MaterialTheme.colors.error
+                                        )
                                     }
                                 }
                             }
@@ -552,42 +690,32 @@ fun Settings(
             }
 
             Divider(modifier = Modifier.padding(vertical = 8.dp))
+            Text("Routes:", style = MaterialTheme.typography.body1)
 
-            Text(
-                text = "Routes:",
-                style = MaterialTheme.typography.body1,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            // --- Updated Route Settings Section ---
-            // This section will only appear once the settings are loaded
-            routeSettings?.let { currentSettings ->
+            routeSettings?.let { settings ->
                 OutlinedTextField(
                     value = coordsLimitString,
-                    onValueChange = { newValue ->
-                        // Allow user to type freely by updating local state
-                        coordsLimitString = newValue
-                        // Only update the ViewModel if the new value is a valid integer
-                        newValue.toIntOrNull()?.let { newLimit ->
+                    onValueChange = {
+                        coordsLimitString = it
+                        it.toIntOrNull()?.let { limit ->
                             viewModel.onRouteSettingsChanged(
-                                currentSettings.copy(coordinatesPointLimit = newLimit)
+                                settings.copy(coordinatesPointLimit = limit)
                             )
                         }
                     },
                     label = { Text("Coordinates point limit") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(),
-                    isError = coordsLimitString.toIntOrNull() == null, // Show error if not a valid number
+                    isError = coordsLimitString.toIntOrNull() == null,
                     singleLine = true
                 )
-
                 OutlinedTextField(
                     value = dirsLimitString,
-                    onValueChange = { newValue ->
-                        dirsLimitString = newValue
-                        newValue.toIntOrNull()?.let { newLimit ->
+                    onValueChange = {
+                        dirsLimitString = it
+                        it.toIntOrNull()?.let { limit ->
                             viewModel.onRouteSettingsChanged(
-                                currentSettings.copy(directionsPointLimit = newLimit)
+                                settings.copy(directionsPointLimit = limit)
                             )
                         }
                     },
@@ -597,65 +725,32 @@ fun Settings(
                     isError = dirsLimitString.toIntOrNull() == null,
                     singleLine = true
                 )
-
                 Row(
-                    modifier = Modifier
+                    Modifier
                         .fillMaxWidth()
-                        .padding(top = 8.dp), // Add some space above
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                        .padding(top = 8.dp),
+                    Arrangement.SpaceBetween,
+                    Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "Mock Directions:",
-                        style = MaterialTheme.typography.body2,
-                    )
+                    Text("Mock Directions:", style = MaterialTheme.typography.body2)
                     Switch(
-                        checked = currentSettings.mockDirections,
-                        onCheckedChange = { newBooleanValue ->
+                        checked = settings.mockDirections,
+                        onCheckedChange = {
                             viewModel.onRouteSettingsChanged(
-                                currentSettings.copy(mockDirections = newBooleanValue)
+                                settings.copy(mockDirections = it)
                             )
-                        }
-                    )
+                        })
                 }
             }
         }
-        // Other settings...
-        Spacer(Modifier.height(10.dp))
     }
 
-
     LoadingOverlay(
-        isLoading = viewModel.sendingMessage.value != "",
+        isLoading = viewModel.sendingMessage.value.isNotEmpty(),
         loadingText = viewModel.sendingMessage.value
     )
 }
 
-// Optional: Helper composable for consistent setting rows
-@Composable
-fun SettingRow(label: String, content: @Composable () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(label, style = MaterialTheme.typography.body1)
-        content()
-    }
-}
-
-/**
- * A Composable Row that displays an OutlinedTextField for editing an auth key.
- *
- * @param modifier Optional Modifier for the containing Row.
- * @param currentAuthToken The current value of the auth key to display initially.
- * @param onAuthTokenChange Lambda function invoked with the new key string whenever the user types in the TextField.
- * @param label Text label to display for the input field (defaults to "Auth Key").
- * @param enabled Controls the enabled state of the TextField.
- * @param obscureText Set to true to treat the input like a password field (optional).
- */
 @Composable
 fun AuthTokenEditor(
     modifier: Modifier = Modifier,
@@ -663,39 +758,22 @@ fun AuthTokenEditor(
     onAuthTokenChange: (newKey: String) -> Unit,
     label: String = "Auth Token",
     enabled: Boolean = true,
-    obscureText: Boolean = false // Set to true to hide the key like a password
+    obscureText: Boolean = false
 ) {
-    // Local state to hold the text field value, initialized with the current key
-    // Use a key in remember to update local state if the external currentAuthToken changes
     var textFieldValue by remember(currentAuthToken) { mutableStateOf(currentAuthToken) }
-
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Text(
-            text = "$label:", // Add colon for clarity if using external label
-            style = MaterialTheme.typography.body2,
-            modifier = Modifier.padding(end = 8.dp) // Add padding if using external label
-        )
-
+    Row(modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp), Alignment.CenterVertically) {
         OutlinedTextField(
             value = textFieldValue,
-            onValueChange = { newValue ->
-                // Update the local state first
-                textFieldValue = newValue
-                // Then call the callback to notify the parent/ViewModel
-                onAuthTokenChange(newValue)
+            onValueChange = {
+                textFieldValue = it
+                onAuthTokenChange(it)
             },
-            modifier = Modifier.weight(1f), // Allow TextField to take available space
-            label = { Text(label) }, // Use TextField's built-in label
+            modifier = Modifier.weight(1f),
+            label = { Text(label) },
             singleLine = true,
             enabled = enabled,
             visualTransformation = if (obscureText) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
-            keyboardOptions = KeyboardOptions(
-                keyboardType = if (obscureText) KeyboardType.Password else KeyboardType.Ascii
-            )
+            keyboardOptions = KeyboardOptions(keyboardType = if (obscureText) KeyboardType.Password else KeyboardType.Ascii)
         )
     }
 }

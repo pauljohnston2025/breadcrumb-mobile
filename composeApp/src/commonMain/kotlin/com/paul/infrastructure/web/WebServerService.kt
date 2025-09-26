@@ -1,8 +1,9 @@
 package com.paul.infrastructure.web
 
 import android.app.Service.START_STICKY
+import com.paul.domain.ColourPalette
+import com.paul.infrastructure.repositories.ColourPaletteRepository
 import com.paul.infrastructure.repositories.ITileRepository
-import com.paul.protocol.todevice.HardCodedColourPalette
 import io.github.aakira.napier.Napier
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
@@ -18,9 +19,11 @@ import io.ktor.server.plugins.calllogging.CallLogging
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.request.httpMethod
 import io.ktor.server.request.path
+import io.ktor.server.request.receive
 import io.ktor.server.resources.Resources
 import io.ktor.server.resources.post
 import io.ktor.server.response.respond
+import io.ktor.server.routing.post as routingPost
 import io.ktor.server.response.responseType
 import io.ktor.server.routing.routing
 import io.ktor.util.AttributeKey
@@ -98,7 +101,7 @@ interface WebServerController {
 
 class WebServerService(
     // service has its own impl of tileGetter, since it runs outside of the main activity
-    private val tileGetter: ITileRepository
+    private val tileGetter: ITileRepository,
 ) {
     private val serverPort = 8080
     private var server: EmbeddedServer<NettyApplicationEngine, NettyApplicationEngine.Configuration>? =
@@ -170,10 +173,29 @@ class WebServerService(
             }
 
             resourcesGet<GetTilePalette> {
+                val currentPalette = tileGetter.currentPalette()
+                val targetSize = 64
+                val paddingColor = 0x000000 // Integer for Black
+
+                // Start with a mutable list of all colors
+                val finalPalette =
+                    currentPalette.colors.map { it.toMonkeyCColourInt() }.toMutableList()
+
+                // Truncate the list if it's too long
+                while (finalPalette.size > targetSize) {
+                    finalPalette.removeLast()
+                }
+
+                // Pad the list with black if it's too short
+                while (finalPalette.size < targetSize) {
+                    finalPalette.add(paddingColor)
+                }
+
                 call.respond(
                     GetTilePaletteResponse(
-                        PALETTE_ID,
-                        HardCodedColourPalette.colorPalette64.map { it.toMonkeyCColourInt() })
+                        currentPalette.id,
+                        finalPalette
+                    )
                 )
             }
 
@@ -190,6 +212,19 @@ class WebServerService(
             post<ChangeTileType> { params ->
                 tileGetter.updateTileType(params.tileType)
                 call.respond(HttpStatusCode.OK)
+            }
+
+            routingPost("/changeColourPalette") {
+                try {
+                    // Directly receive the ColourPalette object from the JSON body
+                    val palette = call.receive<ColourPalette>()
+                    tileGetter.setCurrentPalette(palette)
+                    call.respond(HttpStatusCode.OK)
+                } catch (e: Exception) {
+                    // Log the error for debugging
+                    Napier.e("Failed to receive/process palette", e)
+                    call.respond(HttpStatusCode.BadRequest, "Invalid palette data received.")
+                }
             }
 
             resourcesGet<CheckStatusRequest> { params ->

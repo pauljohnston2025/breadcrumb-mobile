@@ -229,7 +229,7 @@ class ProfilesViewModel(
                         if (tileServerRepo.get(server.id) != null) {
                             continue; // we already have this server
                         }
-                        tileServerRepo.onAddCustomServer(server)
+                        tileServerRepo.saveCustomServer(server)
                     }
                 }
 

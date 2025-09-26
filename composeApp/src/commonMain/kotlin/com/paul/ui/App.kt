@@ -27,6 +27,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.paul.infrastructure.connectiq.IConnection
 import com.paul.infrastructure.connectiq.IDeviceList
+import com.paul.infrastructure.repositories.ColourPaletteRepository
 import com.paul.infrastructure.repositories.ITileRepository
 import com.paul.infrastructure.repositories.ProfileRepo
 import com.paul.infrastructure.repositories.RouteRepository
@@ -54,6 +55,7 @@ import com.paul.viewmodels.Settings as SettingsViewModel
 @Composable
 fun App(
     tileRepo: ITileRepository,
+    colourPaletteRepo: ColourPaletteRepository,
     connection: IConnection,
     deviceList: IDeviceList,
     gpxFileLoader: IGpxFileLoader,
@@ -86,7 +88,8 @@ fun App(
                 scaffoldState.snackbarHostState,
                 webServerController,
                 tileRepo,
-                RouteRepository(fileHelper, gpxFileLoader)
+                RouteRepository(fileHelper, gpxFileLoader),
+                colourPaletteRepo
             )
         }
 

@@ -8,6 +8,7 @@ import com.paul.infrastructure.service.ImageProcessor
 import com.paul.infrastructure.web.LoadTileRequest
 import com.paul.infrastructure.web.LoadTileResponse
 import com.paul.infrastructure.web.PALETTE_ID
+import com.paul.infrastructure.web.TileType
 import com.paul.protocol.todevice.Colour
 import com.paul.protocol.todevice.MapTile
 import io.github.aakira.napier.Napier
@@ -62,9 +63,16 @@ class TileRepository(
 
         val tile = MapTile(req.x, req.y, req.z, colourData)
 
+        val paletteId =
+            if (tileType == TileType.TILE_DATA_TYPE_64_COLOUR) _currentPalette.id else null
+
         return Pair(
             200,
-            LoadTileResponse(tileType.value.toInt(), tile.colourString(tileType), PALETTE_ID)
+            LoadTileResponse(
+                tileType.value.toInt(),
+                tile.colourString(tileType, _currentPalette),
+                paletteId
+            )
         )
     }
 }

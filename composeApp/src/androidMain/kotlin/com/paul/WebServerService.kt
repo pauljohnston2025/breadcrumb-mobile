@@ -17,6 +17,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.paul.WebServerService.Companion.NOTIFICATION_ID
+import com.paul.infrastructure.repositories.ColourPaletteRepository
 import com.paul.infrastructure.repositories.TileServerRepo.Companion.TILE_SERVER_ENABLED_KEY
 import com.paul.infrastructure.service.FileHelper
 import com.paul.infrastructure.service.ImageProcessor
@@ -25,12 +26,10 @@ import com.russhwolf.settings.Settings
 import com.paul.infrastructure.web.WebServerController as CommonWebServerController
 import com.paul.infrastructure.web.WebServerService as CommonWebServerService
 
-class WebServerController(private val context: Context): CommonWebServerController
-{
+class WebServerController(private val context: Context) : CommonWebServerController {
     val settings: Settings = Settings()
 
-    fun onStart()
-    {
+    fun onStart() {
         val enabled = settings.getBooleanOrNull(TILE_SERVER_ENABLED_KEY)
         if (enabled == null || enabled) // null check for anyone who has never set the setting, defaults to enabled
         {
@@ -39,8 +38,7 @@ class WebServerController(private val context: Context): CommonWebServerControll
     }
 
     override fun changeTileServerEnabled(tileServerEnabled: Boolean) {
-        if (tileServerEnabled)
-        {
+        if (tileServerEnabled) {
             startWebServer()
             return
         }
@@ -59,8 +57,7 @@ class WebServerController(private val context: Context): CommonWebServerControll
         }
     }
 
-    private fun startWebServer()
-    {
+    private fun startWebServer() {
         try {
             val serviceIntent = Intent(context, WebServerService::class.java)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -68,9 +65,7 @@ class WebServerController(private val context: Context): CommonWebServerControll
             } else {
                 context.startService(serviceIntent)
             }
-        }
-        catch (t: Throwable)
-        {
+        } catch (t: Throwable) {
             Napier.d("failed to start service (lets hope its because it's already running) $t")
         }
     }
@@ -96,7 +91,11 @@ class WebServerService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         server.start()
         if (Build.VERSION.SDK_INT >= 34) {
-            startForeground(NOTIFICATION_ID, createNotification(this), FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+            startForeground(
+                NOTIFICATION_ID,
+                createNotification(this),
+                FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+            )
         } else {
             startForeground(NOTIFICATION_ID, createNotification(this))
         }
@@ -110,7 +109,8 @@ class WebServerService : Service() {
     }
 
     private fun createNotification(context: Context): Notification {
-        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val notificationManager =
+            getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         // --- 1. Create Notification Channel (Required for API 26+) ---
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             // Check if channel already exists (optional, but good practice)

@@ -1,7 +1,9 @@
 package com.paul.infrastructure.repositories
 
 import ch.qos.logback.core.subst.Token
+import com.paul.domain.ColourPalette
 import com.paul.domain.TileServerInfo
+import com.paul.infrastructure.repositories.ColourPaletteRepository.Companion.getSelectedPaletteOnStart
 import com.paul.infrastructure.repositories.TileServerRepo.Companion.getAuthTokenOnStart
 import com.paul.infrastructure.repositories.TileServerRepo.Companion.getTileServerOnStart
 import com.paul.infrastructure.repositories.TileServerRepo.Companion.getTileTypeOnStart
@@ -30,11 +32,16 @@ abstract class ITileRepository(private val fileHelper: IFileHelper) {
     private val client = KtorClient.client // Get the singleton client instance
 
     private var tileServer = getTileServerOnStart()
+    protected var _currentPalette = getSelectedPaletteOnStart()
     private var authToken = getAuthTokenOnStart()
     protected var tileType = getTileTypeOnStart()
 
     fun currentTileServer(): TileServerInfo {
         return tileServer
+    }
+
+    fun currentPalette(): ColourPalette {
+        return _currentPalette
     }
 
     fun serverDetails(): TileServerDetailsResponse {
@@ -43,8 +50,10 @@ abstract class ITileRepository(private val fileHelper: IFileHelper) {
 
     fun setTileServer(tileServer: TileServerInfo) {
         this.tileServer = tileServer
-        // todo: nuke local tile cache?
-        // maybe a tile cache per url?
+    }
+
+    fun setCurrentPalette(currentPalette: ColourPalette) {
+        this._currentPalette = currentPalette
     }
 
     fun setAuthToken(authToken: String) {

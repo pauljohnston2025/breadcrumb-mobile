@@ -242,14 +242,46 @@ class TileServerRepo(
         settings.putString(AUTH_TOKEN_KEY, authToken)
     }
 
-    suspend fun onAddCustomServer(tileServer: TileServerInfo) {
-        val mutableServers = getCustomServers().toMutableList()
-        mutableServers.add(tileServer)
+    /**
+     * Saves a custom tile server. This method handles both creating a new server
+     * and updating an existing one.
+     *
+     * It checks if a server with the same `id` already exists. If it does, the
+     * existing entry is replaced. If not, the new server is added to the list.
+     *
+     * @param server The TileServerInfo object to save. It will be marked as `isCustom = true`.
+     */
+    suspend fun saveCustomServer(server: TileServerInfo) {
+        // Ensure the server is correctly marked as custom before saving.
+        val serverToSave = server.copy(isCustom = true)
 
-        settings.putString(CUSTOM_SERVERS_KEY, Json.encodeToString(mutableServers))
-        val newList = availableServers.value.toMutableList()
-        newList.add(tileServer)
-        availableServers.emit(newList.toList())
+        // Get the current list of custom servers.
+        val customServers = getCustomServers().toMutableList()
+        val existingIndex = customServers.indexOfFirst { it.id == serverToSave.id }
+
+        if (existingIndex != -1) {
+            // This is an UPDATE. Replace the existing server at its index.
+            customServers[existingIndex] = serverToSave
+        } else {
+            // This is an ADD. Add the new server to the list.
+            customServers.add(serverToSave)
+        }
+
+        // Save the updated list of custom servers back to settings.
+        settings.putString(CUSTOM_SERVERS_KEY, Json.encodeToString(customServers))
+
+        // Rebuild the full list of available servers to update the UI.
+        // Start with the base list of system (non-custom) servers.
+        val baseServers = availableServers.value.filter { !it.isCustom }
+        val newList = baseServers + customServers
+        availableServers.emit(newList)
+
+        // *** BUG FIX ***
+        // If the server we just updated is the currently selected one,
+        // we need to update the currentTileServer flow to reflect the changes.
+        if (currentTileServer.value.id == serverToSave.id) {
+            updateCurrentTileServer(serverToSave)
+        }
     }
 
     suspend fun onTileServerEnabledChange(newVal: Boolean) {

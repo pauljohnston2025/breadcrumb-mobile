@@ -1,13 +1,17 @@
+// com.paul.viewmodels.Settings.kt
 package com.paul.viewmodels
 
 import androidx.compose.material.SnackbarHostState
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.paul.domain.ColourPalette
 import com.paul.domain.RouteSettings
 import com.paul.domain.TileServerInfo
 import com.paul.infrastructure.connectiq.IConnection
+import com.paul.infrastructure.repositories.ColourPaletteRepository
 import com.paul.infrastructure.repositories.ITileRepository
 import com.paul.infrastructure.repositories.RouteRepository
 import com.paul.infrastructure.repositories.TileServerRepo
@@ -19,8 +23,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 
 class Settings(
@@ -30,9 +34,13 @@ class Settings(
     webServerController: WebServerController,
     tileRepo: ITileRepository,
     public val routesRepo: RouteRepository,
+    private val colourPaletteRepository: ColourPaletteRepository, // Inject ColourPaletteRepository
 ) : ViewModel() {
 
     val tileServerRepo = TileServerRepo(webServerController, tileRepo)
+    // Expose ColourPaletteRepository flows as Compose states
+    val currentColourPalette = colourPaletteRepository.currentColourPaletteFlow
+    val availableColourPalettes = colourPaletteRepository.availableColourPalettesFlow
 
     val sendingMessage: MutableState<String> = mutableStateOf("")
 
@@ -74,7 +82,7 @@ class Settings(
                 return@launch
             }
 
-            sendingMessage("Setting tile server") {
+            sendingMessage("Setting tile type") {
                 try {
                     try {
                         tileServerRepo.updateCurrentTileType(tileType)
@@ -91,7 +99,7 @@ class Settings(
                         )
                     )
                 } catch (t: TimeoutCancellationException) {
-                    snackbarHostState.showSnackbar("Timed out clearing tile cache")
+                    snackbarHostState.showSnackbar("Timed out setting tile type")
                     return@sendingMessage
                 } catch (t: Throwable) {
                     snackbarHostState.showSnackbar("Failed to send to selected device")
@@ -140,7 +148,7 @@ class Settings(
                         )
                     )
                 } catch (t: TimeoutCancellationException) {
-                    snackbarHostState.showSnackbar("Timed out clearing tile cache")
+                    snackbarHostState.showSnackbar("Timed out setting tile server")
                     return@sendingMessage
                 } catch (t: Throwable) {
                     snackbarHostState.showSnackbar("Failed to send to selected device")
@@ -166,9 +174,24 @@ class Settings(
         }
     }
 
-    fun onAddCustomServer(tileServer: TileServerInfo) {
+    /**
+     * Handles both creating a new custom tile server and updating an existing one.
+     * It calls the repository's unified save method.
+     *
+     * @param tileServer The TileServerInfo object to be saved. If its ID already exists
+     *                   in the repository, it will be updated; otherwise, it will be added.
+     */
+    fun onSaveCustomServer(tileServer: TileServerInfo) {
         viewModelScope.launch(Dispatchers.IO) {
-            tileServerRepo.onAddCustomServer(tileServer)
+            sendingMessage("Saving custom tile server...") {
+                try {
+                    tileServerRepo.saveCustomServer(tileServer)
+                    snackbarHostState.showSnackbar("Tile server saved successfully")
+                } catch (e: Exception) {
+                    Napier.e("Failed to save custom tile server", e)
+                    snackbarHostState.showSnackbar("Error: Could not save tile server")
+                }
+            }
         }
     }
 
@@ -203,7 +226,7 @@ class Settings(
                     connection.send(
                         device, CompanionAppTileServerChanged(
                             tilServer.tileLayerMin,
-                            tilServer.tileLayerMax,
+                            tilServer.tileLayerMax
                         )
                     )
                 } catch (t: TimeoutCancellationException) {
@@ -232,6 +255,63 @@ class Settings(
     fun onRemoveCustomServer(tileServer: TileServerInfo) {
         viewModelScope.launch(Dispatchers.IO) {
             tileServerRepo.onRemoveCustomServer(tileServer)
+        }
+    }
+
+    // --- Colour Palette specific functions ---
+    fun onColourPaletteSelected(palette: ColourPalette) {
+        viewModelScope.launch(Dispatchers.IO) {
+            sendingMessage("Setting colour palette") {
+                try {
+                    colourPaletteRepository.updateCurrentColourPalette(palette)
+                    // If tile server is enabled, send update to watch
+                    if (tileServerRepo.currentlyEnabled()) {
+                        val device = deviceSelector.currentDevice()
+                        if (device == null) {
+                            snackbarHostState.showSnackbar("no devices selected")
+                            return@sendingMessage
+                        }
+                        val tilServer = tileServerRepo.currentServerFlow().value
+                        connection.send(
+                            device, CompanionAppTileServerChanged(
+                                tilServer.tileLayerMin,
+                                tilServer.tileLayerMax
+                            )
+                        )
+                    }
+                } catch (e: Exception) {
+                    Napier.d("colour palette update failed: ${e.message}")
+                    snackbarHostState.showSnackbar("Failed to update colour palette")
+                }
+            }
+        }
+    }
+
+    fun onAddOrUpdateCustomPalette(palette: ColourPalette) {
+        viewModelScope.launch(Dispatchers.IO) {
+            sendingMessage("Saving colour palette") {
+                try {
+                    colourPaletteRepository.addOrUpdateCustomPalette(palette)
+                    snackbarHostState.showSnackbar("Colour palette saved")
+                } catch (e: Exception) {
+                    Napier.d("failed to save custom palette: ${e.message}")
+                    snackbarHostState.showSnackbar("Failed to save colour palette")
+                }
+            }
+        }
+    }
+
+    fun onRemoveCustomPalette(palette: ColourPalette) {
+        viewModelScope.launch(Dispatchers.IO) {
+            sendingMessage("Removing colour palette") {
+                try {
+                    colourPaletteRepository.removeCustomPalette(palette)
+                    snackbarHostState.showSnackbar("Colour palette removed")
+                } catch (e: Exception) {
+                    Napier.d("failed to remove custom palette: ${e.message}")
+                    snackbarHostState.showSnackbar("Failed to remove colour palette")
+                }
+            }
         }
     }
 }

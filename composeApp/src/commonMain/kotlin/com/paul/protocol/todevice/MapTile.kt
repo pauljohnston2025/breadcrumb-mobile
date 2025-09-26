@@ -1,5 +1,7 @@
 package com.paul.protocol.todevice
 
+import com.paul.domain.ColourPalette
+import com.paul.infrastructure.service.ColourPaletteConverter
 import com.paul.infrastructure.web.TileType
 import okio.ByteString.Companion.toByteString
 import kotlin.random.Random
@@ -17,8 +19,8 @@ data class Colour(
     val green: UByte,
     val blue: UByte,
 ) {
-    fun as64Colour(): Byte {
-        return HardCodedColourPalette().convertColourToPalette(this)
+    fun as64Colour(selectedColourPalette: ColourPalette): Byte {
+        return ColourPaletteConverter.convertColourToPalette(this, selectedColourPalette.colors)
 //        // not the best conversion, but ok for now
 //        val colour =  ((Math.round(red.toInt() / 255.0f) * 3) shl 4) or
 //                ((Math.round(green.toInt() / 255.0f) * 3) shl 2) or
@@ -30,7 +32,7 @@ data class Colour(
     }
 
     fun isCloseToWhite(): Boolean {
-        return HardCodedColourPalette().isCloseToWhite(this)
+        return ColourPaletteConverter.isCloseToWhite(this)
     }
 
     fun as24BitColour(): List<UByte> {
@@ -60,22 +62,10 @@ class MapTile(
     private val z: Int,
     private val pixelData: List<Colour>
 ) {
-//    override fun type(): ProtocolType {
-//        return ProtocolType.PROTOCOL_MAP_TILE
-//    }
 
-    fun payload(): List<Any> {
-        val data = mutableListOf<Any>()
-        data.add(x)
-        data.add(y)
-        data.add(z)
-        data.add(colourString(TileType.TILE_DATA_TYPE_64_COLOUR))
-        return data
-    }
-
-    fun colourString(tileType: TileType): String {
+    fun colourString(tileType: TileType, selectedColourPalette: ColourPalette): String {
         return when (tileType) {
-            TileType.TILE_DATA_TYPE_64_COLOUR -> colourString64Colour()
+            TileType.TILE_DATA_TYPE_64_COLOUR -> colourString64Colour(selectedColourPalette)
             TileType.TILE_DATA_TYPE_BASE64_FULL_COLOUR -> fullColourStringBase64()
             TileType.TILE_DATA_TYPE_BLACK_AND_WHITE -> blackAndWhiteColourString()
         }
@@ -118,7 +108,7 @@ class MapTile(
         return str
     }
 
-    fun colourString64Colour(): String {
+    fun colourString64Colour(selectedColourPalette: ColourPalette): String {
         // monkey c is a really annoying encoding, it does not allow sending a raw byte array
         // you can send strings, but they have to be valid utf8, fortunately we are not using the
         // top 2 bits in our encoding yet (so all our values are in the ascii range)
@@ -131,7 +121,7 @@ class MapTile(
         var str = "";
         // testing data
         for (colour in pixelData) {
-            val colourByte = colour.as64Colour()
+            val colourByte = colour.as64Colour(selectedColourPalette)
 //            Napier.d("colour byte is: " + colourByte.toInt())
             // we also cannot send all 0's since its the null terminator
             // so we will set the second highest bit
@@ -142,158 +132,3 @@ class MapTile(
         return str
     }
 }
-
-data class RGBColor(val r: Int, val g: Int, val b: Int) {
-    fun toMonkeyCColourInt(): Int {
-        // The 0xFF (255) represents a fully opaque alpha channel.
-        // 'shl' is the bitwise shift left operator in Kotlin.
-        // 'or' is the bitwise OR operator in Kotlin.
-        return (0xFF shl 24) or (r.toUByte().toInt() shl 16) or (g.toUByte().toInt() shl 8) or b.toUByte().toInt()
-// no leading FF, monkeyc will take the 3 byte colour as a number
-//        return (r.toUByte().toInt() shl 16) or (g.toUByte().toInt() shl 8) or b.toUByte().toInt()
-    }
-}
-
-class HardCodedColourPalette {
-    companion object {
-        // note: these need to match whats on the watch
-        val colorPalette64: List<RGBColor> = listOf(
-            // Greens (Emphasis) - 22 colors
-            RGBColor(61, 179, 61),       // Vibrant Green
-            RGBColor(102, 179, 102),      // Medium Green
-            RGBColor(153, 204, 153),      // Light Green
-            RGBColor(0, 102, 0),         // Dark Green
-            RGBColor(128, 179, 77),      // Slightly Yellowish Green
-            RGBColor(77, 179, 128),      // Slightly Bluish Green
-            RGBColor(179, 179, 179),       // Pale Green
-            RGBColor(92, 128, 77),      // Olive Green
-            RGBColor(148, 209, 23),
-            RGBColor(107, 142, 35),  // OliveDrab
-            RGBColor(179, 230, 0),        // Lime Green
-            RGBColor(102, 179, 0),        // Spring Green
-            RGBColor(77, 204, 77),      // Bright Green
-            RGBColor(128, 153, 128),      // Grayish Green
-            RGBColor(153, 204, 153),      // Soft Green
-            RGBColor(0, 128, 0),         // Forest Green
-            RGBColor(34, 139, 34),    // ForestGreen
-            RGBColor(50, 205, 50),    // LimeGreen
-            RGBColor(144, 238, 144),  // LightGreen
-            RGBColor(0, 100, 0),       // DarkGreen
-            RGBColor(60, 179, 113),     // Medium Sea Green
-            RGBColor(46, 139, 87),      // SeaGreen
-
-            // Reds - 8 colors
-            RGBColor(230, 0, 0),         // Bright Red
-            RGBColor(204, 102, 102),      // Light Red (Pink)
-            RGBColor(153, 0, 0),         // Dark Red
-            RGBColor(230, 92, 77),      // Coral Red
-            RGBColor(179, 0, 38),         // Crimson
-            RGBColor(204, 102, 102),      // Rose
-            RGBColor(255, 0, 0),     // Pure Red
-            RGBColor(255, 69, 0),    // RedOrange
-
-            // Blues - 8 colors
-            RGBColor(0, 0, 230),         // Bright Blue
-            RGBColor(102, 102, 204),      // Light Blue
-            RGBColor(0, 0, 153),         // Dark Blue
-            RGBColor(102, 153, 230),      // Sky Blue
-            RGBColor(38, 0, 179),         // Indigo
-            RGBColor(77, 128, 179),      // Steel Blue
-            RGBColor(0, 0, 255),       // Pure Blue
-            RGBColor(0, 191, 255),      // DeepSkyBlue
-            RGBColor(151, 210, 227), // ocean blue
-
-            // Yellows - 6 colors
-            RGBColor(230, 230, 0),        // Bright Yellow
-            RGBColor(204, 204, 102),      // Light Yellow
-            RGBColor(153, 153, 0),        // Dark Yellow (Gold)
-            RGBColor(179, 153, 77),      // Mustard Yellow
-            RGBColor(255, 255, 0),   // Pure Yellow
-            RGBColor(255, 215, 0),   // Gold
-
-            // Oranges - 6 colors
-            RGBColor(230, 115, 0),        // Bright Orange
-            RGBColor(204, 153, 102),      // Light Orange
-            RGBColor(153, 77, 0),         // Dark Orange
-            RGBColor(179, 51, 0),         // Burnt Orange
-            RGBColor(255, 165, 0),    // Orange
-            RGBColor(255, 140, 0),    // DarkOrange
-
-            // Purples - 6 colors
-            RGBColor(230, 0, 230),        // Bright Purple
-            RGBColor(204, 102, 204),      // Light Purple
-            RGBColor(153, 0, 153),        // Dark Purple
-            RGBColor(230, 153, 230),      // Lavender
-            RGBColor(128, 0, 128),   // Purple
-            RGBColor(75, 0, 130),   // Indigo
-
-            // Neutral/Grayscale - 4 colors
-            RGBColor(242, 242, 242),      // White
-//        RGBColor(179, 179, 179),       // Light Gray
-            RGBColor(77, 77, 77),         // Dark Gray
-            RGBColor(0, 0, 0),         // Black
-
-            // manually picked to match map tiles
-            RGBColor(246, 230, 98), // road colours (yellow)
-            RGBColor(194, 185, 108), // slightly darker yellow road
-            RGBColor(214, 215, 216), // some mountains (light grey)
-            RGBColor(213, 237, 168), // some greenery that was not a nice colour
-        )
-    }
-
-
-    fun findNearestColorIndex(red: Int, green: Int, blue: Int, palette: List<RGBColor>): Int {
-        var minDistance = Float.MAX_VALUE
-        var nearestIndex = 0
-
-        for (i in palette.indices) {
-            val paletteColor = palette[i]
-            val distance =
-                colorDistance(red, green, blue, paletteColor.r, paletteColor.g, paletteColor.b)
-
-            if (distance < minDistance) {
-                minDistance = distance
-                nearestIndex = i
-            }
-        }
-        return nearestIndex
-    }
-
-    fun colorDistance(r1: Int, g1: Int, b1: Int, r2: Int, g2: Int, b2: Int): Float {
-        val rMean = (r1 + r2) / 2f
-        val rDiff = r1 - r2
-        val gDiff = g1 - g2
-        val bDiff = b1 - b2
-
-        val weightR = 2 + rMean / 256
-        val weightG = 4
-        val weightB = 2 + (255 - rMean) / 256
-
-        return (weightR * rDiff * rDiff + weightG * gDiff * gDiff + weightB * bDiff * bDiff) as Float
-    }
-
-    fun rgbTo6Bit(red: Int, green: Int, blue: Int, colorPalette: List<RGBColor>): Byte {
-        val paletteIndex = findNearestColorIndex(red, green, blue, colorPalette)
-        return paletteIndex.toByte()
-    }
-
-    fun convertColourToPalette(colour: Colour): Byte {
-        val packedColor =
-            rgbTo6Bit(colour.red.toInt(), colour.green.toInt(), colour.blue.toInt(), colorPalette64)
-//        Napier.d("Packed color (6-bit): 0x${String.format("%02X", packedColor)}")
-        return packedColor
-    }
-
-    fun isCloseToWhite(colour: Colour): Boolean {
-        // we want to consider even very bright grays as white, so the bottom approach is slightly better for stamen toner maps
-//        val white = RGBColor(255, 255, 255)
-//        val black = RGBColor(0, 0, 0)
-//        val bWColorPalette = listOf(black, white);
-//        val paletteIndex = findNearestColorIndex(colour.red.toInt(), colour.green.toInt(), colour.blue.toInt(), bWColorPalette)
-//        return paletteIndex == 1
-
-        return colour.red.toInt() > 200 && colour.green.toInt() > 200 && colour.blue.toInt() > 200
-    }
-}
-
-

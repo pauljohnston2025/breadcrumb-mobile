@@ -32,7 +32,9 @@ data class LoadTileRequest(
 data class LoadTileResponse(
     val type: Int,
     val data: String,
-    val paletteId: Int?,
+    // paletteId less chars for better transfer (it only save a few bytes and we normally send 64*64 tiles 4096 bytes, so it won't matter too much)
+    // for black and white tiles it will though because we only send a few bytes (~512) so omit the key in that case
+    val pId: Int? = null,
 )
 
 @Serializable
