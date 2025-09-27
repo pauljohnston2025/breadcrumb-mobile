@@ -353,10 +353,11 @@ fun ColourPaletteDialog(
                 onClick = {
                     if (validate()) {
                         // A new palette is indicated by an id of 0, which will be handled by the repository.
-                        val paletteId = paletteToEdit?.id ?: 0
+                        val paletteId = paletteToEdit?.watchAppPaletteId ?: 0
                         val finalColors = colors.take(64)
                         val newPalette = ColourPalette(
-                            id = paletteId,
+                            watchAppPaletteId = paletteId,
+                            uniqueId = UUID.randomUUID().toString(),
                             name = name,
                             colors = finalColors,
                             isEditable = true
@@ -563,7 +564,7 @@ fun Settings(
                                             )
                                             IconButton(onClick = {
                                                 paletteToEdit = palette.copy(
-                                                    id = 0,
+                                                    watchAppPaletteId = 0,
                                                     name = "Copy of ${palette.name}",
                                                     isEditable = true
                                                 )

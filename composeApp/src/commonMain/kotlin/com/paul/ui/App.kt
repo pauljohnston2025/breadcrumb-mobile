@@ -265,7 +265,8 @@ fun App(
                                 settingsViewModel.tileServerRepo,
                                 ProfileRepo(), // needs to be a singleton if anything else uses it
                                 clipboardHandler,
-                                settingsViewModel.routesRepo
+                                settingsViewModel.routesRepo,
+                                colourPaletteRepo
                             )
                         }
                         ProfilesScreen(

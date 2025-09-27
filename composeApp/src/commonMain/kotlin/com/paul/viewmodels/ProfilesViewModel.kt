@@ -5,7 +5,6 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.navigation.NavController
 import com.benasher44.uuid.uuid4
 import com.paul.domain.AppSettings
 import com.paul.domain.ExportedProfile
@@ -13,6 +12,7 @@ import com.paul.domain.LastKnownDevice
 import com.paul.domain.Profile
 import com.paul.domain.ProfileSettings
 import com.paul.infrastructure.connectiq.IConnection
+import com.paul.infrastructure.repositories.ColourPaletteRepository
 import com.paul.infrastructure.repositories.ProfileRepo
 import com.paul.infrastructure.repositories.RouteRepository
 import com.paul.infrastructure.repositories.TileServerRepo
@@ -41,6 +41,7 @@ class ProfilesViewModel(
     val profileRepo: ProfileRepo,
     val clipboardHandler: IClipboardHandler,
     val routeRepo: RouteRepository,
+    private val colourPaletteRepo: ColourPaletteRepository,
 ) : ViewModel() {
     val sendingMessage: MutableState<String> = mutableStateOf("")
 
@@ -163,7 +164,7 @@ class ProfilesViewModel(
     fun exportProfile(profile: Profile) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val exported = profile.export(tileServerRepo)
+                val exported = profile.export(tileServerRepo, colourPaletteRepo)
                 clipboardHandler.copyTextToClipboard(Json {
                     prettyPrint = true
                 }.encodeToString(exported))
@@ -183,10 +184,10 @@ class ProfilesViewModel(
     }
 
     suspend fun applyProfileInner(profile: Profile) {
-            val appVersion = getAppVersion()
-            if (appVersion != null && profile.lastKnownDevice.appVersion > appVersion) {
-                snackbarHostState.showSnackbar("Newer profile detected, some settings might not be applied")
-            }
+        val appVersion = getAppVersion()
+        if (appVersion != null && profile.lastKnownDevice.appVersion > appVersion) {
+            snackbarHostState.showSnackbar("Newer profile detected, some settings might not be applied")
+        }
 
         sendingMessage("Applying settings to device") {
             val device = deviceSelector.currentDevice()
@@ -209,6 +210,15 @@ class ProfilesViewModel(
             tileServerRepo.updateAuthToken(profile.appSettings.authToken)
             tileServerRepo.updateCurrentTileType(profile.appSettings.tileType)
             routeRepo.saveSettings(profile.appSettings.routeSettings)
+            if (profile.appSettings.colourPaletteUniqueId != null) {
+                val colourPallet = colourPaletteRepo.getPaletteByUUID(profile.appSettings.colourPaletteUniqueId)
+                if(colourPallet == null)
+                {
+                    snackbarHostState.showSnackbar("unknown colour palette")
+                    return@sendingMessage
+                }
+                colourPaletteRepo.updateCurrentColourPalette(colourPallet)
+            }
             delay(1000) // wait for a bit so users can read message
         }
     }
@@ -233,7 +243,14 @@ class ProfilesViewModel(
                     }
                 }
 
-                routeRepo.saveSettings(exportedProfile.appSettings.routeSettings)
+                if (exportedProfile.customColourPalettes.isNotEmpty()) {
+                    for (palette in exportedProfile.customColourPalettes) {
+                        if (colourPaletteRepo.getPaletteByUUID(palette.uniqueId) != null) {
+                            continue; // we already have this colour pallet
+                        }
+                        colourPaletteRepo.addOrUpdateCustomPalette(palette)
+                    }
+                }
 
                 val profile = exportedProfile.toProfile()
                 profileRepo.addProfile(profile)
@@ -250,7 +267,8 @@ class ProfilesViewModel(
             val profileSettings = ProfileSettings(
                 uuid4().toString(),
                 label,
-                Clock.System.now()
+                Clock.System.now(),
+                null
             )
 
             val appSettings = loadAppSettings()
@@ -292,7 +310,8 @@ class ProfilesViewModel(
             tileServerRepo.currentTileTypeFlow().value,
             tileServerRepo.currentTokenFlow().value,
             tileServerRepo.currentServerFlow().value.id,
-            routeRepo.currentSettingsFlow().value
+            routeRepo.currentSettingsFlow().value,
+            colourPaletteRepo.currentColourPaletteFlow.value.uniqueId
         )
     }
 

@@ -1,7 +1,9 @@
 package com.paul.domain
 
+import com.paul.infrastructure.repositories.ColourPaletteRepository
 import com.paul.infrastructure.repositories.TileServerRepo
 import com.paul.infrastructure.web.TileType
+import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonArray
@@ -14,7 +16,6 @@ import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.longOrNull
-import java.util.SortedMap
 
 @Serializable
 data class AppSettings(
@@ -23,6 +24,7 @@ data class AppSettings(
     val authToken: String,
     val tileServerId: String,
     val routeSettings: RouteSettings = RouteSettings.default,
+    val colourPaletteUniqueId: String? = null,
 )
 
 @Serializable
@@ -30,6 +32,7 @@ data class ProfileSettings(
     val id: String,
     val label: String,
     val createdAt: Instant,
+    val importedAt: Instant? = null,
 )
 
 @Serializable
@@ -135,7 +138,10 @@ data class Profile(
         }
     }
 
-    fun export(tileServerRepo: TileServerRepo): ExportedProfile {
+    fun export(
+        tileServerRepo: TileServerRepo,
+        colourPaletteRepo: ColourPaletteRepository
+    ): ExportedProfile {
         val obfuscatedAuthToken =
             if (appSettings.authToken == "") appSettings.authToken else "<AppAuthTokenRequired>"
         val customServers = mutableListOf<TileServerInfo>()
@@ -158,12 +164,22 @@ data class Profile(
             sortedPropertiesMap[key] = unsortedMap[key]!! // Add entries in sorted key order
         }
 
+        val customPalettes = mutableListOf<ColourPalette>()
+        if(appSettings.colourPaletteUniqueId != null) {
+            val currentPalette =
+                colourPaletteRepo.getPaletteByUUID(appSettings.colourPaletteUniqueId)
+            if (currentPalette != null && currentPalette.watchAppPaletteId > 0) {
+                customPalettes.add(currentPalette)
+            }
+        }
+
         return ExportedProfile(
             profileSettings.copy(),
             appSettings.copy(authToken = obfuscatedAuthToken),
             sortedPropertiesMap,
             lastKnownDevice,
-            customServers
+            customServers,
+            customPalettes
         )
     }
 }
@@ -175,10 +191,11 @@ data class ExportedProfile(
     val deviceSettings: Map<String, JsonElement>,
     val lastKnownDevice: LastKnownDevice,
     val customServers: List<TileServerInfo>,
+    val customColourPalettes: List<ColourPalette> = listOf()
 ) {
     fun toProfile(): Profile {
         return Profile(
-            profileSettings,
+            profileSettings.copy(importedAt = Clock.System.now()),
             appSettings,
             deviceSettings,
             lastKnownDevice,

@@ -2,7 +2,6 @@ package com.paul.infrastructure.web
 
 import android.app.Service.START_STICKY
 import com.paul.domain.ColourPalette
-import com.paul.infrastructure.repositories.ColourPaletteRepository
 import com.paul.infrastructure.repositories.ITileRepository
 import io.github.aakira.napier.Napier
 import io.ktor.http.HttpStatusCode
@@ -193,7 +192,7 @@ class WebServerService(
 
                 call.respond(
                     GetTilePaletteResponse(
-                        currentPalette.id,
+                        currentPalette.watchAppPaletteId,
                         finalPalette
                     )
                 )

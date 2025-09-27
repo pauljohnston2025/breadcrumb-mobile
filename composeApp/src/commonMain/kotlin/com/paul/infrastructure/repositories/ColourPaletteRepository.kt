@@ -13,7 +13,6 @@ import io.ktor.http.isSuccess
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 class ColourPaletteRepository(
@@ -27,7 +26,8 @@ class ColourPaletteRepository(
 
         // System palettes (negative IDs)
         val opentopoPalette = ColourPalette(
-            id = -1, // Use -1 for the original hardcoded palette
+            watchAppPaletteId = -1, // Use -1 for the original hardcoded palette
+            uniqueId = "2f7450e7-5147-4656-9712-100e97fe4d79",
             name = "World Topo Map",
             colors = listOf(
                 // Greens (Emphasis) - 22 colors
@@ -116,7 +116,8 @@ class ColourPaletteRepository(
 
         // see https://developer.garmin.com/connect-iq/user-experience-guidelines/incorporating-the-visual-design-and-product-personalities/
         val mips64Palette = ColourPalette(
-            id = -2,
+            watchAppPaletteId = -2,
+            uniqueId = "8d8a1a9d-1edc-4173-8319-e51e577499d3",
             name = "MIP 64",
             colors = listOf(
                 RGBColor(0xFF, 0xFF, 0xFF),
@@ -189,7 +190,8 @@ class ColourPaletteRepository(
 
         // see https://developer.garmin.com/connect-iq/user-experience-guidelines/incorporating-the-visual-design-and-product-personalities/
         val fr4555Palette = ColourPalette(
-            id = -3,
+            watchAppPaletteId = -3,
+            uniqueId = "27647b46-5b78-4857-aa2d-e8ecaabef2fe",
             name = "Forerunner 45 and 55",
             colors = listOf(
                 RGBColor(0xFF, 0xFF, 0xFF),
@@ -210,9 +212,9 @@ class ColourPaletteRepository(
         )
 
         fun getSelectedPaletteOnStart(): ColourPalette {
-            val selectedPaletteId = settings.getInt(PALETTE_ID_KEY, opentopoPalette.id)
+            val selectedPaletteId = settings.getInt(PALETTE_ID_KEY, opentopoPalette.watchAppPaletteId)
             val customPalettes = getCustomPalettesOnStart()
-            return (systemPalettes + customPalettes).find { it.id == selectedPaletteId }
+            return (systemPalettes + customPalettes).find { it.watchAppPaletteId == selectedPaletteId }
                 ?: opentopoPalette // Fallback to default if ID not found
         }
 
@@ -264,53 +266,60 @@ class ColourPaletteRepository(
         tileRepo.setCurrentPalette(palette)
 
         _currentColourPalette.emit(palette)
-        settings.putInt(PALETTE_ID_KEY, palette.id)
+        settings.putInt(PALETTE_ID_KEY, palette.watchAppPaletteId)
     }
 
     suspend fun addOrUpdateCustomPalette(palette: ColourPalette) {
         val currentCustomPalettes = getCustomPalettesOnStart().toMutableList()
-        val originalId = palette.id
+        val originalId = palette.watchAppPaletteId
 
         // Remove the old version if it's an update
         if (originalId > 0) {
-            currentCustomPalettes.removeIf { it.id == originalId }
+            currentCustomPalettes.removeIf { it.watchAppPaletteId == originalId }
         }
 
         // Assign a new, unique, smallest possible ID and add it
         val newId = findNextAvailableId(currentCustomPalettes, originalId)
-        val newPalette = palette.copy(id = newId)
+        val newPalette = palette.copy(watchAppPaletteId = newId)
         currentCustomPalettes.add(newPalette)
 
         // Save the updated list
         settings.putString(CUSTOM_PALETTES_KEY, Json.encodeToString(currentCustomPalettes))
-        _availableColourPalettes.emit(systemPalettes + currentCustomPalettes.sortedBy { it.id })
+        _availableColourPalettes.emit(systemPalettes + currentCustomPalettes.sortedBy { it.watchAppPaletteId })
 
         updateCurrentColourPalette(newPalette)
     }
 
 
-    suspend fun removeCustomPalette(palette: ColourPalette) {
-        if (!palette.isEditable) return // Cannot remove system palettes
+    suspend fun removeCustomPalette(palette: ColourPalette): Boolean {
+        if (!palette.isEditable) return false // Cannot remove system palettes
 
         val currentCustomPalettes = getCustomPalettesOnStart().toMutableList()
-        currentCustomPalettes.removeIf { it.id == palette.id }
+        currentCustomPalettes.removeIf { it.watchAppPaletteId == palette.watchAppPaletteId }
 
         settings.putString(CUSTOM_PALETTES_KEY, Json.encodeToString(currentCustomPalettes))
         _availableColourPalettes.emit(systemPalettes + currentCustomPalettes)
 
         // If the removed palette was the current one, switch to default system palette
-        if (_currentColourPalette.value.id == palette.id) {
+        if (_currentColourPalette.value.watchAppPaletteId == palette.watchAppPaletteId) {
             updateCurrentColourPalette(opentopoPalette)
+            return true
         }
+
+        return false
     }
 
     fun getPaletteById(id: Int): ColourPalette? {
-        return (_availableColourPalettes.value).find { it.id == id }
+        return (_availableColourPalettes.value).find { it.watchAppPaletteId == id }
+    }
+
+    fun getPaletteByUUID(uuid: String): ColourPalette? {
+        return _availableColourPalettes.value.find { it.uniqueId == uuid }
     }
 
     private fun findNextAvailableId(currentCustomPalettes: List<ColourPalette>, originalId: Int): Int {
         // Find the maximum ID from the remaining palettes in the list.
-        val maxExistingId = currentCustomPalettes.map { it.id }.maxOrNull() ?: 0
+        val maxExistingId = currentCustomPalettes.map { it.watchAppPaletteId }.maxOrNull() ?: 0
 
         // The new ID must be greater than the highest ID still in the list,
         // and also greater than the ID of the palette that was just removed.

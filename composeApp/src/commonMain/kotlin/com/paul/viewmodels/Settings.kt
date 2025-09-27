@@ -38,6 +38,7 @@ class Settings(
 ) : ViewModel() {
 
     val tileServerRepo = TileServerRepo(webServerController, tileRepo)
+
     // Expose ColourPaletteRepository flows as Compose states
     val currentColourPalette = colourPaletteRepository.currentColourPaletteFlow
     val availableColourPalettes = colourPaletteRepository.availableColourPalettesFlow
@@ -264,21 +265,7 @@ class Settings(
             sendingMessage("Setting colour palette") {
                 try {
                     colourPaletteRepository.updateCurrentColourPalette(palette)
-                    // If tile server is enabled, send update to watch
-                    if (tileServerRepo.currentlyEnabled()) {
-                        val device = deviceSelector.currentDevice()
-                        if (device == null) {
-                            snackbarHostState.showSnackbar("no devices selected")
-                            return@sendingMessage
-                        }
-                        val tilServer = tileServerRepo.currentServerFlow().value
-                        connection.send(
-                            device, CompanionAppTileServerChanged(
-                                tilServer.tileLayerMin,
-                                tilServer.tileLayerMax
-                            )
-                        )
-                    }
+                    watchSendTileServerChanged()
                 } catch (e: Exception) {
                     Napier.d("colour palette update failed: ${e.message}")
                     snackbarHostState.showSnackbar("Failed to update colour palette")
@@ -305,13 +292,33 @@ class Settings(
         viewModelScope.launch(Dispatchers.IO) {
             sendingMessage("Removing colour palette") {
                 try {
-                    colourPaletteRepository.removeCustomPalette(palette)
+                    if (colourPaletteRepository.removeCustomPalette(palette)) {
+                        watchSendTileServerChanged()
+                    }
                     snackbarHostState.showSnackbar("Colour palette removed")
                 } catch (e: Exception) {
                     Napier.d("failed to remove custom palette: ${e.message}")
                     snackbarHostState.showSnackbar("Failed to remove colour palette")
                 }
             }
+        }
+    }
+
+    suspend fun watchSendTileServerChanged() {
+        // If tile server is enabled, send update to watch
+        if (tileServerRepo.currentlyEnabled()) {
+            val device = deviceSelector.currentDevice()
+            if (device == null) {
+                snackbarHostState.showSnackbar("no devices selected")
+                return
+            }
+            val tilServer = tileServerRepo.currentServerFlow().value
+            connection.send(
+                device, CompanionAppTileServerChanged(
+                    tilServer.tileLayerMin,
+                    tilServer.tileLayerMax
+                )
+            )
         }
     }
 }

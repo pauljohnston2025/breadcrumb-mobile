@@ -209,6 +209,26 @@ private fun ProfileListItem(
         )
     }
 
+    if(profile.profileSettings.importedAt != null)
+    {
+        Row(
+            Modifier
+                .padding(start = 8.dp)
+                .fillMaxWidth()
+        ) {
+            Text(
+                text = "Imported At: " + profile.profileSettings.importedAt.toLocalDateTime(
+                    currentSystemDefault()
+                )
+                    .toString(),
+                style = MaterialTheme.typography.caption,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+
+
     // Action Buttons Section
     Row(
         verticalAlignment = Alignment.Top,
