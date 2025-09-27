@@ -290,7 +290,6 @@ class ColourPaletteRepository(
         updateCurrentColourPalette(newPalette)
     }
 
-
     suspend fun removeCustomPalette(palette: ColourPalette): Boolean {
         if (!palette.isEditable) return false // Cannot remove system palettes
 

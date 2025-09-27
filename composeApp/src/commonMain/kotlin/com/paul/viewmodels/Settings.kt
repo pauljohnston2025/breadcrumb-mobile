@@ -93,10 +93,14 @@ class Settings(
                         return@sendingMessage
                     }
                     val tilServer = tileServerRepo.currentServerFlow().value
+                    val currentPalette = colourPaletteRepository.currentColourPaletteFlow.value
                     connection.send(
                         device, CompanionAppTileServerChanged(
                             tilServer.tileLayerMin,
                             tilServer.tileLayerMax,
+                            // always send it even if we are not in 'TILE_DATA_TYPE_64_COLOUR format, since it will be the next pallet to use if that mode is enabled'
+                            // though when tile type changes we send this again :shrug:
+                            currentPalette
                         )
                     )
                 } catch (t: TimeoutCancellationException) {
@@ -142,10 +146,14 @@ class Settings(
                         snackbarHostState.showSnackbar("Failed to update tile server")
                         return@sendingMessage
                     }
+                    val currentPalette = colourPaletteRepository.currentColourPaletteFlow.value
                     connection.send(
                         device, CompanionAppTileServerChanged(
                             tileServer.tileLayerMin,
                             tileServer.tileLayerMax,
+                            // always send it even if we are not in 'TILE_DATA_TYPE_64_COLOUR format, since it will be the next pallet to use if that mode is enabled'
+                            // though when tile type changes we send this again :shrug:
+                            currentPalette
                         )
                     )
                 } catch (t: TimeoutCancellationException) {
@@ -224,10 +232,14 @@ class Settings(
                 try {
 
                     val tilServer = tileServerRepo.currentServerFlow().value
+                    val currentPalette = colourPaletteRepository.currentColourPaletteFlow.value
                     connection.send(
                         device, CompanionAppTileServerChanged(
                             tilServer.tileLayerMin,
-                            tilServer.tileLayerMax
+                            tilServer.tileLayerMax,
+                            // always send it even if we are not in 'TILE_DATA_TYPE_64_COLOUR format, since it will be the next pallet to use if that mode is enabled'
+                            // though when tile type changes we send this again :shrug:
+                            currentPalette
                         )
                     )
                 } catch (t: TimeoutCancellationException) {
@@ -313,10 +325,14 @@ class Settings(
                 return
             }
             val tilServer = tileServerRepo.currentServerFlow().value
+            val currentPalette = colourPaletteRepository.currentColourPaletteFlow.value
             connection.send(
                 device, CompanionAppTileServerChanged(
                     tilServer.tileLayerMin,
-                    tilServer.tileLayerMax
+                    tilServer.tileLayerMax,
+                    // always send it even if we are not in 'TILE_DATA_TYPE_64_COLOUR format, since it will be the next pallet to use if that mode is enabled'
+                    // though when tile type changes we send this again :shrug:
+                    currentPalette
                 )
             )
         }

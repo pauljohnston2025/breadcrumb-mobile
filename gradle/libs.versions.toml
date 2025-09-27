@@ -22,8 +22,10 @@ navigation = "2.7.0-alpha07"
 multiplatform-settings = "1.3.0"
 datetime = "0.6.2"
 napier = "2.7.1"
+androidxFragment = "1.7.1"
 
 [libraries]
+androidx-fragment = { group = "androidx.fragment", name = "fragment-ktx", version.ref = "androidxFragment" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 kotlin-test-junit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }

@@ -28,6 +28,7 @@ kotlin {
             implementation("com.garmin.connectiq:ciq-companion-app-sdk:2.2.0@aar")
             implementation(libs.ktor.client.cio.jvm)
             implementation(libs.ktor.client.okhttp)
+            implementation(libs.androidx.fragment)
 //            implementation(libs.skiko.android)
         }
         commonMain.dependencies {
