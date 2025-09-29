@@ -31,6 +31,7 @@ import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.OutlinedTextField
+import androidx.compose.material.RadioButton
 import androidx.compose.material.Switch
 import androidx.compose.material.Text
 import androidx.compose.material.TextButton
@@ -56,6 +57,7 @@ import androidx.compose.ui.unit.dp
 import com.paul.composables.ColorPickerDialog
 import com.paul.composables.LoadingOverlay
 import com.paul.domain.ColourPalette
+import com.paul.domain.PaletteMappingMode
 import com.paul.domain.RGBColor
 import com.paul.domain.RouteSettings
 import com.paul.domain.ServerType
@@ -63,11 +65,9 @@ import com.paul.domain.TileServerInfo
 import com.paul.infrastructure.repositories.ColourPaletteRepository
 import com.paul.infrastructure.repositories.TileServerRepo
 import com.paul.infrastructure.web.TileType
-import kotlinx.serialization.json.Json
-import java.net.URLDecoder
-import com.paul.viewmodels.Settings as SettingsViewModel
-import java.util.UUID // Required for cloning
+import java.util.UUID
 import kotlin.math.roundToInt
+import com.paul.viewmodels.Settings as SettingsViewModel
 
 // Function to validate template (basic example)
 fun isValidTileUrlTemplate(url: String): Boolean {
@@ -240,13 +240,15 @@ fun ColourPaletteDialog(
                 ) // Default for a new palette
         )
     }
+    var mappingMode by remember(paletteToEdit) {
+        mutableStateOf(paletteToEdit?.mappingMode ?: PaletteMappingMode.NEAREST_NEIGHBOR)
+    }
     var nameError by remember { mutableStateOf<String?>(null) }
     var colorToEditInfo by remember { mutableStateOf<Pair<Int, RGBColor>?>(null) }
 
 
     fun validate(): Boolean {
         nameError = if (name.isBlank()) "Palette name cannot be empty" else null
-        // Color validation is implicit with the picker, but we can keep it for safety
         val colorsAreValid = colors.all { it.r in 0..255 && it.g in 0..255 && it.b in 0..255 }
         return nameError == null && colors.isNotEmpty() && colorsAreValid
     }
@@ -273,7 +275,7 @@ fun ColourPaletteDialog(
 
     AlertDialog(
         onDismissRequest = onDismissRequest,
-        title = { Text(if (paletteToEdit == null) "Create New Colour Palette" else "Edit Colour Palette") },
+        title = { Text(if (paletteToEdit?.isEditable == false) "Clone Colour Palette" else if (paletteToEdit == null) "Create New Colour Palette" else "Edit Colour Palette") },
         text = {
             Column {
                 OutlinedTextField(
@@ -284,23 +286,52 @@ fun ColourPaletteDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
                 if (nameError != null) {
-                    Text(
-                        nameError!!,
-                        color = MaterialTheme.colors.error,
-                        style = MaterialTheme.typography.body1
-                    )
+                    Text(nameError!!, color = MaterialTheme.colors.error, style = MaterialTheme.typography.body1)
                 }
+
+                Spacer(Modifier.height(16.dp))
+
+                // --- Mapping Mode Selector ---
+                Text("Mapping Mode:", style = MaterialTheme.typography.subtitle1)
+                // Use Column for vertical layout
+                Column(Modifier.fillMaxWidth()) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth().clickable { mappingMode = PaletteMappingMode.NEAREST_NEIGHBOR }.padding(vertical = 2.dp)
+                    ) {
+                        RadioButton(selected = mappingMode == PaletteMappingMode.NEAREST_NEIGHBOR, onClick = { mappingMode = PaletteMappingMode.NEAREST_NEIGHBOR })
+                        Spacer(Modifier.width(4.dp))
+                        Text("Nearest (RGB)")
+                    }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth().clickable { mappingMode = PaletteMappingMode.CIELAB }.padding(vertical = 2.dp)
+                    ) {
+                        RadioButton(selected = mappingMode == PaletteMappingMode.CIELAB, onClick = { mappingMode = PaletteMappingMode.CIELAB })
+                        Spacer(Modifier.width(4.dp))
+                        Text("Perceptual (CIELAB)")
+                    }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth().clickable { mappingMode = PaletteMappingMode.ORDERED_BY_BRIGHTNESS }.padding(vertical = 2.dp)
+                    ) {
+                        RadioButton(selected = mappingMode == PaletteMappingMode.ORDERED_BY_BRIGHTNESS, onClick = { mappingMode = PaletteMappingMode.ORDERED_BY_BRIGHTNESS })
+                        Spacer(Modifier.width(4.dp))
+                        Text("Brightness (Gradient)")
+                    }
+                }
+                // --- End Mapping Mode Selector ---
+
                 Spacer(Modifier.height(8.dp))
                 Text("Colors: (${colors.size}/64)", style = MaterialTheme.typography.subtitle1)
                 Spacer(Modifier.height(4.dp))
+
                 LazyColumn(modifier = Modifier.height(200.dp)) {
                     itemsIndexed(colors) { index, color ->
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp)
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                         ) {
                             Box(
                                 modifier = Modifier
@@ -310,20 +341,11 @@ fun ColourPaletteDialog(
                                     .clickable { colorToEditInfo = index to color }
                             )
 
-                            Text(
-                                "R:${color.r} G:${color.g} B:${color.b}",
-                                modifier = Modifier.weight(1f),
-                                style = MaterialTheme.typography.body2
-                            )
+                            Text("R:${color.r} G:${color.g} B:${color.b}", modifier = Modifier.weight(1f), style = MaterialTheme.typography.body2)
 
-                            IconButton(
-                                onClick = {
-                                    val newColors =
-                                        colors.toMutableList(); newColors.removeAt(index); colors =
-                                    newColors
-                                },
-                                enabled = colors.size > 1
-                            ) {
+                            IconButton(onClick = {
+                                val newColors = colors.toMutableList(); newColors.removeAt(index); colors = newColors
+                            }, enabled = colors.size > 1) {
                                 Icon(Icons.Default.Delete, contentDescription = "Remove color")
                             }
                         }
@@ -332,9 +354,7 @@ fun ColourPaletteDialog(
                 Button(
                     onClick = { colors = (colors + RGBColor(0, 0, 0)).toMutableList() },
                     enabled = colors.size < 64,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp)
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
                 ) {
                     Text("Add Color")
                 }
@@ -343,38 +363,29 @@ fun ColourPaletteDialog(
                         "Maximum of 64 colors reached.",
                         color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f),
                         style = MaterialTheme.typography.caption,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 4.dp)
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
                     )
                 }
             }
         },
         confirmButton = {
-            Button(
-                onClick = {
-                    if (validate()) {
-                        // A new palette is indicated by an id of 0, which will be handled by the repository.
-                        val paletteId = paletteToEdit?.watchAppPaletteId ?: 0
-                        val finalColors = colors.take(64)
-                        val newPalette = ColourPalette(
-                            watchAppPaletteId = paletteId,
-                            uniqueId = UUID.randomUUID().toString(),
-                            name = name,
-                            colors = finalColors,
-                            isEditable = true
-                        )
-                        onSave(newPalette)
-                    }
+            Button(onClick = {
+                if (validate()) {
+                    val finalColors = colors.take(64)
+                    val newPalette = ColourPalette(
+                        watchAppPaletteId = paletteToEdit?.watchAppPaletteId ?: 0,
+                        uniqueId = paletteToEdit?.uniqueId ?: UUID.randomUUID().toString(),
+                        name = name,
+                        colors = finalColors,
+                        mappingMode = mappingMode,
+                        isEditable = true
+                    )
+                    onSave(newPalette)
                 }
-            ) {
-                Text("Save")
-            }
+            }) { Text("Save") }
         },
         dismissButton = {
-            TextButton(onClick = onDismissRequest) {
-                Text("Cancel")
-            }
+            TextButton(onClick = onDismissRequest) { Text("Cancel") }
         }
     )
 }
@@ -424,11 +435,8 @@ fun Settings(
     var coordsLimitString by remember { mutableStateOf("") }
     var dirsLimitString by remember { mutableStateOf("") }
 
-    // This effect runs when the composable enters the screen or the argument changes.
-    // It decodes the palette from the navigation argument and prepares the dialog.
     LaunchedEffect(paletteToCreate) {
         if (paletteToCreate != null) {
-            // Set the state variables to open the ColourPaletteDialog with the new palette.
             paletteToEdit = paletteToCreate
             showPaletteDialog = true
         }
@@ -578,6 +586,7 @@ fun Settings(
                                             IconButton(onClick = {
                                                 paletteToEdit = palette.copy(
                                                     watchAppPaletteId = 0,
+                                                    uniqueId = UUID.randomUUID().toString(), // Generate new ID for clone
                                                     name = "Copy of ${palette.name}",
                                                     isEditable = true
                                                 )
@@ -640,7 +649,7 @@ fun Settings(
 
             ExposedDropdownMenuBox(
                 expanded = expanded,
-                onExpandedChange = { expanded = !expanded }) { // *** BUG FIX 3 ***
+                onExpandedChange = { expanded = !expanded }) {
                 OutlinedTextField(
                     value = "${currentTileServer.title}\nlayers - min: ${currentTileServer.tileLayerMin} max: ${currentTileServer.tileLayerMax}",
                     onValueChange = {}, readOnly = true,

@@ -1,5 +1,6 @@
 package com.paul.infrastructure.web
 
+import com.paul.domain.PaletteMappingMode
 import io.ktor.resources.Resource
 import kotlinx.serialization.Serializable
 

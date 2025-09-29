@@ -20,7 +20,7 @@ data class Colour(
     val blue: UByte,
 ) {
     fun as64Colour(selectedColourPalette: ColourPalette): Byte {
-        return ColourPaletteConverter.convertColourToPalette(this, selectedColourPalette.colors)
+        return ColourPaletteConverter.convertColourToPalette(this, selectedColourPalette)
 //        // not the best conversion, but ok for now
 //        val colour =  ((Math.round(red.toInt() / 255.0f) * 3) shl 4) or
 //                ((Math.round(green.toInt() / 255.0f) * 3) shl 2) or

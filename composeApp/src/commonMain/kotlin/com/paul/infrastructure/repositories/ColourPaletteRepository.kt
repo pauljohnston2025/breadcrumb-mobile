@@ -1,6 +1,7 @@
 package com.paul.infrastructure.repositories
 
 import com.paul.domain.ColourPalette
+import com.paul.domain.PaletteMappingMode
 import com.paul.domain.RGBColor
 import com.paul.infrastructure.web.KtorClient
 import com.russhwolf.settings.Settings
@@ -111,7 +112,8 @@ class ColourPaletteRepository(
                 RGBColor(214, 215, 216), // some mountains (light grey)
                 RGBColor(213, 237, 168), // some greenery that was not a nice colour
             ),
-            isEditable = false
+            isEditable = false,
+            mappingMode = PaletteMappingMode.NEAREST_NEIGHBOR,
         )
 
         // see https://developer.garmin.com/connect-iq/user-experience-guidelines/incorporating-the-visual-design-and-product-personalities/
@@ -185,7 +187,8 @@ class ColourPaletteRepository(
                 RGBColor(0x00, 0x00, 0x55),
                 RGBColor(0x00, 0x00, 0x00),
             ),
-            isEditable = false
+            isEditable = false,
+            mappingMode = PaletteMappingMode.CIELAB,
         )
 
         // see https://developer.garmin.com/connect-iq/user-experience-guidelines/incorporating-the-visual-design-and-product-personalities/
@@ -203,16 +206,85 @@ class ColourPaletteRepository(
                 RGBColor(0x00, 0x00, 0xFF),
                 RGBColor(0x00, 0x00, 0x00),
             ),
-            isEditable = false
+            isEditable = false,
+            mappingMode = PaletteMappingMode.ORDERED_BY_BRIGHTNESS,
         )
+
+        val sepiaPalette = ColourPalette(
+            watchAppPaletteId = -4,
+            uniqueId = "a78a533c-3d61-4a25-9e67-28d285a863f8",
+            name = "Sepia Tone",
+            colors = listOf(
+                RGBColor(40, 28, 16),      // Darkest brown
+                RGBColor(84, 62, 40),
+                RGBColor(128, 103, 79),
+                RGBColor(172, 147, 122),
+                RGBColor(216, 198, 178),
+                RGBColor(255, 248, 239)    // Lightest cream
+            ),
+            isEditable = false,
+            mappingMode = PaletteMappingMode.ORDERED_BY_BRIGHTNESS
+        )
+
+        val nightModePalette = ColourPalette(
+            watchAppPaletteId = -5,
+            uniqueId = "3b4f62e4-9b81-4f10-a292-6b94326f42c2",
+            name = "Monochrome Night Mode",
+            colors = listOf(
+                RGBColor(0, 0, 0),         // Black
+                RGBColor(25, 35, 45),    // Dark Blue-Gray
+                RGBColor(50, 65, 80),
+                RGBColor(75, 95, 115),
+                RGBColor(100, 125, 150), // Mid Blue-Gray
+                RGBColor(150, 180, 200)  // Light Blue-Gray
+            ),
+            isEditable = false,
+            mappingMode = PaletteMappingMode.ORDERED_BY_BRIGHTNESS
+        )
+
+        val heatmapPalette = ColourPalette(
+            watchAppPaletteId = -6,
+            uniqueId = "e2b8f8c0-3b9e-4e8c-8a2b-2a5436d4f7f6",
+            name = "Heatmap Gradient",
+            colors = listOf(
+                RGBColor(0, 0, 128),      // Navy Blue
+                RGBColor(0, 255, 0),      // Green
+                RGBColor(255, 255, 0),    // Yellow
+                RGBColor(255, 0, 0)       // Red
+            ),
+            isEditable = false,
+            mappingMode = PaletteMappingMode.ORDERED_BY_BRIGHTNESS
+        )
+
+        val subtleTonesPalette = ColourPalette(
+            watchAppPaletteId = -7,
+            uniqueId = "c1e1a1b0-4a3b-4c4d-8a2b-3e3d3c3b3a39",
+            name = "Subtle Tones (Perceptual)",
+            colors = listOf(
+                RGBColor(80, 75, 70),      // Dark Taupe
+                RGBColor(140, 130, 120),    // Muted Brown
+                RGBColor(210, 200, 190),    // Light Beige
+                RGBColor(100, 110, 120),    // Cool Slate Gray
+                RGBColor(150, 160, 170),    // Medium Gray
+                RGBColor(220, 225, 230)     // Very Light Gray
+            ),
+            isEditable = false,
+            mappingMode = PaletteMappingMode.CIELAB // Default this to CIELAB
+        )
+
         val systemPalettes = listOf(
             opentopoPalette,
             mips64Palette,
-            fr4555Palette
+            fr4555Palette,
+            sepiaPalette,
+            nightModePalette,
+            heatmapPalette,
+            subtleTonesPalette
         )
 
         fun getSelectedPaletteOnStart(): ColourPalette {
-            val selectedPaletteId = settings.getInt(PALETTE_ID_KEY, opentopoPalette.watchAppPaletteId)
+            val selectedPaletteId =
+                settings.getInt(PALETTE_ID_KEY, opentopoPalette.watchAppPaletteId)
             val customPalettes = getCustomPalettesOnStart()
             return (systemPalettes + customPalettes).find { it.watchAppPaletteId == selectedPaletteId }
                 ?: opentopoPalette // Fallback to default if ID not found
@@ -319,7 +391,10 @@ class ColourPaletteRepository(
         return _availableColourPalettes.value.find { it.uniqueId == uuid }
     }
 
-    private fun findNextAvailableId(currentCustomPalettes: List<ColourPalette>, originalId: Int): Int {
+    private fun findNextAvailableId(
+        currentCustomPalettes: List<ColourPalette>,
+        originalId: Int
+    ): Int {
         // Find the maximum ID from the remaining palettes in the list.
         val maxExistingId = currentCustomPalettes.map { it.watchAppPaletteId }.maxOrNull() ?: 0
 

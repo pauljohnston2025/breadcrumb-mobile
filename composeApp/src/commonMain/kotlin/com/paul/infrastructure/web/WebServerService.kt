@@ -147,6 +147,7 @@ class WebServerService(
             json(Json {
                 prettyPrint = true
                 isLenient = true
+                ignoreUnknownKeys = true
             })
         }
 
@@ -215,6 +216,16 @@ class WebServerService(
 
             routingPost("/changeColourPalette") {
                 try {
+                    val parametersSingleLine =
+                        call.queryParameters.entries()
+                            .joinToString(separator = ", ") { (name, values) ->
+                                "$name: ${values.joinToString()}"
+                            }
+                    Napier.d(
+                        "Incoming changeColourPalette request - Path: ${call.route} params: $parametersSingleLine",
+                        tag = "WebserverService"
+                    )
+
                     // Directly receive the ColourPalette object from the JSON body
                     val palette = call.receive<ColourPalette>()
                     tileGetter.setCurrentPalette(palette)

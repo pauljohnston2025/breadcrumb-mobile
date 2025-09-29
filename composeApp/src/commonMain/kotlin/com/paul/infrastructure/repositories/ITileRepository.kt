@@ -146,18 +146,30 @@ class ITileRepository(private val fileHelper: IFileHelper) {
             height = req.tileSize
         )
 
-        // 5. Extract colour data from the raw pixel array
-        // A simple iteration is sufficient if the final pixel order in the list doesn't matter.
-        // If it must match the original's column-major iteration, a nested loop would be needed.
+        // 5. Extract colour data, RECONSTRUCTING the original COLUMN-MAJOR order.
+        // This is the key fix. We iterate in column-major order (col, then row) and
+        // calculate the correct index to pull from the row-major pixelArray.
+        // yep, i know, the pixels on the watch are received in column major order
+        // the companion app does
+        // for (var i = 0; i < tileSize; ++i) {
+        //    for (var j = 0; j < tileSize; ++j) {
+        //       localDc.drawPoint(i, j);
         val colourData = mutableListOf<Colour>()
-        for (pixel in pixelArray) {
-            // Extract ARGB components using multiplatform-safe bitwise operations
-            val r = (pixel shr 16 and 0xFF)
-            val g = (pixel shr 8 and 0xFF)
-            val b = (pixel and 0xFF)
-            colourData.add(
-                Colour(r.toUByte(), g.toUByte(), b.toUByte())
-            )
+        val width = req.tileSize
+        for (col in 0 until width) {
+            for (row in 0 until req.tileSize) {
+                // Get the pixel from the row-major array
+                val index = row * width + col
+                val pixel = pixelArray[index]
+
+                // Extract ARGB components
+                val r = (pixel shr 16 and 0xFF)
+                val g = (pixel shr 8 and 0xFF)
+                val b = (pixel and 0xFF)
+                colourData.add(
+                    Colour(r.toUByte(), g.toUByte(), b.toUByte())
+                )
+            }
         }
 
         val tile = MapTile(req.x, req.y, req.z, colourData)
