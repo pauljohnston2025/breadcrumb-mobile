@@ -26,12 +26,11 @@ import androidx.core.content.ContextCompat
 import com.paul.infrastructure.connectiq.Connection
 import com.paul.infrastructure.connectiq.DeviceList
 import com.paul.infrastructure.repositories.ColourPaletteRepository
-import com.paul.infrastructure.repositories.TileRepository
+import com.paul.infrastructure.repositories.ITileRepository
 import com.paul.infrastructure.service.AndroidLocationService
 import com.paul.infrastructure.service.ClipboardHandler
 import com.paul.infrastructure.service.FileHelper
 import com.paul.infrastructure.service.GpxFileLoader
-import com.paul.infrastructure.service.ImageProcessor
 import com.paul.infrastructure.service.InMemoryDebugAntilog
 import com.paul.infrastructure.service.IntentHandler
 import com.paul.ui.App
@@ -51,8 +50,7 @@ class MainActivity : ComponentActivity() {
     val gpxFileLoader = GpxFileLoader()
     val webServerController = WebServerController(this)
     val intentHandler = IntentHandler()
-    val tileRepo = TileRepository(
-        ImageProcessor(this),
+    val tileRepo = ITileRepository(
         FileHelper(this)
     )
     val locationService = AndroidLocationService(this)

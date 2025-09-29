@@ -272,6 +272,7 @@ class ColourPaletteRepository(
     suspend fun addOrUpdateCustomPalette(palette: ColourPalette) {
         val currentCustomPalettes = getCustomPalettesOnStart().toMutableList()
         val originalId = palette.watchAppPaletteId
+        val originalUId = palette.uniqueId
 
         // Remove the old version if it's an update
         if (originalId > 0) {
@@ -287,7 +288,9 @@ class ColourPaletteRepository(
         settings.putString(CUSTOM_PALETTES_KEY, Json.encodeToString(currentCustomPalettes))
         _availableColourPalettes.emit(systemPalettes + currentCustomPalettes.sortedBy { it.watchAppPaletteId })
 
-        updateCurrentColourPalette(newPalette)
+        if (_currentColourPalette.value.uniqueId == originalUId) {
+            updateCurrentColourPalette(newPalette)
+        }
     }
 
     suspend fun removeCustomPalette(palette: ColourPalette): Boolean {

@@ -1,6 +1,11 @@
 package com.paul.infrastructure.repositories
 
-import ch.qos.logback.core.subst.Token
+import androidx.compose.ui.graphics.Canvas
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.Paint
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
+import com.paul.composables.byteArrayToImageBitmap
 import com.paul.domain.ColourPalette
 import com.paul.domain.TileServerInfo
 import com.paul.infrastructure.repositories.ColourPaletteRepository.Companion.getSelectedPaletteOnStart
@@ -28,7 +33,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.concurrent.atomic.AtomicLong
 
-abstract class ITileRepository(private val fileHelper: IFileHelper) {
+class ITileRepository(private val fileHelper: IFileHelper) {
     private val client = KtorClient.client // Get the singleton client instance
 
     private var tileServer = getTileServerOnStart()
@@ -64,7 +69,111 @@ abstract class ITileRepository(private val fileHelper: IFileHelper) {
         this.tileType = tileType
     }
 
-    abstract suspend fun getWatchTile(req: LoadTileRequest): Pair<Int, LoadTileResponse?>
+    suspend fun getWatchTile(req: LoadTileRequest): Pair<Int, LoadTileResponse?> {
+        val smallTilesPerScaledTile =
+            Math.ceil(req.scaledTileSize.toDouble() / req.tileSize).toInt()
+        val scaleUpSize = smallTilesPerScaledTile * req.tileSize
+        val x = req.x / smallTilesPerScaledTile
+        val y = req.y / smallTilesPerScaledTile
+        Napier.d("webserver full tile req: $x, $y, ${req.z}")
+
+        val tileContents = getTile(x, y, req.z)
+        if (tileContents.first != 200 || tileContents.second == null) {
+            return Pair(tileContents.first, null)
+        }
+
+        // 1. Decode byte array to a multiplatform ImageBitmap
+        val sourceBitmap = try {
+            byteArrayToImageBitmap(tileContents.second!!)
+        } catch (e: Throwable) {
+            Napier.d("failed to parse bitmap from bytes", e)
+            return Pair(500, null)
+        }
+
+        if (sourceBitmap == null) {
+            Napier.d("decoded bitmap is null")
+            return Pair(500, null)
+        }
+
+        // 2. Resize the ImageBitmap by drawing it to a new, larger canvas
+        val resizedBitmap = ImageBitmap(scaleUpSize, scaleUpSize)
+        val canvas = Canvas(resizedBitmap)
+        val paint = Paint()
+        canvas.drawImageRect(
+            image = sourceBitmap,
+            srcSize = IntSize(sourceBitmap.width, sourceBitmap.height),
+            dstSize = IntSize(scaleUpSize, scaleUpSize),
+            paint = paint
+        )
+
+        // 3. Split the resized bitmap into a list of smaller tile bitmaps.
+        // The loop is column-major to match the original offset calculation.
+        val bitmaps = mutableListOf<ImageBitmap>()
+        for (col in 0 until smallTilesPerScaledTile) {
+            for (row in 0 until smallTilesPerScaledTile) {
+                val tileBitmap = ImageBitmap(req.tileSize, req.tileSize)
+                val tileCanvas = Canvas(tileBitmap)
+                tileCanvas.drawImageRect(
+                    image = resizedBitmap,
+                    srcOffset = IntOffset(col * req.tileSize, row * req.tileSize),
+                    srcSize = IntSize(req.tileSize, req.tileSize),
+                    dstOffset = IntOffset.Zero,
+                    dstSize = IntSize(req.tileSize, req.tileSize),
+                    paint = paint
+                )
+                bitmaps.add(tileBitmap)
+            }
+        }
+
+        val xOffset = req.x % smallTilesPerScaledTile
+        val yOffset = req.y % smallTilesPerScaledTile
+        val offset = xOffset * smallTilesPerScaledTile + yOffset
+
+        if (offset >= bitmaps.size || offset < 0) {
+            Napier.d("our math aint mathing. offset: $offset, size: ${bitmaps.size}")
+            return Pair(500, null)
+        }
+        val targetBitmap = bitmaps[offset]
+
+        // 4. Read pixel data from the target bitmap
+        val pixelCount = req.tileSize * req.tileSize
+        val pixelArray = IntArray(pixelCount)
+        targetBitmap.readPixels(
+            buffer = pixelArray,
+            startX = 0,
+            startY = 0,
+            width = req.tileSize,
+            height = req.tileSize
+        )
+
+        // 5. Extract colour data from the raw pixel array
+        // A simple iteration is sufficient if the final pixel order in the list doesn't matter.
+        // If it must match the original's column-major iteration, a nested loop would be needed.
+        val colourData = mutableListOf<Colour>()
+        for (pixel in pixelArray) {
+            // Extract ARGB components using multiplatform-safe bitwise operations
+            val r = (pixel shr 16 and 0xFF)
+            val g = (pixel shr 8 and 0xFF)
+            val b = (pixel and 0xFF)
+            colourData.add(
+                Colour(r.toUByte(), g.toUByte(), b.toUByte())
+            )
+        }
+
+        val tile = MapTile(req.x, req.y, req.z, colourData)
+
+        val paletteId =
+            if (tileType == TileType.TILE_DATA_TYPE_64_COLOUR) _currentPalette.watchAppPaletteId else null
+
+        return Pair(
+            200,
+            LoadTileResponse(
+                tileType.value.toInt(),
+                tile.colourString(tileType, _currentPalette),
+                paletteId
+            )
+        )
+    }
 
     // gets a full size tile
     suspend fun seedLayer(

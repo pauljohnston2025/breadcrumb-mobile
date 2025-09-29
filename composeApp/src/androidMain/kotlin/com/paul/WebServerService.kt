@@ -1,5 +1,6 @@
 package com.paul
 
+import com.paul.infrastructure.repositories.ITileRepository
 import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
@@ -12,17 +13,14 @@ import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
 import android.os.Build
 import android.os.IBinder
-import io.github.aakira.napier.Napier
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.paul.WebServerService.Companion.NOTIFICATION_ID
-import com.paul.infrastructure.repositories.ColourPaletteRepository
 import com.paul.infrastructure.repositories.TileServerRepo.Companion.TILE_SERVER_ENABLED_KEY
 import com.paul.infrastructure.service.FileHelper
-import com.paul.infrastructure.service.ImageProcessor
-import com.paul.infrastructure.repositories.TileRepository
 import com.russhwolf.settings.Settings
+import io.github.aakira.napier.Napier
 import com.paul.infrastructure.web.WebServerController as CommonWebServerController
 import com.paul.infrastructure.web.WebServerService as CommonWebServerService
 
@@ -78,8 +76,7 @@ class WebServerService : Service() {
     }
 
     // service has its own impl of tileGetter, since it runs outside of the main activity
-    private val tileGetter = TileRepository(
-        ImageProcessor(this),
+    private val tileGetter = ITileRepository(
         FileHelper(this)
     )
     private val server = CommonWebServerService(tileGetter)
@@ -102,7 +99,10 @@ class WebServerService : Service() {
                     FOREGROUND_SERVICE_TYPE_SPECIAL_USE
                 )
             } else {
-                startForeground(NOTIFICATION_ID, createNotification(this, "failed to start web server"))
+                startForeground(
+                    NOTIFICATION_ID,
+                    createNotification(this, "failed to start web server")
+                )
             }
             return START_STICKY
         }
