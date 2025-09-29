@@ -1,5 +1,6 @@
 package com.paul.ui
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.DrawerValue
 import androidx.compose.material.Icon
@@ -45,6 +46,7 @@ import com.paul.viewmodels.ProfilesViewModel
 import com.paul.viewmodels.RoutesNavigationEvent
 import com.paul.viewmodels.RoutesViewModel
 import com.paul.viewmodels.StartNavigationEvent
+import com.paul.viewmodels.MapViewNavigationEvent
 import com.paul.viewmodels.StartViewModel
 import com.paul.viewmodels.StorageViewModel
 import kotlinx.coroutines.launch
@@ -163,6 +165,17 @@ fun App(
             }
         }
 
+        LaunchedEffect(key1 = Unit) {
+            mapViewModel.navigationEvents.collect { event ->
+                // Use a 'when' statement to handle all possible navigation events
+                when (event) {
+                    is MapViewNavigationEvent.NavigateTo -> {
+                        navController.navigate(event.route)
+                    }
+                }
+            }
+        }
+
         // Get the current route to potentially change the TopAppBar title
         val navBackStackEntry by navController.currentBackStackEntryAsState()
         val currentRoute = navBackStackEntry?.destination?.route
@@ -275,8 +288,12 @@ fun App(
                     }
 
                     composable(Screen.Settings.route) {
+                        @SuppressLint("StateFlowValueCalledInComposition")
+                        val currentColourPaletteEdit = mapViewModel.newlyCreatedPalette.value
+                        mapViewModel.onPaletteCreationHandled()
                         Settings(
                             viewModel = settingsViewModel,
+                            paletteToCreate = currentColourPaletteEdit
                         )
                     }
 

@@ -140,6 +140,7 @@ Not all functions are available all the time, eg. route Features are removed whe
 * Crosshair - Move the maps view to the users current location 
 
 
+* Eye Dropper - Create a colour palette from the currently visible map area 
 * Watch and Eye - Send the currently viewed location to the watch, this is to preview the area on the watch.
 * Plus - Zoom in
 * Minus - Zoom out

@@ -63,6 +63,8 @@ import com.paul.domain.TileServerInfo
 import com.paul.infrastructure.repositories.ColourPaletteRepository
 import com.paul.infrastructure.repositories.TileServerRepo
 import com.paul.infrastructure.web.TileType
+import kotlinx.serialization.json.Json
+import java.net.URLDecoder
 import com.paul.viewmodels.Settings as SettingsViewModel
 import java.util.UUID // Required for cloning
 import kotlin.math.roundToInt
@@ -382,6 +384,7 @@ fun ColourPaletteDialog(
 fun Settings(
     modifier: Modifier = Modifier,
     viewModel: SettingsViewModel,
+    paletteToCreate: ColourPalette?
 ) {
     var expanded by remember { mutableStateOf(false) }
     var tileTypeExpanded by remember { mutableStateOf(false) }
@@ -420,6 +423,16 @@ fun Settings(
         .collectAsState(RouteSettings.default)
     var coordsLimitString by remember { mutableStateOf("") }
     var dirsLimitString by remember { mutableStateOf("") }
+
+    // This effect runs when the composable enters the screen or the argument changes.
+    // It decodes the palette from the navigation argument and prepares the dialog.
+    LaunchedEffect(paletteToCreate) {
+        if (paletteToCreate != null) {
+            // Set the state variables to open the ColourPaletteDialog with the new palette.
+            paletteToEdit = paletteToCreate
+            showPaletteDialog = true
+        }
+    }
 
     LaunchedEffect(routeSettings) {
         routeSettings?.let {

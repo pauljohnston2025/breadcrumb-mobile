@@ -1,12 +1,19 @@
 package com.paul.viewmodels
 
+import androidx.compose.ui.graphics.Paint
 import androidx.compose.material.SnackbarHostState
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.graphics.Canvas
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.unit.IntSize
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.benasher44.uuid.uuid4
 import com.paul.composables.byteArrayToImageBitmap
+import com.paul.domain.ColourPalette
+import com.paul.domain.RGBColor
 import com.paul.domain.TileServerInfo
 import com.paul.infrastructure.connectiq.IConnection
 import com.paul.infrastructure.repositories.ITileRepository
@@ -21,12 +28,16 @@ import com.paul.protocol.todevice.Point
 import com.paul.protocol.todevice.RequestLocationLoad
 import com.paul.protocol.todevice.ReturnToUser
 import com.paul.protocol.todevice.Route
+import com.paul.ui.Screen
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.onEach
@@ -36,6 +47,11 @@ import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
+
+sealed class MapViewNavigationEvent {
+    // Represents a command to navigate to a specific route
+    data class NavigateTo(val route: String) : MapViewNavigationEvent()
+}
 
 class MapViewModel(
     private val connection: IConnection,
@@ -48,7 +64,12 @@ class MapViewModel(
 
     private var seedingJob: Job? = null
 
-    // --- NEW: State for the user's live location ---
+    private val _newlyCreatedPalette = MutableStateFlow<ColourPalette?>(null)
+    val newlyCreatedPalette: StateFlow<ColourPalette?> = _newlyCreatedPalette.asStateFlow()
+
+    private val _navigationEvents = MutableSharedFlow<MapViewNavigationEvent>()
+    val navigationEvents: SharedFlow<MapViewNavigationEvent> = _navigationEvents.asSharedFlow()
+
     private val _userLocation = MutableStateFlow<UserLocation?>(null)
     val userLocation: StateFlow<UserLocation?> = _userLocation.asStateFlow()
 
@@ -108,6 +129,110 @@ class MapViewModel(
 
     private val _watchSendStarted = MutableStateFlow<RequestLocationLoad?>(null)
     val watchSendStarted: StateFlow<RequestLocationLoad?> = _watchSendStarted.asStateFlow()
+
+    /**
+     * Resets the newly created palette state, called after navigation has been handled.
+     */
+    fun onPaletteCreationHandled() {
+        _newlyCreatedPalette.value = null
+    }
+
+    /**
+     * Creates a 64-color palette from the visible tiles on the screen using multiplatform-safe APIs.
+     * This function reconstructs the current view into a composite ImageBitmap and then analyzes
+     * its pixels to extract the most representative colors.
+     *
+     * @param visibleTiles The list of tiles currently in the viewport.
+     * @param tileCache A map containing the loaded ImageBitmaps for tiles.
+     * @param viewportSize The current size of the map composable.
+     */
+    fun createPaletteFromViewport(
+        visibleTiles: List<com.paul.infrastructure.service.TileInfo>,
+        tileCache: Map<TileId, ImageBitmap?>,
+        viewportSize: IntSize
+    ) {
+        viewModelScope.launch(Dispatchers.Default) { // Use Default dispatcher for CPU-intensive work
+            if (viewportSize == IntSize.Zero || visibleTiles.isEmpty()) {
+                snackbarHostState.showSnackbar("Map view is not ready.")
+                return@launch
+            }
+
+            // 1. Reconstruct the view into a single multiplatform ImageBitmap
+            val compositeBitmap = ImageBitmap(viewportSize.width, viewportSize.height)
+            val canvas = Canvas(compositeBitmap)
+            val paint = Paint()
+
+            visibleTiles.forEach { tileInfo ->
+                tileCache[tileInfo.id]?.let { tileBitmap ->
+                    canvas.drawImage(
+                        image = tileBitmap,
+                        topLeftOffset = Offset(tileInfo.screenOffset.x.toFloat(), tileInfo.screenOffset.y.toFloat()),
+                        paint = paint
+                    )
+                }
+            }
+
+            // 2. Read the raw pixel data from the composite ImageBitmap
+            val pixelCount = viewportSize.width * viewportSize.height
+            val pixelArray = IntArray(pixelCount)
+            compositeBitmap.readPixels(
+                buffer = pixelArray,
+                startX = 0,
+                startY = 0,
+                width = viewportSize.width,
+                height = viewportSize.height
+            )
+
+            // 3. Perform color quantization to find dominant colors
+            // This is a simplified version: it reduces color depth to group similar colors
+            // and counts their frequency.
+            val colorFrequencies = mutableMapOf<Int, Int>()
+            // Shift each 8-bit color channel right by 3 bits, reducing it to a 5-bit channel.
+            // This groups similar colors into the same "bucket".
+            val precisionShift = 3
+
+            for (color in pixelArray) {
+                // Extract, reduce, and repack color channels into a single Int key.
+                val r = (color shr 16 and 0xFF) shr precisionShift
+                val g = (color shr 8 and 0xFF) shr precisionShift
+                val b = (color and 0xFF) shr precisionShift
+                val reducedColor = (r shl 10) or (g shl 5) or b
+
+                colorFrequencies[reducedColor] = (colorFrequencies[reducedColor] ?: 0) + 1
+            }
+
+            // 4. Sort by frequency and take the top 64 colors
+            val topColors = colorFrequencies.entries
+                .sortedByDescending { it.value }
+                .take(64)
+                .map { it.key }
+
+            if (topColors.isEmpty()) {
+                snackbarHostState.showSnackbar("Could not generate a palette from the current map view.")
+                return@launch
+            }
+
+            // 5. Convert the reduced-precision colors back to full RGBColor objects
+            val rgbColors = topColors.map { reducedColor ->
+                // Unpack and scale the 5-bit channels back up to 8-bit.
+                val r = (reducedColor shr 10 and 0x1F) shl precisionShift
+                val g = (reducedColor shr 5 and 0x1F) shl precisionShift
+                val b = (reducedColor and 0x1F) shl precisionShift
+                RGBColor(r, g, b)
+            }
+
+            // 6. Create the final ColourPalette object and update the state to trigger navigation
+            val newPalette = ColourPalette(
+                watchAppPaletteId = 0, // 0 signifies a new, unsaved custom palette
+                uniqueId = uuid4().toString(),
+                name = "From Map", // Default name for the user to change
+                colors = rgbColors,
+                isEditable = true
+            )
+            _newlyCreatedPalette.value = newPalette
+            _navigationEvents.emit(MapViewNavigationEvent.NavigateTo(Screen.Settings.route))
+        }
+    }
 
     fun refresh() {
         val serverId = tileServerRepository.currentServerFlow().value.id

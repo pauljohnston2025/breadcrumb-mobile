@@ -76,6 +76,7 @@ import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import android.graphics.Paint
 import android.graphics.Rect
+import androidx.compose.material.icons.filled.Colorize
 import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
@@ -507,6 +508,22 @@ fun MapTilerComposable(
                 .align(Alignment.BottomEnd)
                 .padding(8.dp)
         ) {
+            Button(
+                onClick = {
+                    if (viewportSize != IntSize.Zero) {
+                        viewModel.createPaletteFromViewport(
+                            visibleTiles = visibleTiles,
+                            tileCache = tileCache,
+                            viewportSize = viewportSize
+                        )
+                    } else {
+                        Napier.d("Viewport size not available yet.")
+                    }
+                }
+            ) {
+                Icon(Icons.Default.Colorize, contentDescription = "Create Palette from Map")
+            }
+
             Button(
                 onClick = {
                     if (viewportSize != IntSize.Zero) {

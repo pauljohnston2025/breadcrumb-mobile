@@ -89,15 +89,31 @@ class WebServerService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        server.start()
+        var notification: Notification? = null
+        try {
+            notification = createNotification(this);
+            server.start()
+        } catch (t: Throwable) {
+            Napier.e("failed to start web server $t")
+            if (Build.VERSION.SDK_INT >= 34) {
+                startForeground(
+                    NOTIFICATION_ID,
+                    createNotification(this, "failed to start web server"),
+                    FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+                )
+            } else {
+                startForeground(NOTIFICATION_ID, createNotification(this, "failed to start web server"))
+            }
+            return START_STICKY
+        }
         if (Build.VERSION.SDK_INT >= 34) {
             startForeground(
                 NOTIFICATION_ID,
-                createNotification(this),
+                notification,
                 FOREGROUND_SERVICE_TYPE_SPECIAL_USE
             )
         } else {
-            startForeground(NOTIFICATION_ID, createNotification(this))
+            startForeground(NOTIFICATION_ID, notification)
         }
 
         return START_STICKY
@@ -108,7 +124,7 @@ class WebServerService : Service() {
         server.stop()
     }
 
-    private fun createNotification(context: Context): Notification {
+    private fun createNotification(context: Context, str: String? = null): Notification {
         val notificationManager =
             getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         // --- 1. Create Notification Channel (Required for API 26+) ---
@@ -143,7 +159,7 @@ class WebServerService : Service() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.icon)
             .setContentTitle("Server Running")
-            .setContentText("Tile sever is active in the background.")
+            .setContentText(str?.ifEmpty { "Tile sever is active in the background." })
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
