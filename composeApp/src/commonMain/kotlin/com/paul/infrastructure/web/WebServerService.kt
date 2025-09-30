@@ -174,27 +174,10 @@ class WebServerService(
 
             resourcesGet<GetTilePalette> {
                 val currentPalette = tileGetter.currentPalette()
-                val targetSize = 64
-                val paddingColor = 0x000000 // Integer for Black
-
-                // Start with a mutable list of all colors
-                val finalPalette =
-                    currentPalette.colors.map { it.toMonkeyCColourInt() }.toMutableList()
-
-                // Truncate the list if it's too long
-                while (finalPalette.size > targetSize) {
-                    finalPalette.removeLast()
-                }
-
-                // Pad the list with black if it's too short
-                while (finalPalette.size < targetSize) {
-                    finalPalette.add(paddingColor)
-                }
-
                 call.respond(
                     GetTilePaletteResponse(
                         currentPalette.watchAppPaletteId,
-                        finalPalette
+                        currentPalette.allColoursForApp().map { it.toMonkeyCColourInt()}
                     )
                 )
             }

@@ -29,7 +29,7 @@ class ColourPaletteRepository(
         val opentopoPalette = ColourPalette(
             watchAppPaletteId = -1, // Use -1 for the original hardcoded palette
             uniqueId = "2f7450e7-5147-4656-9712-100e97fe4d79",
-            name = "World Topo Map",
+            name = "Open Topo Map",
             colors = listOf(
                 // Greens (Emphasis) - 22 colors
                 RGBColor(61, 179, 61),       // Vibrant Green

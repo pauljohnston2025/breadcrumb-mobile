@@ -20,7 +20,7 @@ class CompanionAppTileServerChanged(
 
         if (colourPalette != null) {
             data.add(colourPalette.watchAppPaletteId)
-            data.add(colourPalette.colors.map { it.toMonkeyCColourInt() })
+            data.add(colourPalette.allColoursForApp().map { it.toMonkeyCColourInt() })
         }
 
         return data
