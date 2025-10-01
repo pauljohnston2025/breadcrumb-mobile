@@ -96,7 +96,13 @@ class DeviceSelector(
 
     suspend fun currentDevice(): IqDevice? {
         if (currentDevice.value == null) {
-            selectDevice()
+            val knownDevices = devicesFlow.value
+            // most users will only have 1 device, so just select it for them
+            if (knownDevices.size == 1 && knownDevices[0].status == "CONNECTED") {
+                currentDevice.value = knownDevices[0]
+            } else {
+                selectDevice()
+            }
         }
 
         currentDevicePoll?.cancel()
