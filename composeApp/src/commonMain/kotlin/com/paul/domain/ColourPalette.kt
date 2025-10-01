@@ -8,7 +8,8 @@ import kotlinx.serialization.Serializable
 enum class PaletteMappingMode {
     NEAREST_NEIGHBOR,
     ORDERED_BY_BRIGHTNESS,
-    CIELAB
+    CIELAB,
+    PALETTE_REMAP
 }
 
 @Serializable

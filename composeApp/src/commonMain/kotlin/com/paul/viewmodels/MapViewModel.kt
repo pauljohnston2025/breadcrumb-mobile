@@ -18,6 +18,7 @@ import com.paul.domain.TileServerInfo
 import com.paul.infrastructure.connectiq.IConnection
 import com.paul.infrastructure.repositories.ITileRepository
 import com.paul.infrastructure.repositories.TileServerRepo
+import com.paul.infrastructure.service.ColourPaletteConverter
 import com.paul.infrastructure.service.GeoPosition
 import com.paul.infrastructure.service.ILocationService
 import com.paul.infrastructure.service.SendMessageHelper.Companion.sendingMessage
@@ -157,7 +158,7 @@ class MapViewModel(
                 return@launch
             }
 
-            // 1. Reconstruct the view into a single multiplatform ImageBitmap
+            // 1. Reconstruct the view into a single multiplatform ImageBitmap (No changes here)
             val compositeBitmap = ImageBitmap(viewportSize.width, viewportSize.height)
             val canvas = Canvas(compositeBitmap)
             val paint = Paint()
@@ -166,13 +167,16 @@ class MapViewModel(
                 tileCache[tileInfo.id]?.let { tileBitmap ->
                     canvas.drawImage(
                         image = tileBitmap,
-                        topLeftOffset = Offset(tileInfo.screenOffset.x.toFloat(), tileInfo.screenOffset.y.toFloat()),
+                        topLeftOffset = Offset(
+                            tileInfo.screenOffset.x.toFloat(),
+                            tileInfo.screenOffset.y.toFloat()
+                        ),
                         paint = paint
                     )
                 }
             }
 
-            // 2. Read the raw pixel data from the composite ImageBitmap
+            // 2. Read the raw pixel data from the composite ImageBitmap (No changes here)
             val pixelCount = viewportSize.width * viewportSize.height
             val pixelArray = IntArray(pixelCount)
             compositeBitmap.readPixels(
@@ -183,45 +187,19 @@ class MapViewModel(
                 height = viewportSize.height
             )
 
-            // 3. Perform color quantization to find dominant colors
-            // This is a simplified version: it reduces color depth to group similar colors
-            // and counts their frequency.
-            val colorFrequencies = mutableMapOf<Int, Int>()
-            // Shift each 8-bit color channel right by 3 bits, reducing it to a 5-bit channel.
-            // This groups similar colors into the same "bucket".
-            val precisionShift = 3
+            // 3. Perform color quantization with a single call to your centralized function.
+            //    This replaces all the manual bit-shifting and frequency counting logic.
+            val rgbColors = ColourPaletteConverter.extractDominantColors(
+                pixelArray = pixelArray,
+                maxColors = 64 // Explicitly set to match the original ".take(64)"
+            )
 
-            for (color in pixelArray) {
-                // Extract, reduce, and repack color channels into a single Int key.
-                val r = (color shr 16 and 0xFF) shr precisionShift
-                val g = (color shr 8 and 0xFF) shr precisionShift
-                val b = (color and 0xFF) shr precisionShift
-                val reducedColor = (r shl 10) or (g shl 5) or b
-
-                colorFrequencies[reducedColor] = (colorFrequencies[reducedColor] ?: 0) + 1
-            }
-
-            // 4. Sort by frequency and take the top 64 colors
-            val topColors = colorFrequencies.entries
-                .sortedByDescending { it.value }
-                .take(64)
-                .map { it.key }
-
-            if (topColors.isEmpty()) {
+            // 4. Check the result and create the final palette (No changes here)
+            if (rgbColors.isEmpty()) {
                 snackbarHostState.showSnackbar("Could not generate a palette from the current map view.")
                 return@launch
             }
 
-            // 5. Convert the reduced-precision colors back to full RGBColor objects
-            val rgbColors = topColors.map { reducedColor ->
-                // Unpack and scale the 5-bit channels back up to 8-bit.
-                val r = (reducedColor shr 10 and 0x1F) shl precisionShift
-                val g = (reducedColor shr 5 and 0x1F) shl precisionShift
-                val b = (reducedColor and 0x1F) shl precisionShift
-                RGBColor(r, g, b)
-            }
-
-            // 6. Create the final ColourPalette object and update the state to trigger navigation
             val newPalette = ColourPalette(
                 watchAppPaletteId = 0, // 0 signifies a new, unsaved custom palette
                 uniqueId = uuid4().toString(),

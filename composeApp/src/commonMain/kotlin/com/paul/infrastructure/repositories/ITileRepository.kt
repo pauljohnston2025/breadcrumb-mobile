@@ -19,7 +19,6 @@ import com.paul.infrastructure.web.LoadTileResponse
 import com.paul.infrastructure.web.TileServerDetailsResponse
 import com.paul.infrastructure.web.TileType
 import com.paul.infrastructure.web.platformInfo
-import com.paul.protocol.todevice.Colour
 import com.paul.protocol.todevice.MapTile
 import io.github.aakira.napier.Napier
 import io.ktor.client.request.get
@@ -154,25 +153,17 @@ class ITileRepository(private val fileHelper: IFileHelper) {
         // for (var i = 0; i < tileSize; ++i) {
         //    for (var j = 0; j < tileSize; ++j) {
         //       localDc.drawPoint(i, j);
-        val colourData = mutableListOf<Colour>()
+        val columnMajorPixelArray = IntArray(pixelCount)
         val width = req.tileSize
+        var destIndex = 0
         for (col in 0 until width) {
             for (row in 0 until req.tileSize) {
-                // Get the pixel from the row-major array
-                val index = row * width + col
-                val pixel = pixelArray[index]
-
-                // Extract ARGB components
-                val r = (pixel shr 16 and 0xFF)
-                val g = (pixel shr 8 and 0xFF)
-                val b = (pixel and 0xFF)
-                colourData.add(
-                    Colour(r.toUByte(), g.toUByte(), b.toUByte())
-                )
+                val srcIndex = row * width + col
+                columnMajorPixelArray[destIndex++] = pixelArray[srcIndex]
             }
         }
 
-        val tile = MapTile(req.x, req.y, req.z, colourData)
+        val tile = MapTile(req.x, req.y, req.z, columnMajorPixelArray)
 
         val paletteId =
             if (tileType == TileType.TILE_DATA_TYPE_64_COLOUR) _currentPalette.watchAppPaletteId else null

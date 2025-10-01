@@ -194,7 +194,9 @@ class Settings(
         viewModelScope.launch(Dispatchers.IO) {
             sendingMessage("Saving custom tile server...") {
                 try {
-                    tileServerRepo.saveCustomServer(tileServer)
+                    if (tileServerRepo.saveCustomServer(tileServer) && tileServerRepo.currentlyEnabled()) {
+                        watchSendTileServerChanged()
+                    }
                     snackbarHostState.showSnackbar("Tile server saved successfully")
                 } catch (e: Exception) {
                     Napier.e("Failed to save custom tile server", e)
@@ -267,7 +269,9 @@ class Settings(
 
     fun onRemoveCustomServer(tileServer: TileServerInfo) {
         viewModelScope.launch(Dispatchers.IO) {
-            tileServerRepo.onRemoveCustomServer(tileServer)
+            if (tileServerRepo.onRemoveCustomServer(tileServer) && tileServerRepo.currentlyEnabled()) {
+                watchSendTileServerChanged()
+            }
         }
     }
 
@@ -290,7 +294,9 @@ class Settings(
         viewModelScope.launch(Dispatchers.IO) {
             sendingMessage("Saving colour palette") {
                 try {
-                    colourPaletteRepository.addOrUpdateCustomPalette(palette)
+                    if (colourPaletteRepository.addOrUpdateCustomPalette(palette)) {
+                        watchSendTileServerChanged()
+                    }
                     snackbarHostState.showSnackbar("Colour palette saved")
                 } catch (e: Exception) {
                     Napier.d("failed to save custom palette: ${e.message}")

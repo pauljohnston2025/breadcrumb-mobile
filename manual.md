@@ -51,10 +51,21 @@ Configure the app settings. Note some of the tile server settings will clear the
 The phone hosts a tile server for the watch to query tiles from. The tiles downloaded are cached locally on the phone for use with offline map support. To stop the tile server (and stop getting the 'tile server running' notifications), you need to close the app, not just background it. ie. open recent apps draw on android and swipe the app away to close it.    
 
 **Tile Server Enabled** - enable/disable the tile server. You may want to disable the tile server if you are using a templated url on the watch, and not using the companion app to host offline tiles. This will remove some notifications, and not start the tile server process.
-**Tile Type** - Different ways of sending tiles to the watch, note: full colour may need a smaller tile size on the watch (64 was too large in some of my testing).  
+**Tile Type** - Different ways of sending tiles to the watch, note: Full colour may need a smaller tile size on the watch (64 was too large in some of my testing).
+**Colour Palette** - Select the colour palette to use when sending compressed tiles in "64 Colours (balanced)" tile type format.
+
+The colour palette has different mapping modes, and a list of colours to use for the palette
+
+**Nearest (RGB)** - This is the fastest and most basic method. It compares the raw RGB values (Red, Green, Blue) of a pixel and finds the color in the palette with the smallest mathematical distance.
+**Perceptual (CIELAB)** - A much more advanced and visually accurate method. It first converts colors into the CIELAB colour space, which is designed to mimic how humans perceive colour. It then finds the nearest colour in that perceptual space.
+**Brightness (Gradient)** - This mode ignores colour hue entirely and focuses only on brightness (luminance). It sorts the destination palette from darkest to brightest. It then maps the brightness of the original pixel to the colour with the equivalent brightness in the palette.
+**Palette Remap** - This is the most intelligent and powerful mode, designed for challenging maps. Instead of looking at pixels one-by-one, it first analyzes the entire map tile to identify its unique set of dominant colors (the "source palette"). It then intelligently maps that entire source palette to the destination palette, preserving the relative contrast and relationships between the original colours.
+
+### Tile Server
+
 **Add Custom Server** - Manually configure a tile server for use on the companion app, this tile server will be added to the  'Select Server' dropdown.  
-**Select Server** - Select the tile server you wsh the companion app to serve tiles from.
-**Auth Token** - will be used for any tile server that specifies '{authToken}' in the template url.
+**Select Server** - Select the tile server you wish the companion app to serve tiles from (this is both for the map view and the tiles that go to the watch).
+**Auth Token** - Will be used for any tile server that specifies '{authToken}' in the template url.
 
 ### Routes
 

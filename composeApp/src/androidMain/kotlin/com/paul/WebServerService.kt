@@ -95,13 +95,13 @@ class WebServerService : Service() {
             if (Build.VERSION.SDK_INT >= 34) {
                 startForeground(
                     NOTIFICATION_ID,
-                    createNotification(this, "failed to start web server"),
+                    createNotification(this, "Web server FAILED", "Failed to start web server"),
                     FOREGROUND_SERVICE_TYPE_SPECIAL_USE
                 )
             } else {
                 startForeground(
                     NOTIFICATION_ID,
-                    createNotification(this, "failed to start web server")
+                    createNotification(this, "Web server FAILED", "Failed to start web server")
                 )
             }
             return START_STICKY
@@ -124,7 +124,7 @@ class WebServerService : Service() {
         server.stop()
     }
 
-    private fun createNotification(context: Context, str: String? = null): Notification {
+    private fun createNotification(context: Context, runningStr: String? = null, str: String? = null): Notification {
         val notificationManager =
             getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         // --- 1. Create Notification Channel (Required for API 26+) ---
@@ -158,8 +158,8 @@ class WebServerService : Service() {
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.icon)
-            .setContentTitle("Server Running")
-            .setContentText(str?.ifEmpty { "Tile sever is active in the background." })
+            .setContentTitle(if (runningStr.isNullOrEmpty()) "Server Running" else runningStr)
+            .setContentText(if (str.isNullOrEmpty()) "Tile server is active in the background." else str)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)

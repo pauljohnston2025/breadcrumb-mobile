@@ -2,6 +2,7 @@ package com.paul.infrastructure.repositories
 
 import com.paul.domain.ServerType
 import com.paul.domain.TileServerInfo
+import com.paul.infrastructure.repositories.ColourPaletteRepository.Companion.opentopoPalette
 import com.paul.infrastructure.web.ChangeAuthToken
 import com.paul.infrastructure.web.ChangeTileServer
 import com.paul.infrastructure.web.ChangeTileType
@@ -251,7 +252,7 @@ class TileServerRepo(
      *
      * @param server The TileServerInfo object to save. It will be marked as `isCustom = true`.
      */
-    suspend fun saveCustomServer(server: TileServerInfo) {
+    suspend fun saveCustomServer(server: TileServerInfo): Boolean {
         // Ensure the server is correctly marked as custom before saving.
         val serverToSave = server.copy(isCustom = true)
 
@@ -281,7 +282,10 @@ class TileServerRepo(
         // we need to update the currentTileServer flow to reflect the changes.
         if (currentTileServer.value.id == serverToSave.id) {
             updateCurrentTileServer(serverToSave)
+            return true
         }
+
+        return false
     }
 
     suspend fun onTileServerEnabledChange(newVal: Boolean) {
@@ -298,12 +302,19 @@ class TileServerRepo(
         tileServerEnabled.emit(oldVal)
     }
 
-    suspend fun onRemoveCustomServer(tileServer: TileServerInfo) {
+    suspend fun onRemoveCustomServer(tileServer: TileServerInfo): Boolean {
         val newServers = getCustomServers().filter { it.isCustom && it.title != tileServer.title }
         settings.putString(CUSTOM_SERVERS_KEY, Json.encodeToString(newServers))
         var newList = availableServers.value.toMutableList()
         newList.removeIf { it.isCustom && it.title == tileServer.title }
         availableServers.emit(newList.toList())
+
+        if (currentTileServer.value.id == tileServer.id) {
+            updateCurrentTileServer(defaultTileServer)
+            return true
+        }
+
+        return false
     }
 
     fun nameFromId(id: String): String? {

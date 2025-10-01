@@ -319,6 +319,14 @@ fun ColourPaletteDialog(
                         Spacer(Modifier.width(4.dp))
                         Text("Brightness (Gradient)")
                     }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth().clickable { mappingMode = PaletteMappingMode.PALETTE_REMAP }.padding(vertical = 2.dp)
+                    ) {
+                        RadioButton(selected = mappingMode == PaletteMappingMode.PALETTE_REMAP, onClick = { mappingMode = PaletteMappingMode.PALETTE_REMAP })
+                        Spacer(Modifier.width(4.dp))
+                        Text("Palette Remap")
+                    }
                 }
                 // --- End Mapping Mode Selector ---
 
@@ -635,11 +643,6 @@ fun Settings(
             Spacer(Modifier.height(8.dp))
             Text("Tile Server (map view and phone hosted):", style = MaterialTheme.typography.body1)
 
-            AuthTokenEditor(
-                currentAuthToken = authTokenFlow,
-                onAuthTokenChange = viewModel::onAuthKeyChange
-            )
-
             Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                 Text("Add Custom Server:", style = MaterialTheme.typography.body2)
                 IconButton(onClick = { serverToEdit = null; showAddServerDialog = true }) {
@@ -711,6 +714,11 @@ fun Settings(
                     }
                 }
             }
+
+            AuthTokenEditor(
+                currentAuthToken = authTokenFlow,
+                onAuthTokenChange = viewModel::onAuthKeyChange
+            )
 
             Divider(modifier = Modifier.padding(vertical = 8.dp))
             Text("Routes:", style = MaterialTheme.typography.body1)

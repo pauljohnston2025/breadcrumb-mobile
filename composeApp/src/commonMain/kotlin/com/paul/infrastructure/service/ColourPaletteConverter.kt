@@ -3,7 +3,6 @@ package com.paul.infrastructure.service
 import com.paul.domain.ColourPalette
 import com.paul.domain.PaletteMappingMode
 import com.paul.domain.RGBColor
-import com.paul.protocol.todevice.Colour
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
@@ -81,10 +80,6 @@ class ColourPaletteConverter {
             return sqrt(dL * dL + da * da + db * db)
         }
 
-        //</editor-fold>
-
-        //<editor-fold desc="Palette Index Finding Logic">
-
         fun findNearestColorIndex(red: Int, green: Int, blue: Int, palette: List<RGBColor>): Int {
             var minDistance = Float.MAX_VALUE
             var nearestIndex = 0
@@ -127,36 +122,162 @@ class ColourPaletteConverter {
             return nearestIndex
         }
 
-        //</editor-fold>
-
-        //<editor-fold desc="Public API">
-
-        fun rgbTo6Bit(red: Int, green: Int, blue: Int, colourPalette: ColourPalette): Byte {
-            val paletteIndex = when (colourPalette.mappingMode) {
-                PaletteMappingMode.NEAREST_NEIGHBOR -> findNearestColorIndex(red, green, blue, colourPalette.colors)
-                PaletteMappingMode.ORDERED_BY_BRIGHTNESS -> findIndexOrderedByBrightness(red, green, blue, colourPalette.colors)
-                PaletteMappingMode.CIELAB -> findNearestColorIndexCIELAB(red, green, blue, colourPalette.colors)
-            }
-
-            if (paletteIndex >= 64) {
-                return 63
-            }
-            return paletteIndex.toByte()
-        }
-
-        fun convertColourToPalette(colour: Colour, palette: ColourPalette): Byte {
-            return rgbTo6Bit(colour.red.toInt(), colour.green.toInt(), colour.blue.toInt(), palette)
-        }
-
-        fun isCloseToWhite(colour: Colour): Boolean {
-            val paletteIndex = findIndexOrderedByBrightness(
-                colour.red.toInt(),
-                colour.green.toInt(),
-                colour.blue.toInt(),
-                blackAndWhitePalette.colors
-            )
+        /**
+         * A version of isCloseToWhite that operates directly on RGB integers.
+         * This is more efficient as it avoids object creation.
+         */
+        fun isCloseToWhite(r: Int, g: Int, b: Int): Boolean {
+            // This reuses your existing brightness mapping logic
+            val paletteIndex = findIndexOrderedByBrightness(r, g, b, blackAndWhitePalette.colors)
+            // Assuming white is the brighter color, its index in the sorted list will be 1.
             return paletteIndex == 1
         }
-        //</editor-fold>
+
+        /**
+         * Extracts the dominant colors from a tile's pixel data using a fast, frequency-based
+         * quantization algorithm. This is the refactored version of your createPaletteFromViewport logic.
+         *
+         * @param pixelArray The raw ARGB pixel data from the tile.
+         * @param maxColors The maximum number of colors to return in the palette.
+         * @param precisionShift The bit shift to apply for color grouping (3 is a good default for 5-bit channels).
+         * @return A List of RGBColor objects representing the most common colors.
+         */
+        fun extractDominantColors(
+            pixelArray: IntArray,
+            maxColors: Int = 64,
+            precisionShift: Int = 3
+        ): List<RGBColor> {
+            if (pixelArray.isEmpty()) return emptyList()
+
+            val colorFrequencies = mutableMapOf<Int, Int>()
+
+            for (color in pixelArray) {
+                // Extract, reduce, and repack color channels into a single Int key.
+                val r = (color shr 16 and 0xFF) shr precisionShift
+                val g = (color shr 8 and 0xFF) shr precisionShift
+                val b = (color and 0xFF) shr precisionShift
+                val reducedColor = (r shl (precisionShift * 2)) or (g shl precisionShift) or b
+
+                colorFrequencies[reducedColor] = (colorFrequencies[reducedColor] ?: 0) + 1
+            }
+
+            // Sort by frequency and take the top colors
+            val topColors = colorFrequencies.entries
+                .sortedByDescending { it.value }
+                .take(maxColors)
+                .map { it.key }
+
+            // Convert the reduced-precision colors back to full RGBColor objects
+            return topColors.map { reducedColor ->
+                // Unpack and scale the reduced-bit channels back up to 8-bit.
+                val r = (reducedColor shr (precisionShift * 2)) shl precisionShift
+                val g = (reducedColor shr precisionShift and ((1 shl precisionShift) - 1)) shl precisionShift
+                val b = (reducedColor and ((1 shl precisionShift) - 1)) shl precisionShift
+                RGBColor(r, g, b)
+            }
+        }
+
+        /**
+         * The new "master" function. Converts an entire tile's pixel data to the 64-colour string
+         * based on the selected palette's mapping mode. This is much more efficient as it performs
+         * setup (like LUT generation) only once per tile.
+         *
+         * @param pixelArray The raw pixel data of the tile.
+         * @param targetPalette The destination ColourPalette.
+         * @return The final encoded string for the device.
+         */
+        fun convertPixelArrayTo64ColourString(
+            pixelArray: IntArray,
+            targetPalette: ColourPalette
+        ): String {
+            val indices = when (targetPalette.mappingMode) {
+                PaletteMappingMode.PALETTE_REMAP -> {
+                    // 1. Dynamically get the source palette from the tile itself.
+//                    val sourcePalette = extractDominantColors(pixelArray, maxColors = 64) // Let's use 64 to be safe.
+                    val sourcePalette = extractDominantColors(pixelArray, maxColors = targetPalette.colors.size)
+                    if (sourcePalette.isEmpty()) return ""
+
+                    // 2. Generate the Lookup Table (LUT) mapping the source to the target.
+                    val remapLut = generateRemapLut(sourcePalette, targetPalette.colors)
+
+                    // 3. Convert all pixels using the LUT for maximum performance.
+                    val sourceLabPalette = sourcePalette.map { rgbToLab(it.r, it.g, it.b) }
+                    pixelArray.map { pixel ->
+                        val r = (pixel shr 16 and 0xFF)
+                        val g = (pixel shr 8 and 0xFF)
+                        val b = (pixel and 0xFF)
+                        val pixelLab = rgbToLab(r, g, b)
+
+                        // Find the nearest color in our extracted source palette...
+                        val closestSourceColor = sourcePalette[findClosestLabIndex(pixelLab, sourceLabPalette)]
+                        // ...and get the final mapped index from the LUT.
+                        remapLut[closestSourceColor] ?: 0
+                    }
+                }
+                else -> {
+                    // Handle all other modes (NEAREST_NEIGHBOR, CIELAB, etc.) on a per-pixel basis.
+                    pixelArray.map { pixel ->
+                        val r = (pixel shr 16 and 0xFF)
+                        val g = (pixel shr 8 and 0xFF)
+                        val b = (pixel and 0xFF)
+                        // This reuses your existing rgbTo6Bit logic internally.
+                        findPaletteIndex(r, g, b, targetPalette)
+                    }
+                }
+            }
+
+            // 4. Encode the final list of indices into the Monkey C compatible string.
+            return indices.joinToString("") { paletteIndex ->
+                val byteVal = ((paletteIndex.toInt() or 0x40) and 0x7F).toByte()
+                byteArrayOf(byteVal).decodeToString()
+            }
+        }
+
+        // Helper to find the index of the closest color in a pre-calculated Lab list.
+        private fun findClosestLabIndex(targetLab: LabColor, labPalette: List<LabColor>): Int {
+            var minDistance = Double.MAX_VALUE
+            var nearestIndex = 0
+            for (i in labPalette.indices) {
+                val distance = cielabDistance(targetLab, labPalette[i])
+                if (distance < minDistance) {
+                    minDistance = distance
+                    nearestIndex = i
+                }
+            }
+            return nearestIndex
+        }
+
+        // Helper to generate the remapping LUT
+        private fun generateRemapLut(source: List<RGBColor>, destination: List<RGBColor>): Map<RGBColor, Byte> {
+            if (source.isEmpty() || destination.isEmpty()) return emptyMap()
+
+            val sortedSource = source.sortedBy { rgbToLab(it.r, it.g, it.b).l }
+            val indexedDestination = destination.mapIndexed { index, color -> IndexedValue(index, color) }
+            val sortedDestination = indexedDestination.sortedBy { rgbToLab(it.value.r, it.value.g, it.value.b).l }
+
+            val lut = mutableMapOf<RGBColor, Byte>()
+            val sourceSize = sortedSource.size
+            val destSize = sortedDestination.size
+
+            for (i in sortedSource.indices) {
+                val sourceColor = sortedSource[i]
+                val destIndex = if (sourceSize > 1) (i.toFloat() / (sourceSize - 1) * (destSize - 1)).roundToInt() else 0
+                val mappedOriginalIndex = sortedDestination[destIndex.coerceIn(0, destSize - 1)].index
+                lut[sourceColor] = mappedOriginalIndex.toByte()
+            }
+            return lut
+        }
+
+        // A single internal function to find an index based on mapping mode.
+        private fun findPaletteIndex(r: Int, g: Int, b: Int, palette: ColourPalette): Byte {
+            val index = when (palette.mappingMode) {
+                PaletteMappingMode.NEAREST_NEIGHBOR -> findNearestColorIndex(r, g, b, palette.colors)
+                PaletteMappingMode.ORDERED_BY_BRIGHTNESS -> findIndexOrderedByBrightness(r, g, b, palette.colors)
+                PaletteMappingMode.CIELAB -> findNearestColorIndexCIELAB(r, g, b, palette.colors)
+                PaletteMappingMode.PALETTE_REMAP -> 0 // This mode should be handled by the master function.
+            }
+            return if (index >= 64) 63 else index.toByte()
+        }
+
     }
 }
