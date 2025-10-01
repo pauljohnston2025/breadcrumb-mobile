@@ -106,15 +106,15 @@ class WebServerService(
     private var server: EmbeddedServer<NettyApplicationEngine, NettyApplicationEngine.Configuration>? =
         null
 
-    fun start(): Int {
+    fun start() {
         try {
             startKtorServer()
         } catch (t: Throwable) {
             // todo handle shutting down the old service somehow
             // then start a new one
             Napier.e("failed to start service, probably already bound: $t")
+            throw t
         }
-        return START_STICKY
     }
 
     private fun startKtorServer() {
