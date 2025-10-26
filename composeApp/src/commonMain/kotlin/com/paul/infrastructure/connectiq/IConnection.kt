@@ -3,6 +3,10 @@ package com.paul.infrastructure.connectiq
 import com.paul.domain.IqDevice
 import com.paul.protocol.fromdevice.ProtocolResponse
 import com.paul.protocol.todevice.Protocol
+import com.russhwolf.settings.Settings
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import com.paul.protocol.fromdevice.Protocol as Response
 
 class ConnectIqNeedsInstall : Exception() {
@@ -17,15 +21,37 @@ class ConnectIqNeedsUpdate : Exception() {
 
 data class AppInfo(val version: Int)
 
-interface IConnection {
+abstract class IConnection {
 
     companion object {
-        val CONNECT_IQ_APP_ID = "20edd04a-9fdc-4291-b061-f49d5699394d"
+        val CONNECT_IQ_APP_ID_KEY = "CONNECT_IQ_APP_ID_KEY"
+        val settings: Settings = Settings()
+
+        val defaultConnectIqAppId = "20edd04a-9fdc-4291-b061-f49d5699394d" // default to breadcrumb datafields (the original)
+
+        fun getConnectIqAppIdOnStart(): String {
+            return settings.getString(CONNECT_IQ_APP_ID_KEY, defaultConnectIqAppId)
+        }
     }
 
-    suspend fun start()
+    private val currentConnectIqAppId: MutableStateFlow<String> = MutableStateFlow(getConnectIqAppIdOnStart())
 
-    suspend fun appInfo(device: IqDevice): AppInfo
-    suspend fun send(device: IqDevice, payload: Protocol)
-    suspend fun <T: Response> query(device: IqDevice, payload: Protocol, type: ProtocolResponse): T
+    fun connectIqAppIdFlow(): StateFlow<String> {
+        return currentConnectIqAppId.asStateFlow()
+    }
+
+    init {
+        currentConnectIqAppId.value = getConnectIqAppIdOnStart()
+    }
+
+    suspend fun updateConnectIqAppId(appId: String) {
+        currentConnectIqAppId.emit(appId)
+        settings.putString(CONNECT_IQ_APP_ID_KEY, appId)
+    }
+
+    abstract suspend fun start()
+
+    abstract suspend fun appInfo(device: IqDevice): AppInfo
+    abstract suspend fun send(device: IqDevice, payload: Protocol)
+    abstract suspend fun <T: Response> query(device: IqDevice, payload: Protocol, type: ProtocolResponse): T
 }

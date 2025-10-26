@@ -10,7 +10,6 @@ import com.garmin.android.connectiq.ConnectIQ.IQSendMessageListener
 import com.garmin.android.connectiq.IQApp
 import com.garmin.android.connectiq.IQDevice
 import com.paul.domain.IqDevice
-import com.paul.infrastructure.connectiq.IConnection.Companion.CONNECT_IQ_APP_ID
 import com.paul.protocol.fromdevice.ProtocolResponse
 import com.paul.protocol.fromdevice.Settings
 import com.paul.protocol.todevice.Protocol
@@ -34,7 +33,7 @@ import kotlin.coroutines.resumeWithException
 import com.paul.protocol.fromdevice.Protocol as Response
 
 
-class Connection(private val context: Context) : IConnection {
+class Connection(private val context: Context) : IConnection() {
 
     private var isConnected = false
     private var connectIQ: ConnectIQ = ConnectIqBuilder(context).getInstance()
@@ -115,7 +114,7 @@ class Connection(private val context: Context) : IConnection {
         val connectIQ = getInstance()
         // Register to receive messages from our application
         val cd = device as CommonDeviceImpl
-        val app = IQApp(CONNECT_IQ_APP_ID)
+        val app = IQApp(connectIqAppIdFlow().value)
         // see https://developer.garmin.com/connect-iq/core-topics/mobile-sdk-for-android/
         // Receiving Messages
         // note: this does not seem to work in the simulator, not entirely sure why
@@ -150,7 +149,7 @@ class Connection(private val context: Context) : IConnection {
         suspendCancellableCoroutine { continuation ->
             val cd = device as CommonDeviceImpl
             connectIQ.getApplicationInfo(
-                CONNECT_IQ_APP_ID,
+                connectIqAppIdFlow().value,
                 cd.device,
                 object : ConnectIQ.IQApplicationInfoListener {
                     // workaround to avoid double call of onMessageStatus
@@ -181,7 +180,7 @@ class Connection(private val context: Context) : IConnection {
     private suspend fun openApp(device: IqDevice): Unit =
         suspendCancellableCoroutine { continuation ->
             val cd = device as CommonDeviceImpl
-            val app = IQApp(CONNECT_IQ_APP_ID)
+            val app = IQApp(connectIqAppIdFlow().value)
 
             connectIQ.openApplication(
                 cd.device,
@@ -344,7 +343,7 @@ class Connection(private val context: Context) : IConnection {
         device: IQDevice,
         payload: Protocol,
     ): Unit = suspendCancellableCoroutine { continuation ->
-        val app = IQApp(CONNECT_IQ_APP_ID)
+        val app = IQApp(connectIqAppIdFlow().value)
 
         val toSend = payload.payload().toMutableList()
         toSend.add(0, payload.type().value.toInt())

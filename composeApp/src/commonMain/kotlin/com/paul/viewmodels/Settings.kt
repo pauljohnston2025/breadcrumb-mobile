@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+data class ConnectIqApp(val name: String, val id: String)
 
 class Settings(
     private val deviceSelector: DeviceSelector,
@@ -44,6 +45,19 @@ class Settings(
     val availableColourPalettes = colourPaletteRepository.availableColourPalettesFlow
 
     val sendingMessage: MutableState<String> = mutableStateOf("")
+
+    val connectIqAppId = connection.connectIqAppIdFlow()
+    val availableConnectIqApps = listOf(
+        ConnectIqApp("BreadcrumbDataField", "20edd04a-9fdc-4291-b061-f49d5699394d"),
+        ConnectIqApp("BreadcrumbApp", "fa3e1362-11b0-4420-90cb-9ac14591bf68")
+    )
+
+    fun onConnectIqAppIdChange(newAppId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            connection.updateConnectIqAppId(newAppId)
+            snackbarHostState.showSnackbar("Connect IQ App ID updated")
+        }
+    }
 
     /**
      * Updates the route settings and persists them to the repository.

@@ -409,6 +409,7 @@ fun Settings(
     var tileTypeExpanded by remember { mutableStateOf(false) }
     var colourPaletteExpanded by remember { mutableStateOf(false) }
 
+
     var serverToEdit by remember { mutableStateOf<TileServerInfo?>(null) }
     var showAddServerDialog by remember { mutableStateOf(false) }
     var serverToDelete by remember { mutableStateOf<TileServerInfo?>(null) }
@@ -430,6 +431,11 @@ fun Settings(
         .collectAsState(listOf(TileType.TILE_DATA_TYPE_64_COLOUR))
     val tileServerEnabled by viewModel.tileServerRepo.tileServerEnabledFlow().collectAsState(true)
     val authTokenFlow by viewModel.tileServerRepo.authTokenFlow().collectAsState("")
+    val connectIqAppId by viewModel.connectIqAppId.collectAsState()
+    var appDropdownExpanded by remember { mutableStateOf(false) } // State for the new dropdown
+    val availableApps = viewModel.availableConnectIqApps
+    val selectedAppName = availableApps.find { it.id == connectIqAppId }?.name ?: "Select App"
+
 
     val currentColourPalette by viewModel.currentColourPalette.collectAsState(
         ColourPaletteRepository.opentopoPalette
@@ -515,6 +521,37 @@ fun Settings(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        Text("Connect IQ App:", style = MaterialTheme.typography.body1)
+
+        ExposedDropdownMenuBox(
+            expanded = appDropdownExpanded,
+            onExpandedChange = { appDropdownExpanded = !appDropdownExpanded }
+        ) {
+            OutlinedTextField(
+                value = selectedAppName,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Select App") },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = appDropdownExpanded) },
+                modifier = Modifier.fillMaxWidth()
+            )
+            ExposedDropdownMenu(
+                expanded = appDropdownExpanded,
+                onDismissRequest = { appDropdownExpanded = false }
+            ) {
+                availableApps.forEach { app ->
+                    DropdownMenuItem(onClick = {
+                        viewModel.onConnectIqAppIdChange(app.id)
+                        appDropdownExpanded = false
+                    }) {
+                        Text(app.name)
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(8.dp))
+
         Column(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(8.dp)

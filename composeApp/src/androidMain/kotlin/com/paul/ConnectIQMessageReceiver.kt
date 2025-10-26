@@ -12,7 +12,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.garmin.android.connectiq.ConnectIQ
-import com.paul.infrastructure.connectiq.IConnection.Companion.CONNECT_IQ_APP_ID
+import com.paul.infrastructure.connectiq.IConnection
 import com.paul.infrastructure.repositories.TileServerRepo.Companion.TILE_SERVER_ENABLED_KEY
 import com.paul.infrastructure.web.CheckStatusRequest
 import com.paul.infrastructure.web.KtorClient
@@ -70,7 +70,7 @@ class ConnectIQMessageReceiver : BroadcastReceiver() {
             Napier.d("  payload: $payload", tag = TAG)
 //            Napier.d("  remoteApplication: $remoteApplication", tag = TAG)
 //            Napier.d("  remoteDevice: $remoteDevice", tag = TAG)
-            if (appId?.lowercase() == CONNECT_IQ_APP_ID.replace("-", "").lowercase()
+            if (appId?.lowercase() == IConnection.getConnectIqAppIdOnStart().replace("-", "").lowercase()
             // payload appears to change between runs
             /* && payload.toString().lowercase() == "[B@cd05ca5".lowercase() */
             ) {

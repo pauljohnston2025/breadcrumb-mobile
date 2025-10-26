@@ -1,28 +1,17 @@
 package com.paul.infrastructure.connectiq
 
-import io.github.aakira.napier.Napier
-import com.garmin.android.connectiq.ConnectIQ.IQApplicationEventListener
 import com.garmin.android.connectiq.ConnectIQ.IQDeviceEventListener
-import com.garmin.android.connectiq.ConnectIQ.IQMessageStatus
-import com.garmin.android.connectiq.IQApp
 import com.garmin.android.connectiq.exception.InvalidStateException
 import com.garmin.android.connectiq.exception.ServiceUnavailableException
 import com.paul.domain.IqDevice
-import com.paul.infrastructure.connectiq.IConnection.Companion.CONNECT_IQ_APP_ID
-import com.paul.protocol.fromdevice.Protocol
+import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.channels.awaitClose
-import kotlinx.coroutines.channels.trySendBlocking
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.buffer
-import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.launch
-import kotlin.coroutines.cancellation.CancellationException
 
 class DeviceList(private val connection: Connection) : IDeviceList {
 
