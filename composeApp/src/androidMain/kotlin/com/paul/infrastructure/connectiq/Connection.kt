@@ -310,6 +310,7 @@ class Connection(private val context: Context) : IConnection {
 //                "drawHitBoxes" to false,
 //                "showDirectionPoints" to false,
 //                "showDirectionPointTextUnderIndex" to 0,
+//                "activityType" to 0,
 //            )
 //        )
 //

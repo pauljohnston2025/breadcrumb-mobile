@@ -98,6 +98,7 @@ fun DeviceSettings(
             LazyColumn(modifier = Modifier.weight(1f)) {
                 item {
                     CollapsibleSection("General") {
+                        findProp("activityType")?.let { PropertyEditorResolver(it) }
                         findProp("mode")?.let { PropertyEditorResolver(it) }
                         findProp("uiMode")?.let { PropertyEditorResolver(it) }
                         findProp("elevationMode")?.let { PropertyEditorResolver(it) }
@@ -423,6 +424,7 @@ fun PropertyEditorResolver(property: EditableProperty<*>) {
         PropertyType.ARRAY -> ArrayEditor(property) // Array editor might need specific UI
         PropertyType.LIST_NUMBER -> ListNumberEditor(property as EditableProperty<Int>)
         PropertyType.UNKNOWN -> UnknownTypeEditor(property) // Handle unknown gracefully
+        PropertyType.SPORT -> SportAndSubSportPicker(property as EditableProperty<Int>)
     }
 }
 
@@ -817,6 +819,201 @@ fun ListNumberEditor(property: EditableProperty<Int>) {
                         },
                     ) {
                         Text(text = option.display)
+                    }
+                }
+            }
+        }
+    }
+}
+
+data class SubSport(val name: String, val value: Int)
+data class Sport(val name: String, val value: Int, val subSports: List<SubSport>)
+
+val sportsData = listOf(
+    Sport("Generic", 0, listOf(SubSport("Generic", 0))),
+    Sport(
+        "Running", 1000, listOf(
+            SubSport("Running", 1000),
+            SubSport("Treadmill", 1001),
+            SubSport("Street", 1002),
+            SubSport("Trail", 1003),
+            SubSport("Track", 1004),
+            SubSport("Indoor", 1045),
+            SubSport("Virtual", 1058),
+            SubSport("Obstacle", 1059),
+            SubSport("Ultra", 1067)
+        )
+    ),
+    Sport(
+        "Cycling", 2000, listOf(
+            SubSport("Cycling", 2000),
+            SubSport("Spin", 2005),
+            SubSport("Indoor", 2006),
+            SubSport("Road", 2007),
+            SubSport("Mountain", 2008),
+            SubSport("Downhill", 2009),
+            SubSport("Recumbent", 2010),
+            SubSport("Cyclocross", 2011),
+            SubSport("Hand", 2012),
+            SubSport("Track", 2013),
+            SubSport("BMX", 2029),
+            SubSport("Gravel", 2046),
+            SubSport("Commute", 2048),
+            SubSport("Mixed Surface", 2049)
+        )
+    ),
+    Sport("Transition", 3000, listOf(SubSport("Transition", 3000))),
+    Sport(
+        "Fitness Equipment", 4000, listOf(
+            SubSport("Fitness Equipment", 4000),
+            SubSport("Indoor Rowing", 4014),
+            SubSport("Elliptical", 4015),
+            SubSport("Stair Climbing", 4016),
+            SubSport("Strength", 4020),
+            SubSport("Cardio", 4026),
+            SubSport("Yoga", 4043),
+            SubSport("Pilates", 4044),
+            SubSport("Indoor Climbing", 4068),
+            SubSport("Bouldering", 4069)
+        )
+    ),
+    Sport(
+        "Swimming", 5000, listOf(
+            SubSport("Swimming", 5000),
+            SubSport("Lap", 5017),
+            SubSport("Open Water", 5018)
+        )
+    ),
+    Sport("Basketball", 6000, listOf(SubSport("Basketball", 6000))),
+    Sport("Soccer", 7000, listOf(SubSport("Soccer", 7000))),
+    Sport("Tennis", 8000, listOf(SubSport("Tennis", 8000))),
+    Sport("American Football", 9000, listOf(SubSport("American Football", 9000))),
+    Sport("Training", 10000, listOf(SubSport("Training", 10000))),
+    Sport(
+        "Walking", 11000, listOf(
+            SubSport("Walking", 11000),
+            SubSport("Indoor", 11027),
+            SubSport("Casual", 11030),
+            SubSport("Speed", 11031)
+        )
+    ),
+    Sport(
+        "XC Skiing", 12000, listOf(
+            SubSport("XC Skiing", 12000),
+            SubSport("Skate", 12042)
+        )
+    ),
+    Sport(
+        "Alpine Skiing", 13000, listOf(
+            SubSport("Alpine Skiing", 13000),
+            SubSport("Backcountry", 13037),
+            SubSport("Resort", 13038)
+        )
+    ),
+    Sport(
+        "Snowboarding", 14000, listOf(
+            SubSport("Snowboarding", 14000),
+            SubSport("Backcountry", 14037),
+            SubSport("Resort", 14038)
+        )
+    ),
+    Sport("Rowing", 15000, listOf(SubSport("Rowing", 15000))),
+    Sport("Mountaineering", 16000, listOf(SubSport("Mountaineering", 16000))),
+    Sport("Hiking", 17000, listOf(SubSport("Hiking", 17000))),
+    Sport(
+        "Multisport", 18000, listOf(
+            SubSport("Multisport", 18000),
+            SubSport("Triathlon", 18078),
+            SubSport("Duathlon", 18079),
+            SubSport("Brick", 18080),
+            SubSport("Swimrun", 18081),
+            SubSport("Adventure Race", 18082)
+        )
+    ),
+    Sport("Paddling", 19000, listOf(SubSport("Paddling", 19000))),
+    Sport(
+        "Flying", 20000, listOf(
+            SubSport("Flying", 20000),
+            SubSport("Drone", 20039)
+        )
+    ),
+    Sport(
+        "E-Biking", 21000, listOf(
+            SubSport("E-Biking", 21000),
+            SubSport("Fitness", 21028),
+            SubSport("Mountain", 21047)
+        )
+    ),
+)
+@OptIn(ExperimentalMaterialApi::class)
+@Composable
+fun SportAndSubSportPicker(property: EditableProperty<Int>) {
+    val selectedValue by property.state
+    val sportValue = selectedValue / 1000 * 1000
+    val subSportValue = selectedValue
+
+    var selectedSport by remember { mutableStateOf(sportsData.find { it.value == sportValue }) }
+    var selectedSubSport by remember {
+        mutableStateOf(
+            selectedSport?.subSports?.find { it.value == subSportValue })
+    }
+
+    var sportExpanded by remember { mutableStateOf(false) }
+    var subSportExpanded by remember { mutableStateOf(false) }
+
+    Column {
+        PropertyEditorRow(label = "Sport") {
+            ExposedDropdownMenuBox(
+                expanded = sportExpanded,
+                onExpandedChange = { sportExpanded = !sportExpanded }
+            ) {
+                OutlinedTextField(
+                    value = selectedSport?.name ?: "Select Sport",
+                    onValueChange = {},
+                    readOnly = true,
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = sportExpanded) }
+                )
+                ExposedDropdownMenu(
+                    expanded = sportExpanded,
+                    onDismissRequest = { sportExpanded = false }
+                ) {
+                    sportsData.forEach { sport ->
+                        DropdownMenuItem(onClick = {
+                            selectedSport = sport
+                            selectedSubSport = sport.subSports.first()
+                            property.state.value = selectedSubSport!!.value
+                            sportExpanded = false
+                        }) {
+                            Text(text = sport.name)
+                        }
+                    }
+                }
+            }
+        }
+
+        PropertyEditorRow(label = "Sub-Sport") {
+            ExposedDropdownMenuBox(
+                expanded = subSportExpanded,
+                onExpandedChange = { subSportExpanded = !subSportExpanded }
+            ) {
+                OutlinedTextField(
+                    value = selectedSubSport?.name ?: "Select Sub-Sport",
+                    onValueChange = {},
+                    readOnly = true,
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = subSportExpanded) }
+                )
+                ExposedDropdownMenu(
+                    expanded = subSportExpanded,
+                    onDismissRequest = { subSportExpanded = false }
+                ) {
+                    selectedSport?.subSports?.forEach { subSport ->
+                        DropdownMenuItem(onClick = {
+                            selectedSubSport = subSport
+                            property.state.value = subSport.value
+                            subSportExpanded = false
+                        }) {
+                            Text(text = subSport.name)
+                        }
                     }
                 }
             }

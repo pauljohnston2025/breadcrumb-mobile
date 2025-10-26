@@ -81,7 +81,8 @@ enum class PropertyType {
     STRING,
     ARRAY,  // Special handling needed
     COLOR,  // Treat as String for now, potential for color picker later
-    UNKNOWN
+    UNKNOWN,
+    SPORT,
 }
 
 data class ListOption(
@@ -213,6 +214,7 @@ val labelOverrides: Map<String, String> = mapOf(
     "drawHitBoxes" to "Draw Hit Boxes",
     "showDirectionPoints" to "Show Turn Points",
     "showDirectionPointTextUnderIndex" to "Show Turn Point Text Under Index",
+    "activityType" to "Activity Type",
 )
 
 val descriptions: Map<String, String> = mapOf(
@@ -265,6 +267,15 @@ class DeviceSettings(
                 )
             } else {
                 when (key) {
+                    // --- Sport ---
+                    "activityType" -> EditableProperty(
+                        key,
+                        PropertyType.SPORT,
+                        mutableStateOf(value as Int),
+                        originalString,
+                        description = description,
+                        label = label
+                    )
                     // --- Numbers ---
                     "turnAlertTimeS",
                     "minTurnAlertDistanceM",
