@@ -1,10 +1,13 @@
 package com.paul.ui
 
+import androidx.compose.foundation.layout.Column
 import android.annotation.SuppressLint
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.DrawerValue
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
+import androidx.compose.material.MaterialTheme
 import androidx.compose.material.ModalDrawer
 import androidx.compose.material.Scaffold
 import androidx.compose.material.SnackbarHost
@@ -21,6 +24,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -198,23 +202,34 @@ fun App(
         ) {
 
             val connectIqAppId by settingsViewModel.connectIqAppId.collectAsState()
-            var title = currentScreen.title
             val selectedAppName = IConnection.availableConnectIqApps
                 .find { it.id == connectIqAppId }?.name ?: "App"
-
-            if (deviceSelector.currentDevice.value != null) {
-                title = "${currentScreen.title}\n${deviceSelector.currentDevice.value!!.friendlyName} - $selectedAppName"
-            }
-            else {
-                title = "${currentScreen.title}\nNo Device - $selectedAppName"
-            }
 
             // Main content area wrapped by the drawer
             Scaffold(
                 scaffoldState = scaffoldState, // Use the state connected to drawerState
                 topBar = {
                     TopAppBar(
-                        title = { Text(title) }, // Dynamic title based on current screen
+                        title = { // Use a Column to stack two Text composables vertically
+                            Column {
+                                // 1. The main screen title with default styling
+                                Text(currentScreen.title)
+
+                                // 2. The subtitle with the device and app name
+                                val subtitle = deviceSelector.currentDevice.value?.let { device ->
+                                    "${device.friendlyName} - $selectedAppName"
+                                } ?: "No Device - $selectedAppName"
+
+                                Text(
+                                    text = subtitle,
+                                    // Apply a smaller style. 'caption' is a standard small font.
+                                    style = MaterialTheme.typography.caption,
+                                    // Ensure it doesn't wrap to another line and adds "..." if it's still too long
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }, // Dynamic title based on current screen
                         navigationIcon = {
                             IconButton(onClick = {
                                 scope.launch {
