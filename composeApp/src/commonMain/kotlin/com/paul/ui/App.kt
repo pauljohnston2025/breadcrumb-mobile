@@ -17,6 +17,7 @@ import androidx.compose.material.rememberScaffoldState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
@@ -196,10 +197,16 @@ fun App(
             }
         ) {
 
+            val connectIqAppId by settingsViewModel.connectIqAppId.collectAsState()
             var title = currentScreen.title
+            val selectedAppName = IConnection.availableConnectIqApps
+                .find { it.id == connectIqAppId }?.name ?: "App"
+
             if (deviceSelector.currentDevice.value != null) {
-                title =
-                    currentScreen.title + " (" + deviceSelector.currentDevice.value!!.friendlyName + ")"
+                title = "${currentScreen.title}\n${deviceSelector.currentDevice.value!!.friendlyName} - $selectedAppName"
+            }
+            else {
+                title = "${currentScreen.title}\nNo Device - $selectedAppName"
             }
 
             // Main content area wrapped by the drawer

@@ -20,6 +20,7 @@ import com.russhwolf.settings.Settings
 import io.github.aakira.napier.Napier
 import io.ktor.client.plugins.resources.get
 import io.ktor.http.isSuccess
+import io.ktor.util.encodeBase64
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -70,9 +71,11 @@ class ConnectIQMessageReceiver : BroadcastReceiver() {
             Napier.d("  payload: $payload", tag = TAG)
 //            Napier.d("  remoteApplication: $remoteApplication", tag = TAG)
 //            Napier.d("  remoteDevice: $remoteDevice", tag = TAG)
-            if (appId?.lowercase() == IConnection.getConnectIqAppIdOnStart().replace("-", "").lowercase()
-            // payload appears to change between runs
-            /* && payload.toString().lowercase() == "[B@cd05ca5".lowercase() */
+            if (appId != null && IConnection.availableConnectIqApps.any {
+                    it.id.replace("-", "").equals(appId.replace("-", ""), ignoreCase = true)
+                }
+                && payload != null
+                && payload.encodeBase64() == "2nraegAAAAoFAAAAAQEAAAAA" // todo figure out how to decode this so we can do more things with it
             ) {
                 Napier.d("got our special start message", tag = TAG)
                 // apparently you cannot launch an app if the app is closed, or running inthe background

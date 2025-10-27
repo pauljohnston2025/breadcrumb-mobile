@@ -21,6 +21,8 @@ class ConnectIqNeedsUpdate : Exception() {
 
 data class AppInfo(val version: Int)
 
+data class ConnectIqApp(val name: String, val id: String)
+
 abstract class IConnection {
 
     companion object {
@@ -32,6 +34,11 @@ abstract class IConnection {
         fun getConnectIqAppIdOnStart(): String {
             return settings.getString(CONNECT_IQ_APP_ID_KEY, defaultConnectIqAppId)
         }
+
+        val availableConnectIqApps = listOf(
+            ConnectIqApp("BreadcrumbDataField", "20edd04a-9fdc-4291-b061-f49d5699394d"),
+            ConnectIqApp("BreadcrumbApp", "fa3e1362-11b0-4420-90cb-9ac14591bf68")
+        )
     }
 
     private val currentConnectIqAppId: MutableStateFlow<String> = MutableStateFlow(getConnectIqAppIdOnStart())

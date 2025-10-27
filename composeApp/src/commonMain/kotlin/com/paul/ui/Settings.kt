@@ -1,5 +1,6 @@
 package com.paul.ui
 
+import com.paul.infrastructure.connectiq.IConnection
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -286,7 +287,11 @@ fun ColourPaletteDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
                 if (nameError != null) {
-                    Text(nameError!!, color = MaterialTheme.colors.error, style = MaterialTheme.typography.body1)
+                    Text(
+                        nameError!!,
+                        color = MaterialTheme.colors.error,
+                        style = MaterialTheme.typography.body1
+                    )
                 }
 
                 Spacer(Modifier.height(16.dp))
@@ -297,33 +302,53 @@ fun ColourPaletteDialog(
                 Column(Modifier.fillMaxWidth()) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth().clickable { mappingMode = PaletteMappingMode.NEAREST_NEIGHBOR }.padding(vertical = 2.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { mappingMode = PaletteMappingMode.NEAREST_NEIGHBOR }
+                            .padding(vertical = 2.dp)
                     ) {
-                        RadioButton(selected = mappingMode == PaletteMappingMode.NEAREST_NEIGHBOR, onClick = { mappingMode = PaletteMappingMode.NEAREST_NEIGHBOR })
+                        RadioButton(
+                            selected = mappingMode == PaletteMappingMode.NEAREST_NEIGHBOR,
+                            onClick = { mappingMode = PaletteMappingMode.NEAREST_NEIGHBOR })
                         Spacer(Modifier.width(4.dp))
                         Text("Nearest (RGB)")
                     }
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth().clickable { mappingMode = PaletteMappingMode.CIELAB }.padding(vertical = 2.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { mappingMode = PaletteMappingMode.CIELAB }
+                            .padding(vertical = 2.dp)
                     ) {
-                        RadioButton(selected = mappingMode == PaletteMappingMode.CIELAB, onClick = { mappingMode = PaletteMappingMode.CIELAB })
+                        RadioButton(
+                            selected = mappingMode == PaletteMappingMode.CIELAB,
+                            onClick = { mappingMode = PaletteMappingMode.CIELAB })
                         Spacer(Modifier.width(4.dp))
                         Text("Perceptual (CIELAB)")
                     }
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth().clickable { mappingMode = PaletteMappingMode.ORDERED_BY_BRIGHTNESS }.padding(vertical = 2.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { mappingMode = PaletteMappingMode.ORDERED_BY_BRIGHTNESS }
+                            .padding(vertical = 2.dp)
                     ) {
-                        RadioButton(selected = mappingMode == PaletteMappingMode.ORDERED_BY_BRIGHTNESS, onClick = { mappingMode = PaletteMappingMode.ORDERED_BY_BRIGHTNESS })
+                        RadioButton(
+                            selected = mappingMode == PaletteMappingMode.ORDERED_BY_BRIGHTNESS,
+                            onClick = { mappingMode = PaletteMappingMode.ORDERED_BY_BRIGHTNESS })
                         Spacer(Modifier.width(4.dp))
                         Text("Brightness (Gradient)")
                     }
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth().clickable { mappingMode = PaletteMappingMode.PALETTE_REMAP }.padding(vertical = 2.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { mappingMode = PaletteMappingMode.PALETTE_REMAP }
+                            .padding(vertical = 2.dp)
                     ) {
-                        RadioButton(selected = mappingMode == PaletteMappingMode.PALETTE_REMAP, onClick = { mappingMode = PaletteMappingMode.PALETTE_REMAP })
+                        RadioButton(
+                            selected = mappingMode == PaletteMappingMode.PALETTE_REMAP,
+                            onClick = { mappingMode = PaletteMappingMode.PALETTE_REMAP })
                         Spacer(Modifier.width(4.dp))
                         Text("Palette Remap")
                     }
@@ -339,7 +364,9 @@ fun ColourPaletteDialog(
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
                         ) {
                             Box(
                                 modifier = Modifier
@@ -349,10 +376,16 @@ fun ColourPaletteDialog(
                                     .clickable { colorToEditInfo = index to color }
                             )
 
-                            Text("R:${color.r} G:${color.g} B:${color.b}", modifier = Modifier.weight(1f), style = MaterialTheme.typography.body2)
+                            Text(
+                                "R:${color.r} G:${color.g} B:${color.b}",
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.body2
+                            )
 
                             IconButton(onClick = {
-                                val newColors = colors.toMutableList(); newColors.removeAt(index); colors = newColors
+                                val newColors =
+                                    colors.toMutableList(); newColors.removeAt(index); colors =
+                                newColors
                             }, enabled = colors.size > 1) {
                                 Icon(Icons.Default.Delete, contentDescription = "Remove color")
                             }
@@ -362,7 +395,9 @@ fun ColourPaletteDialog(
                 Button(
                     onClick = { colors = (colors + RGBColor(0, 0, 0)).toMutableList() },
                     enabled = colors.size < 64,
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp)
                 ) {
                     Text("Add Color")
                 }
@@ -371,7 +406,9 @@ fun ColourPaletteDialog(
                         "Maximum of 64 colors reached.",
                         color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f),
                         style = MaterialTheme.typography.caption,
-                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp)
                     )
                 }
             }
@@ -433,7 +470,7 @@ fun Settings(
     val authTokenFlow by viewModel.tileServerRepo.authTokenFlow().collectAsState("")
     val connectIqAppId by viewModel.connectIqAppId.collectAsState()
     var appDropdownExpanded by remember { mutableStateOf(false) } // State for the new dropdown
-    val availableApps = viewModel.availableConnectIqApps
+    val availableApps = IConnection.availableConnectIqApps
     val selectedAppName = availableApps.find { it.id == connectIqAppId }?.name ?: "Select App"
 
 
@@ -521,36 +558,41 @@ fun Settings(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text("Connect IQ App:", style = MaterialTheme.typography.body1)
-
-        ExposedDropdownMenuBox(
-            expanded = appDropdownExpanded,
-            onExpandedChange = { appDropdownExpanded = !appDropdownExpanded }
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            OutlinedTextField(
-                value = selectedAppName,
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("Select App") },
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = appDropdownExpanded) },
-                modifier = Modifier.fillMaxWidth()
-            )
-            ExposedDropdownMenu(
+            Text("Connect IQ App:", style = MaterialTheme.typography.body1)
+
+            ExposedDropdownMenuBox(
                 expanded = appDropdownExpanded,
-                onDismissRequest = { appDropdownExpanded = false }
+                onExpandedChange = { appDropdownExpanded = !appDropdownExpanded }
             ) {
-                availableApps.forEach { app ->
-                    DropdownMenuItem(onClick = {
-                        viewModel.onConnectIqAppIdChange(app.id)
-                        appDropdownExpanded = false
-                    }) {
-                        Text(app.name)
+                OutlinedTextField(
+                    value = selectedAppName,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Select App") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = appDropdownExpanded) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                ExposedDropdownMenu(
+                    expanded = appDropdownExpanded,
+                    onDismissRequest = { appDropdownExpanded = false }
+                ) {
+                    availableApps.forEach { app ->
+                        DropdownMenuItem(onClick = {
+                            viewModel.onConnectIqAppIdChange(app.id)
+                            appDropdownExpanded = false
+                        }) {
+                            Text(app.name)
+                        }
                     }
                 }
             }
         }
 
-        Spacer(Modifier.height(8.dp))
+        Divider(modifier = Modifier.padding(vertical = 8.dp))
 
         Column(
             modifier = Modifier.fillMaxWidth(),
@@ -631,7 +673,8 @@ fun Settings(
                                             IconButton(onClick = {
                                                 paletteToEdit = palette.copy(
                                                     watchAppPaletteId = 0,
-                                                    uniqueId = UUID.randomUUID().toString(), // Generate new ID for clone
+                                                    uniqueId = UUID.randomUUID()
+                                                        .toString(), // Generate new ID for clone
                                                     name = "Copy of ${palette.name}",
                                                     isEditable = true
                                                 )
