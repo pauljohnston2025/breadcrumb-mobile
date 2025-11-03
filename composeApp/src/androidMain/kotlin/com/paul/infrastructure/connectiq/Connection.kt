@@ -10,6 +10,7 @@ import com.garmin.android.connectiq.ConnectIQ.IQSendMessageListener
 import com.garmin.android.connectiq.IQApp
 import com.garmin.android.connectiq.IQDevice
 import com.paul.domain.IqDevice
+import com.paul.infrastructure.service.isEmulator
 import com.paul.protocol.fromdevice.ProtocolResponse
 import com.paul.protocol.fromdevice.Settings
 import com.paul.protocol.todevice.Protocol
@@ -22,6 +23,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.channels.trySendBlocking
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.onEach
@@ -103,23 +105,13 @@ class Connection(private val context: Context) : IConnection() {
         }
     }
 
-    // this is meant to work in the simulator, but i cannot seem to get that to happen
-    // which makes this really hard to test
-    // https://forums.garmin.com/developer/connect-iq/f/discussion/357/communications
-    // apparently it did work at some point, or was meant to be released? 10 year old comment
-    // tried downgrading the sdk, updating the sdk, puring the simulator from the temp directory,
-    // also tried making it a watch app and trying different devices in the simulator
-    // nothing worked, it hin its just broken
     private fun deviceMessages(device: IqDevice): Flow<Response?> = callbackFlow {
         val connectIQ = getInstance()
         // Register to receive messages from our application
         val cd = device as CommonDeviceImpl
         val app = IQApp(connectIqAppIdFlow().value)
-        // see https://developer.garmin.com/connect-iq/core-topics/mobile-sdk-for-android/
-        // Receiving Messages
-        // note: this does not seem to work in the simulator, not entirely sure why
-        // works fine on a real device
-        connectIQ.registerForAppEvents(cd.device, app) { device, _app, messageData, status ->
+
+        fun handleMessage(device: IQDevice, status: IQMessageStatus, messageData: List<Any>) {
             // First inspect the status to make sure this
             // was a SUCCESS. If not then the status will indicate why there
             // was an issue receiving the message from the Connect IQ application.
@@ -139,6 +131,28 @@ class Connection(private val context: Context) : IConnection() {
             } catch (t: Throwable) {
                 // exceptions from within the callback crash the app, don't do that
                 Napier.d("failed $t");
+            }
+        }
+
+        // see https://developer.garmin.com/connect-iq/core-topics/mobile-sdk-for-android/
+        // Receiving Messages
+        // note: this simulator curently has a bug where it sends an empty app id
+        // see below
+        connectIQ.registerForAppEvents(cd.device, app) { device, _app, messageData, status ->
+            handleMessage(device, status, messageData)
+        }
+
+        if (isEmulator()) {
+            // Listener for the EMPTY app ID (WORKAROUND for simulator bug)
+            // https://forums.garmin.com/developer/connect-iq/f/discussion/379720/android-mobile-sdk---tethered-connection---app-status-unknown
+            // think this applies for all messages sent to the simulator?
+            // onMessageStatus log actually shows this app id
+            val simulatorApp = IQApp("")
+            connectIQ.registerForAppEvents(
+                cd.device,
+                simulatorApp
+            ) { device, _app, messageData, status ->
+                handleMessage(device, status, messageData)
             }
         }
 
@@ -221,112 +235,23 @@ class Connection(private val context: Context) : IConnection() {
         payload: Protocol,
         type: ProtocolResponse
     ): T {
-        // since this does not work on the simulator we will mock out the response whe we need to
-        // device messages do not seem to go from garmin simulator to android simulator
-//        val fakedResponse = Settings(
-//            settings = mapOf(
-//                "fixedLatitude" to 0.0,
-//                "trackColour" to "FF00FF00",
-//                "defaultRouteColour" to "FF00FF00",
-//                "tileUrl" to "http://127.0.0.1:8080",
-//                "uiMode" to 0,
-//                "fullTileSize" to 256,
-//                "drawLineToClosestPoint" to true,
-//                "recalculateIntervalS" to 5,
-//                "routeMax" to 3,
-//                "normalModeColour" to "FF00AAFF",
-//                "routesEnabled" to true,
-//                "tileCachePadding" to 0,
-//                "zoomAtPaceSpeedMPS" to 1.0,
-//                "debugColour" to "FEFFFFFF",
-//                "mode" to 0,
-//                "routes" to listOf(
-//                    mapOf(
-//                        "colour" to "FFFF00FF",
-//                        "routeId" to 0,
-//                        "name" to "Local Loop",
-//                        "enabled" to true
-//                    ),
-//                    mapOf(
-//                        "colour" to "FFFF0000",
-//                        "routeId" to 2,
-//                        "name" to "Piper Comanche Wreck",
-//                        "enabled" to true
-//                    ),
-//                    mapOf(
-//                        "colour" to "FF00AAFF",
-//                        "routeId" to 1,
-//                        "name" to "Afternoon Ride",
-//                        "enabled" to true
-//                    )
-//                ),
-//                "zoomAtPaceMode" to 3,
-//                "tileLayerMin" to 0,
-//                "displayRouteNames" to true,
-//                "enableOffTrackAlerts" to true,
-//                "elevationMode" to 0,
-//                "offTrackAlertsMaxReportIntervalS" to 30,
-//                "elevationColour" to "FFFF5500",
-//                "alertType" to 0,
-//                "displayLatLong" to true,
-//                "resetDefaults" to false,
-//                "scaledTileSize" to 256,
-//                "metersAroundUser" to 500,
-//                "mapChoice" to 1,
-//                "offTrackAlertsDistanceM" to 5,
-//                "renderMode" to 0,
-//                "fixedLongitude" to 0.0,
-//                "tileCacheSize" to 64,
-//                "tileSize" to 64,
-//                "userColour" to "FFFF5500",
-//                "uiColour" to "FF555555",
-//                "tileErrorColour" to "FF555555",
-//                "mapEnabled" to true,
-//                "scaleRestrictedToTileLayers" to false,
-//                "useDrawBitmap" to false,
-//                "packingFormat" to 1,
-//                "tileLayerMax" to 15,
-//                "disableMapsFailureCount" to 200,
-//                "maxPendingWebRequests" to 100,
-//                "cacheTilesInStorage" to false,
-//                "showPoints" to false,
-//                "drawLineToClosestTrack" to false,
-//                "showTileBorders" to false,
-//                "showErrorTileMessages" to false,
-//                "offTrackWrongDirection" to false,
-//                "drawCheverons" to false,
-//                "includeDebugPageInOnScreenUi" to false,
-//                "storageTileCacheSize" to 100,
-//                "storageTileCachePageCount" to 1,
-//                "httpErrorTileTTLS" to 60,
-//                "errorTileTTLS" to 20,
-//                "storageSeedBoundingBox" to false,
-//                "storageSeedRouteDistanceM" to 10.0,
-//                "centerUserOffsetY" to 0.75,
-//                "mapMoveScreenSize" to 0.3,
-//                "turnAlertTimeS" to -1,
-//                "maxTrackPoints" to 400,
-//                "drawHitBoxes" to false,
-//                "showDirectionPoints" to false,
-//                "showDirectionPointTextUnderIndex" to 0,
-//                "activityType" to 0,
-//            )
-//        )
-//
-//        return fakedResponse as T
-
         return withTimeout(30000) {
             start()
-            appInfo(device)
-            // we get a log saying PROMPT_SHOWN_ON_DEVICE, but i do to see anything
-            // leaving this here incase it does ever work
-            openApp(device) // we cannot run commands against the app unless it is open
-            send(device, payload)
+            try {
+                appInfo(device)
+                // we get a log saying PROMPT_SHOWN_ON_DEVICE, but i do to see anything
+                // leaving this here incase it does ever work
+                openApp(device) // we cannot run commands against the app unless it is open
+            } catch (e: Exception) {
+                Napier.w("Failed to get appInfo or openApp, ignoring: ${e.message}")
+            }
             // pretty hacky impl, we should have the deviceMessages flow running all the time,
             // and then complete futures as messages come in from the device
             // they should be in order though, and this is hopefully ok for now
             val fut = CompletableDeferred<T>()
+            val started = CompletableDeferred<Unit>()
             CoroutineScope(Dispatchers.IO).launch {
+                started.complete(Unit)
                 deviceMessages(device).collect {
                     if (it != null && it.type == type) {
                         fut.complete(it as T)
@@ -334,6 +259,9 @@ class Connection(private val context: Context) : IConnection() {
                     }
                 }
             }
+            started.await() // make sure we have launched the coroutine, probably need to make sure the flow of messages has actually started too
+            delay(1000) // wait for a bit to ensure the flow has started
+            send(device, payload) // send the payload after we are all hooked up and waiting
             fut.await()
         }
     }

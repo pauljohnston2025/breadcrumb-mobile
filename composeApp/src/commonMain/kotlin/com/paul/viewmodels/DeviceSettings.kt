@@ -247,7 +247,10 @@ class DeviceSettings(
 
         val key = entry.key
         val value = entry.value
-        val originalString = value.toString() // Simple string representation for the 4th param
+
+        // 1. SAFE STRING REPRESENTATION: Use Elvis operator to default to "" if value is null.
+        val originalString = value?.toString() ?: ""
+
         val description = descriptions[key] // Will be null if not found
         val label = labelOverrides[key] ?: key.replace(Regex("([A-Z])"), " $1")
             .replaceFirstChar { it.uppercase() }
@@ -259,9 +262,10 @@ class DeviceSettings(
                 EditableProperty(
                     key,
                     PropertyType.LIST_NUMBER,
-                    mutableStateOf(value as Int), // State holds the Int value
+                    // Use safe cast 'as? Int' and default to 0 if null or wrong type
+                    mutableStateOf((value as? Int) ?: 0),
                     originalString,
-                    options = options, // Attach the options,
+                    options = options,
                     description = description,
                     label = label
                 )
@@ -271,7 +275,8 @@ class DeviceSettings(
                     "activityType" -> EditableProperty(
                         key,
                         PropertyType.SPORT,
-                        mutableStateOf(value as Int),
+                        // Use safe cast 'as? Int' and default to 0
+                        mutableStateOf((value as? Int) ?: 0),
                         originalString,
                         description = description,
                         label = label
@@ -308,7 +313,8 @@ class DeviceSettings(
                     "routeMax" -> EditableProperty(
                         key,
                         PropertyType.NUMBER,
-                        mutableStateOf(value as Int), // Assumes value is correctly Int
+                        // Use safe cast 'as? Int' and default to 0
+                        mutableStateOf((value as? Int) ?: 0),
                         originalString,
                         description = description,
                         label = label
@@ -318,7 +324,8 @@ class DeviceSettings(
                     "zoomAtPaceSpeedMPS" -> EditableProperty(
                         key,
                         PropertyType.FLOAT,
-                        mutableStateOf(value as Float), // Assumes value is correctly Float
+                        // Use safe cast 'as? Float' and default to 0.0f
+                        mutableStateOf((value as? Float) ?: 0.0f),
                         originalString,
                         description = description,
                         label = label
@@ -333,7 +340,8 @@ class DeviceSettings(
                     "fixedLongitude" -> EditableProperty(
                         key,
                         PropertyType.ZERO_DISABLED_FLOAT,
-                        mutableStateOf(value as Float), // Assumes value is correctly Float
+                        // Use safe cast 'as? Float' and default to 0.0f
+                        mutableStateOf((value as? Float) ?: 0.0f),
                         originalString,
                         description = description,
                         label = label
@@ -364,7 +372,8 @@ class DeviceSettings(
                     "routesEnabled" -> EditableProperty(
                         key,
                         PropertyType.BOOLEAN,
-                        mutableStateOf(value as Boolean), // Assumes value is correctly Boolean
+                        // Use safe cast 'as? Boolean' and default to false
+                        mutableStateOf((value as? Boolean) ?: false),
                         originalString,
                         description = description,
                         label = label
@@ -375,7 +384,8 @@ class DeviceSettings(
                     "tileUrl" -> EditableProperty(
                         key,
                         PropertyType.STRING,
-                        mutableStateOf(value as String), // Assumes value is correctly String
+                        // Use safe cast 'as? String' and default to ""
+                        mutableStateOf((value as? String) ?: ""),
                         originalString,
                         description = description,
                         label = label
@@ -389,18 +399,22 @@ class DeviceSettings(
                     "userColour",
                     "normalModeColour",
                     "uiColour",
-                    "debugColour" -> EditableProperty(
-                        key,
-                        PropertyType.COLOR, // Use the specific COLOR type
-                        mutableStateOf(padColorString((value as String))),
-                        padColorString(originalString),
-                        description = description,
-                        label = label
-                    )
+                    "debugColour" -> {
+                        // Safe cast and default to a guaranteed valid color string
+                        val colorString = (value as? String) ?: "FF0000FF"
+                        EditableProperty(
+                            key,
+                            PropertyType.COLOR,
+                            mutableStateOf(padColorString(colorString)),
+                            padColorString(originalString),
+                            description = description,
+                            label = label
+                        )
+                    }
 
                     // --- Array: Routes ---
                     "routes" -> {
-                        // Attempt to parse the incoming value into a list of RouteItems
+                        // Safe cast the incoming value to List<*>
                         val initialListValue = value as? List<*> ?: emptyList<Any>()
                         val routeItemList = initialListValue.mapIndexedNotNull { index, itemData ->
                             val map = itemData as? Map<*, *>
@@ -428,29 +442,28 @@ class DeviceSettings(
                     }
 
                     // --- Default/Unknown ---
-                    // Add cases here if new properties might appear unexpectedly
                     else -> {
                         Napier.d("Warning: Unhandled property key '$key' - Treating as UNKNOWN/String")
-                        // Fallback: Treat as String or UNKNOWN
                         EditableProperty(
                             key,
-                            PropertyType.UNKNOWN, // Or PropertyType.STRING
-                            mutableStateOf(value), // Store raw value
+                            PropertyType.UNKNOWN,
+                            // If we don't know the type, we default to a safe String,
+                            // as the state must be non-nullable.
+                            mutableStateOf(value ?: ""),
                             originalString,
                             description = description,
                             label = label
                         )
-                        // Or return null if you want to skip unknown properties:
-                        // null
                     }
                 }
             }
         } catch (e: ClassCastException) {
-            Napier.d("Error: Type mismatch for key '$key'. Expected type based on mapping but got ${value::class.simpleName}. Skipping. Error: ${e.message}")
-            null // Skip properties that cause a casting error
+            // This catch block is less likely to trigger now due to 'as?'
+            Napier.d("Error: Type mismatch for key '$key'. Skipping. Error: ${e.message}")
+            null
         } catch (e: Exception) {
             Napier.d("Error creating EditableProperty for key '$key': ${e.message}")
-            null // Skip on other errors
+            null
         }
     }
 

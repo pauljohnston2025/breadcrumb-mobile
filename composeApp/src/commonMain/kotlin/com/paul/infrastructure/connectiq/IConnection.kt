@@ -37,7 +37,8 @@ abstract class IConnection {
 
         val availableConnectIqApps = listOf(
             ConnectIqApp("BreadcrumbDataField", "20edd04a-9fdc-4291-b061-f49d5699394d"),
-            ConnectIqApp("BreadcrumbApp", "fa3e1362-11b0-4420-90cb-9ac14591bf68")
+            ConnectIqApp("BreadcrumbApp", "fa3e1362-11b0-4420-90cb-9ac14591bf68"),
+            ConnectIqApp("LWBreadcrumbDataField", "65f96e86-28e7-4c92-9c5e-1bf7954bde41")
         )
     }
 
