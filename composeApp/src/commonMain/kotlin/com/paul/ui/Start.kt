@@ -64,8 +64,11 @@ import kotlinx.datetime.toLocalDateTime
 fun Start(
     viewModel: StartViewModel
 ) {
-    BackHandler(enabled = viewModel.sendingFile.value != "") {
+    BackHandler(enabled = viewModel.sendingFile.value != "" || viewModel.deviceSelector.settingsLoading.value) {
         // prevent back handler when we are trying to do things, todo cancel the job we are trying to do
+        if (viewModel.deviceSelector.settingsLoading.value) {
+            viewModel.deviceSelector.cancelDeviceSettingsLoading()
+        }
     }
 
     var showClearHistoryDialog by remember { mutableStateOf(false) }

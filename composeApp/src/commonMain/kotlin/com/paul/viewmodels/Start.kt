@@ -48,7 +48,7 @@ sealed class StartNavigationEvent {
 
 class StartViewModel(
     private val connection: IConnection,
-    private val deviceSelector: DeviceSelector,
+    public val deviceSelector: DeviceSelector,
     private val gpxFileLoader: IGpxFileLoader,
     private val fileHelper: IFileHelper,
     private val snackbarHostState: SnackbarHostState,
@@ -326,13 +326,13 @@ class StartViewModel(
     }
 
     fun openDeviceSettings() {
-        viewModelScope.launch(Dispatchers.IO) {
+        deviceSelector.settingsJob = viewModelScope.launch(Dispatchers.IO) {
             val device = deviceSelector.currentDevice()
             if (device == null) {
                 snackbarHostState.showSnackbar("no devices selected")
                 return@launch
             }
-            sendingMessage("Loading Settings From Device.\nEnsure an activity with the datafield is running (or at least open) or this will fail.") {
+            sendingMessage("Loading Settings From Device.\nEnsure an activity with the datafield is running (or at least open) or this will fail. Note: this can take a long time (up to 5 minutes) on older devices, be patient. Press back to cancel") {
                 deviceSelector.openDeviceSettingsSuspend(device)
             }
         }

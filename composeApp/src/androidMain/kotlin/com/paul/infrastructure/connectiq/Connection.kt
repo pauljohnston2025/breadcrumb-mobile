@@ -235,7 +235,9 @@ class Connection(private val context: Context) : IConnection() {
         payload: Protocol,
         type: ProtocolResponse
     ): T {
-        return withTimeout(30000) {
+        // some devices can take up to 5 minutes for a response if they are old and using temporal events
+        // wait for them, but allow the user to cancel it
+        return withTimeout(5 * 60 * 1000 + 10000) {
             start()
             try {
                 appInfo(device)

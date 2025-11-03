@@ -15,6 +15,7 @@ import com.paul.protocol.fromdevice.ProtocolResponse
 import com.paul.protocol.fromdevice.Settings
 import com.paul.protocol.todevice.RequestSettings
 import com.paul.ui.Screen
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.TimeoutCancellationException
@@ -46,6 +47,7 @@ class DeviceSelector(
     private var devicesFlow: MutableStateFlow<List<IqDevice>> = MutableStateFlow(listOf())
     private var currentDevicePoll: Job? = null
     val settingsLoading: MutableState<Boolean> = mutableStateOf(false)
+    public var settingsJob: Job? = null
     val errorMessage: MutableState<String> = mutableStateOf("")
     var lastLoadedSettings: Settings? = null
 
@@ -138,13 +140,13 @@ class DeviceSelector(
 
     fun openDeviceSettings(device: IqDevice) {
         currentDevice.value = device
-        settingsLoading.value = true
-        viewModelScope.launch(Dispatchers.IO) {
+        settingsJob = viewModelScope.launch(Dispatchers.IO) {
             openDeviceSettingsSuspend(device)
         }
     }
 
     suspend fun openDeviceSettingsSuspend(device: IqDevice) {
+        settingsLoading.value = true
         try {
             val settings = connection.query<Settings>(
                 device,
@@ -161,6 +163,13 @@ class DeviceSelector(
             settingsLoading.value = false
             snackbarHostState.showSnackbar("Failed to load settings. Please ensure an activity is running on the watch.")
         }
+    }
+
+    fun cancelDeviceSettingsLoading() {
+        Napier.d("Cancelling settings load job.")
+        settingsJob?.cancel()
+        // Immediately update UI state
+        settingsLoading.value = false
     }
 
     fun onDeviceSettingsClosed() {
