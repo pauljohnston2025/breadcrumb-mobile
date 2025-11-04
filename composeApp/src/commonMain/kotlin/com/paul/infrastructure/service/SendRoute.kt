@@ -5,6 +5,7 @@ import com.benasher44.uuid.uuid4
 import com.paul.domain.HistoryItem
 import com.paul.domain.IRoute
 import com.paul.infrastructure.connectiq.IConnection
+import com.paul.infrastructure.connectiq.IConnection.Companion.BREADCRUMB_DATAFIELD_ID
 import com.paul.infrastructure.repositories.HistoryRepository
 import com.paul.infrastructure.repositories.RouteRepository
 import com.paul.protocol.todevice.Route
@@ -57,14 +58,20 @@ class SendRoute {
 
             sendingMessage("Sending file") {
                 try {
-                    val version = connection.appInfo(device).version
-                    if (version >= 10 ||
-                        version == 0 // simulator or side loaded
-                    ) {
-                        connection.send(device, route!!.toV2())
+                    if (connection.connectIqAppIdFlow().value == BREADCRUMB_DATAFIELD_ID) {
+                        val version = connection.appInfo(device).version
+                        if (version >= 10 ||
+                            version == 0 // simulator or side loaded
+                        ) {
+                            connection.send(device, route!!.toV2())
+                        } else {
+                            connection.send(device, route!!)
+                        }
                     } else {
-                        connection.send(device, route!!)
+                        // all other apps were released much later after it stabalised, so all versions support v2 routes
+                        connection.send(device, route!!.toV2())
                     }
+
                 } catch (t: TimeoutCancellationException) {
                     snackbarHostState.showSnackbar("Timed out sending file")
                     return@sendingMessage

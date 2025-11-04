@@ -29,7 +29,8 @@ abstract class IConnection {
         val CONNECT_IQ_APP_ID_KEY = "CONNECT_IQ_APP_ID_KEY"
         val settings: Settings = Settings()
 
-        val defaultConnectIqAppId = "20edd04a-9fdc-4291-b061-f49d5699394d" // default to breadcrumb datafields (the original)
+        val BREADCRUMB_DATAFIELD_ID = "20edd04a-9fdc-4291-b061-f49d5699394d"
+        val defaultConnectIqAppId = BREADCRUMB_DATAFIELD_ID // default to breadcrumb datafields (the original)
 
         fun getConnectIqAppIdOnStart(): String {
             return settings.getString(CONNECT_IQ_APP_ID_KEY, defaultConnectIqAppId)

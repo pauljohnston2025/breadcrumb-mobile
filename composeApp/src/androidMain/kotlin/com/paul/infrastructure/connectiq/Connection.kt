@@ -136,7 +136,7 @@ class Connection(private val context: Context) : IConnection() {
 
         // see https://developer.garmin.com/connect-iq/core-topics/mobile-sdk-for-android/
         // Receiving Messages
-        // note: this simulator curently has a bug where it sends an empty app id
+        // note: this simulator currently has a bug where it sends an empty app id
         // see below
         connectIQ.registerForAppEvents(cd.device, app) { device, _app, messageData, status ->
             handleMessage(device, status, messageData)
