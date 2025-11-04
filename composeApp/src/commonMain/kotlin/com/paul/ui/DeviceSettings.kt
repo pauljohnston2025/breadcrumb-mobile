@@ -108,6 +108,7 @@ fun DeviceSettings(
                         findProp("centerUserOffsetY")?.let { PropertyEditorResolver(it) }
                         findProp("displayLatLong")?.let { PropertyEditorResolver(it) }
                         findProp("maxTrackPoints")?.let { PropertyEditorResolver(it) }
+                        findProp("mapMoveScreenSize")?.let { PropertyEditorResolver(it) }
                     }
                 }
 
@@ -137,7 +138,6 @@ fun DeviceSettings(
                         CollapsibleSection("Map Settings") {
                             // Map Cache & Performance
                             findProp("tileCacheSize")?.let { PropertyEditorResolver(it) }
-                            findProp("mapMoveScreenSize")?.let { PropertyEditorResolver(it) }
                             findProp("tileCachePadding")?.let { PropertyEditorResolver(it) }
                             findProp("maxPendingWebRequests")?.let { PropertyEditorResolver(it) }
                             findProp("disableMapsFailure")?.let { PropertyEditorResolver(it) }
