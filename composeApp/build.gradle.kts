@@ -24,8 +24,7 @@ kotlin {
         androidMain.dependencies {
             implementation(compose.preview)
             implementation(libs.gpx.parser)
-            // apparently there is no way to do aar from libs.version.toml
-            implementation("com.garmin.connectiq:ciq-companion-app-sdk:2.2.0@aar")
+            implementation(libs.garmin.ciq.sdk)
             implementation(libs.ktor.client.cio.jvm)
             implementation(libs.ktor.client.okhttp)
             implementation(libs.androidx.fragment)

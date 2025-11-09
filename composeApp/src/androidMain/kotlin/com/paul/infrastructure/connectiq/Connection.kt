@@ -162,8 +162,9 @@ class Connection(private val context: Context) : IConnection() {
     override suspend fun appInfo(device: IqDevice): AppInfo =
         suspendCancellableCoroutine { continuation ->
             val cd = device as CommonDeviceImpl
+            val currentApp = connectIqAppIdFlow().value
             connectIQ.getApplicationInfo(
-                connectIqAppIdFlow().value,
+                currentApp,
                 cd.device,
                 object : ConnectIQ.IQApplicationInfoListener {
                     // workaround to avoid double call of onMessageStatus
