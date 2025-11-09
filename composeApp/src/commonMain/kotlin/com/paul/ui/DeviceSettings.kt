@@ -86,6 +86,36 @@ fun DeviceSettings(
         { id -> editableProperties.find { it.id == id } }
     }
 
+    // --- PROPERTY DEFINITIONS LISTS (For section visibility) ---
+    val generalProps = remember(editableProperties) {
+        listOf("activityType", "mode", "uiMode", "elevationMode", "scale", "recalculateIntervalS", "renderMode", "centerUserOffsetY", "displayLatLong", "maxTrackPoints", "mapMoveScreenSize").mapNotNull { findProp(it) }
+    }
+    val zoomProps = remember(editableProperties) {
+        listOf("zoomAtPaceMode", "metersAroundUser", "zoomAtPaceSpeedMPS").mapNotNull { findProp(it) }
+    }
+    val mapSettingProps = remember(editableProperties) {
+        listOf("tileCacheSize", "tileCachePadding", "maxPendingWebRequests", "disableMapsFailure", "httpErrorTileTTLS", "errorTileTTLS", "fixedLatitude", "fixedLongitude", "scaleRestrictedToTileLayers", "packingFormat", "useDrawBitmap").mapNotNull { findProp(it) }
+    }
+    val tileServerProps = remember(editableProperties) {
+        listOf("mapChoice", "tileUrl", "authToken", "tileSize", "scaledTileSize", "tileLayerMax", "tileLayerMin", "fullTileSize").mapNotNull { findProp(it) }
+    }
+    val offlineStorageProps = remember(editableProperties) {
+        listOf("cacheTilesInStorage", "storageMapTilesOnly", "storageTileCacheSize", "storageTileCachePageCount", "storageSeedBoundingBox", "storageSeedRouteDistanceM").mapNotNull { findProp(it) }
+    }
+    val alertProps = remember(editableProperties) {
+        listOf("enableOffTrackAlerts", "offTrackAlertsDistanceM", "offTrackCheckIntervalS", "offTrackWrongDirection", "offTrackAlertsMaxReportIntervalS", "drawLineToClosestPoint", "drawCheverons", "alertType", "turnAlertTimeS", "minTurnAlertDistanceM").mapNotNull { findProp(it) }
+    }
+    val colorProps = remember(editableProperties) {
+        listOf("trackColour", "defaultRouteColour", "elevationColour", "userColour", "normalModeColour", "uiColour", "debugColour").mapNotNull { findProp(it) }
+    }
+    val routeConfigProps = remember(editableProperties) {
+        listOf("routesEnabled", "displayRouteNames", "routeMax", "routes").mapNotNull { findProp(it) }
+    }
+    val debugProps = remember(editableProperties) {
+        listOf("showPoints", "drawLineToClosestTrack", "showTileBorders", "showErrorTileMessages", "tileErrorColour", "includeDebugPageInOnScreenUi", "drawHitBoxes", "showDirectionPoints", "showDirectionPointTextUnderIndex").mapNotNull { findProp(it) }
+    }
+    // --------------------------------------------------------------------------
+
     // Box enables stacking the loading overlay on top
     Box(
         modifier = Modifier
@@ -97,153 +127,74 @@ fun DeviceSettings(
         ) {
             LazyColumn(modifier = Modifier.weight(1f)) {
                 item {
-                    CollapsibleSection("General") {
-                        findProp("activityType")?.let { PropertyEditorResolver(it) }
-                        findProp("mode")?.let { PropertyEditorResolver(it) }
-                        findProp("uiMode")?.let { PropertyEditorResolver(it) }
-                        findProp("elevationMode")?.let { PropertyEditorResolver(it) }
-                        findProp("scale")?.let { PropertyEditorResolver(it) }
-                        findProp("recalculateIntervalS")?.let { PropertyEditorResolver(it) }
-                        findProp("renderMode")?.let { PropertyEditorResolver(it) }
-                        findProp("centerUserOffsetY")?.let { PropertyEditorResolver(it) }
-                        findProp("displayLatLong")?.let { PropertyEditorResolver(it) }
-                        findProp("maxTrackPoints")?.let { PropertyEditorResolver(it) }
-                        findProp("mapMoveScreenSize")?.let { PropertyEditorResolver(it) }
-                    }
+                    CollapsibleSectionWithProperties("General", generalProps)
                 }
 
                 item {
-                    CollapsibleSection("Zoom At Pace") {
-                        findProp("zoomAtPaceMode")?.let { PropertyEditorResolver(it) }
-                        findProp("metersAroundUser")?.let { PropertyEditorResolver(it) }
-                        findProp("zoomAtPaceSpeedMPS")?.let { PropertyEditorResolver(it) }
-                    }
+                    CollapsibleSectionWithProperties("Zoom At Pace", zoomProps)
                 }
 
-                // --- Map Settings Section ---
-                // The main toggle is placed outside the collapsible section, so the entire
-                // section can be hidden if maps are disabled.
+                // --- Map Settings Toggle ---
                 mapEnabledProp?.let {
                     item(key = it.id) {
                         PropertyEditorResolver(it)
                     }
                 }
 
+                // --- Map Sections (Conditional based on mapEnabled AND property presence) ---
                 item(key = "map_settings_section") {
-                    AnimatedVisibility(
-                        visible = showMapSection,
-                        enter = fadeIn(),
-                        exit = fadeOut(),
-                    ) {
-                        CollapsibleSection("Map Settings") {
-                            // Map Cache & Performance
-                            findProp("tileCacheSize")?.let { PropertyEditorResolver(it) }
-                            findProp("tileCachePadding")?.let { PropertyEditorResolver(it) }
-                            findProp("maxPendingWebRequests")?.let { PropertyEditorResolver(it) }
-                            findProp("disableMapsFailure")?.let { PropertyEditorResolver(it) }
-                            findProp("httpErrorTileTTLS")?.let { PropertyEditorResolver(it) }
-                            findProp("errorTileTTLS")?.let { PropertyEditorResolver(it) }
-                            findProp("fixedLatitude")?.let { PropertyEditorResolver(it) }
-                            findProp("fixedLongitude")?.let { PropertyEditorResolver(it) }
-                            findProp("scaleRestrictedToTileLayers")?.let { PropertyEditorResolver(it) }
-                            findProp("packingFormat")?.let { PropertyEditorResolver(it) }
-                            findProp("useDrawBitmap")?.let { PropertyEditorResolver(it) }
+                    // Check property list presence before AnimatedVisibility to save on rendering cost
+                    if (mapSettingProps.isNotEmpty()) {
+                        AnimatedVisibility(
+                            visible = showMapSection,
+                            enter = fadeIn(),
+                            exit = fadeOut(),
+                        ) {
+                            CollapsibleSectionWithProperties("Map Settings", mapSettingProps)
                         }
                     }
                 }
                 item(key = "tile_Server_section") {
-                    AnimatedVisibility(
-                        visible = showMapSection,
-                        enter = fadeIn(),
-                        exit = fadeOut(),
-                    ) {
-                        CollapsibleSection("Tile Server Settings") {
-                            findProp("mapChoice")?.let { PropertyEditorResolver(it) }
-                            findProp("tileUrl")?.let { PropertyEditorResolver(it) }
-                            findProp("authToken")?.let { PropertyEditorResolver(it) }
-                            findProp("tileSize")?.let { PropertyEditorResolver(it) }
-                            findProp("scaledTileSize")?.let { PropertyEditorResolver(it) }
-                            findProp("tileLayerMax")?.let { PropertyEditorResolver(it) }
-                            findProp("tileLayerMin")?.let { PropertyEditorResolver(it) }
-                            findProp("fullTileSize")?.let { PropertyEditorResolver(it) }
+                    if (tileServerProps.isNotEmpty()) {
+                        AnimatedVisibility(
+                            visible = showMapSection,
+                            enter = fadeIn(),
+                            exit = fadeOut(),
+                        ) {
+                            CollapsibleSectionWithProperties("Tile Server Settings", tileServerProps)
                         }
                     }
                 }
 
                 item(key = "offline_tile_storage_section") {
-                    AnimatedVisibility(
-                        visible = showMapSection,
-                        enter = fadeIn(),
-                        exit = fadeOut(),
-                    ) {
-                        CollapsibleSection("Offline Tile Storage") {
-                            findProp("cacheTilesInStorage")?.let { PropertyEditorResolver(it) }
-                            findProp("storageMapTilesOnly")?.let { PropertyEditorResolver(it) }
-                            findProp("storageTileCacheSize")?.let { PropertyEditorResolver(it) }
-                            findProp("storageTileCachePageCount")?.let { PropertyEditorResolver(it) }
-                            findProp("storageSeedBoundingBox")?.let { PropertyEditorResolver(it) }
-                            findProp("storageSeedRouteDistanceM")?.let { PropertyEditorResolver(it) }
+                    if (offlineStorageProps.isNotEmpty()) {
+                        AnimatedVisibility(
+                            visible = showMapSection,
+                            enter = fadeIn(),
+                            exit = fadeOut(),
+                        ) {
+                            CollapsibleSectionWithProperties("Offline Tile Storage", offlineStorageProps)
                         }
                     }
                 }
+                // --- End Map Sections ---
 
                 item {
-                    CollapsibleSection("Alerts") {
-                        findProp("enableOffTrackAlerts")?.let { PropertyEditorResolver(it) }
-                        findProp("offTrackAlertsDistanceM")?.let { PropertyEditorResolver(it) }
-                        findProp("offTrackCheckIntervalS")?.let { PropertyEditorResolver(it) }
-                        findProp("offTrackWrongDirection")?.let { PropertyEditorResolver(it) }
-                        findProp("offTrackAlertsMaxReportIntervalS")?.let {
-                            PropertyEditorResolver(
-                                it
-                            )
-                        }
-                        findProp("drawLineToClosestPoint")?.let { PropertyEditorResolver(it) }
-                        findProp("drawCheverons")?.let { PropertyEditorResolver(it) }
-                        findProp("alertType")?.let { PropertyEditorResolver(it) }
-                        findProp("turnAlertTimeS")?.let { PropertyEditorResolver(it) }
-                        findProp("minTurnAlertDistanceM")?.let { PropertyEditorResolver(it) }
-                    }
+                    CollapsibleSectionWithProperties("Alerts", alertProps)
                 }
 
 
                 item {
-                    CollapsibleSection("Colours") {
-                        findProp("trackColour")?.let { PropertyEditorResolver(it) }
-                        findProp("defaultRouteColour")?.let { PropertyEditorResolver(it) }
-                        findProp("elevationColour")?.let { PropertyEditorResolver(it) }
-                        findProp("userColour")?.let { PropertyEditorResolver(it) }
-                        findProp("normalModeColour")?.let { PropertyEditorResolver(it) }
-                        findProp("uiColour")?.let { PropertyEditorResolver(it) }
-                        findProp("debugColour")?.let { PropertyEditorResolver(it) }
-                    }
+                    CollapsibleSectionWithProperties("Colours", colorProps)
                 }
 
                 item {
-                    CollapsibleSection("Route Configuration") {
-                        findProp("routesEnabled")?.let { PropertyEditorResolver(it) }
-                        findProp("displayRouteNames")?.let { PropertyEditorResolver(it) }
-                        findProp("routeMax")?.let { PropertyEditorResolver(it) }
-                        findProp("routes")?.let { PropertyEditorResolver(it) }
-                    }
+                    // The routes property needs to be passed to the specific RoutesArrayEditor
+                    CollapsibleSectionWithProperties("Route Configuration", routeConfigProps)
                 }
 
                 item {
-                    CollapsibleSection("Debug") {
-                        findProp("showPoints")?.let { PropertyEditorResolver(it) }
-                        findProp("drawLineToClosestTrack")?.let { PropertyEditorResolver(it) }
-                        findProp("showTileBorders")?.let { PropertyEditorResolver(it) }
-                        findProp("showErrorTileMessages")?.let { PropertyEditorResolver(it) }
-                        findProp("tileErrorColour")?.let { PropertyEditorResolver(it) }
-                        findProp("includeDebugPageInOnScreenUi")?.let { PropertyEditorResolver(it) }
-                        findProp("drawHitBoxes")?.let { PropertyEditorResolver(it) }
-                        findProp("showDirectionPoints")?.let { PropertyEditorResolver(it) }
-                        findProp("showDirectionPointTextUnderIndex")?.let {
-                            PropertyEditorResolver(
-                                it
-                            )
-                        }
-                    }
+                    CollapsibleSectionWithProperties("Debug", debugProps)
                 }
 
                 // --- Setting: resetDefaults ---
@@ -310,6 +261,7 @@ fun DeviceSettings(
  * @param title The text to display in the section header.
  * @param initiallyExpanded Whether the section should be expanded by default.
  * @param content The composable content to be displayed inside the collapsible area.
+ * * NOTE: This version is kept in case you use it for sections not defined by a simple list of properties.
  */
 @Composable
 fun CollapsibleSection(
@@ -363,6 +315,73 @@ fun CollapsibleSection(
         }
     }
 }
+
+/**
+ * A reusable composable that displays a clickable header to expand or collapse its content,
+ * but only if the provided list of properties is not empty.
+ */
+@Composable
+fun CollapsibleSectionWithProperties(
+    title: String,
+    properties: List<EditableProperty<*>>,
+    initiallyExpanded: Boolean = false,
+    content: @Composable (EditableProperty<*>) -> Unit = { PropertyEditorResolver(it) }
+) {
+    // Core Logic: If no properties exist, don't render anything.
+    if (properties.isEmpty()) {
+        return
+    }
+
+    var isExpanded by remember { mutableStateOf(initiallyExpanded) }
+    val angle: Float by animateFloatAsState(
+        targetValue = if (isExpanded) 180f else 0f,
+        label = "Arrow Angle"
+    )
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .animateContentSize(),
+    ) {
+        // Header Row
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { isExpanded = !isExpanded }
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.subtitle1,
+                color = MaterialTheme.colors.primary,
+                modifier = Modifier.weight(1f),
+            )
+            Icon(
+                imageVector = Icons.Default.KeyboardArrowDown,
+                contentDescription = if (isExpanded) "Collapse" else "Expand",
+                modifier = Modifier.rotate(angle),
+            )
+        }
+
+        Divider(modifier = Modifier.padding(horizontal = 16.dp))
+
+        // Collapsible Content
+        AnimatedVisibility(
+            visible = isExpanded,
+            enter = fadeIn(),
+            exit = fadeOut(),
+        ) {
+            Column(modifier = Modifier.padding(bottom = 8.dp)) {
+                // Render all properties using the provided content lambda (default is Resolver)
+                properties.forEach { prop ->
+                    content(prop)
+                }
+            }
+        }
+    }
+}
+
 
 /**
  * A simple, non-collapsible header for use inside other sections.
