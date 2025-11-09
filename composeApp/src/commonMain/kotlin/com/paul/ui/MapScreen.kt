@@ -81,6 +81,8 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
+import com.paul.infrastructure.connectiq.IConnection.Companion.LIGHT_WEIGHT_BREADCRUMB_DATAFIELD_ID
+import com.paul.infrastructure.connectiq.IConnection.Companion.ULTRA_LIGHT_BREADCRUMB_DATAFIELD_ID
 
 @Composable
 private fun WatchSendDialog(
@@ -123,6 +125,12 @@ fun MapScreen(viewModel: MapViewModel) {
     val isElevationProfileVisible by viewModel.isElevationProfileVisible.collectAsState()
     var viewportSize by remember { mutableStateOf(IntSize.Zero) }
     val watchSendStarted by viewModel.watchSendStarted.collectAsState()
+    val connectIqAppId by viewModel.connection.connectIqAppIdFlow().collectAsState()
+
+    val isWatchFeatureDisabled = remember(connectIqAppId) {
+        connectIqAppId == LIGHT_WEIGHT_BREADCRUMB_DATAFIELD_ID ||
+                connectIqAppId == ULTRA_LIGHT_BREADCRUMB_DATAFIELD_ID
+    }
 
     // Box allows stacking the sending overlay
     Box(
@@ -131,7 +139,7 @@ fun MapScreen(viewModel: MapViewModel) {
     ) {
         val boxScope = this // Capture BoxScope explicitly
 
-        watchSendStarted?.let {
+        if (watchSendStarted != null && !isWatchFeatureDisabled) {
             WatchSendDialog(
                 onConfirm = { viewModel.confirmWatchLocationLoad() },
                 onDismiss = { viewModel.cancelWatchLocationLoad() }
@@ -175,7 +183,8 @@ fun MapScreen(viewModel: MapViewModel) {
                     viewModel = viewModel,
                     viewportSize = viewportSize,
                     onViewportSizeChange = { viewportSize = it }, // Update the state
-                    routeToDisplay = currentRoute
+                    routeToDisplay = currentRoute,
+                    isWatchFeatureDisabled = isWatchFeatureDisabled
                 )
 
                 val tilServer =
@@ -216,28 +225,30 @@ fun MapScreen(viewModel: MapViewModel) {
                             )
                         }
                     }
-                    Button(
-                        onClick = {
-                            viewModel.returnWatchToUsersLocation()
-                        },
-                        enabled = true
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            // Negative spacing causes overlap. Adjust the value as needed.
-                            // -8.dp means the second icon will be pulled 8.dp to the left.
-                            horizontalArrangement = Arrangement.spacedBy((-2).dp)
+                    if (!isWatchFeatureDisabled) {
+                        Button(
+                            onClick = {
+                                viewModel.returnWatchToUsersLocation()
+                            },
+                            enabled = true
                         ) {
-                            Icon(
-                                Icons.Default.Watch,
-                                contentDescription = "Return Watch To Users Location",
-                                modifier = Modifier.size(17.dp) // Slightly smaller icon so that the button is the same size as the other ones
-                            )
-                            Icon(
-                                Icons.Default.MyLocation,
-                                contentDescription = "Return Watch To Users Location",
-                                modifier = Modifier.size(17.dp) // Slightly smaller icon so that the button is the same size as the other ones
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                // Negative spacing causes overlap. Adjust the value as needed.
+                                // -8.dp means the second icon will be pulled 8.dp to the left.
+                                horizontalArrangement = Arrangement.spacedBy((-2).dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Watch,
+                                    contentDescription = "Return Watch To Users Location",
+                                    modifier = Modifier.size(17.dp) // Slightly smaller icon so that the button is the same size as the other ones
+                                )
+                                Icon(
+                                    Icons.Default.MyLocation,
+                                    contentDescription = "Return Watch To Users Location",
+                                    modifier = Modifier.size(17.dp) // Slightly smaller icon so that the button is the same size as the other ones
+                                )
+                            }
                         }
                     }
 
@@ -362,49 +373,50 @@ fun MapScreen(viewModel: MapViewModel) {
                     }
                 }
 
-                // --- This button is now outside the if/else and will ALWAYS be visible ---
-                Button(
-                    onClick = {
-                        if (viewportSize != IntSize.Zero) {
-                            val centerGeo = GeoPosition(
-                                viewModel.mapCenter.value.latitude.toDouble(),
-                                viewModel.mapCenter.value.longitude.toDouble()
-                            )
-                            val currentZoom = viewModel.mapZoom.value
-                            val topLeftGeo = screenPixelToGeo(
-                                IntOffset(0, 0),
-                                centerGeo,
-                                currentZoom,
-                                viewportSize
-                            )
-                            val bottomRightGeo = screenPixelToGeo(
-                                IntOffset(viewportSize.width, viewportSize.height),
-                                centerGeo,
-                                currentZoom,
-                                viewportSize
-                            )
-                            viewModel.startSeedingAreaToWatch(
-                                centerGeo = centerGeo,
-                                topLeftGeo = topLeftGeo,
-                                bottomRightGeo = bottomRightGeo,
-                            )
-                        } else {
-                            Napier.d("Viewport size not available yet.")
-                        }
-                    },
-                ) {
-                    Icon(
-                        Icons.Default.Watch,
-                        contentDescription = "Download map area on watch",
-                        modifier = Modifier.size(ButtonDefaults.IconSize),
-                    )
-                    Icon(
-                        Icons.Default.Download,
-                        contentDescription = "Download map area on watch",
-                        modifier = Modifier.size(ButtonDefaults.IconSize),
-                    )
+                if (!isWatchFeatureDisabled) {
+                    Button(
+                        onClick = {
+                            if (viewportSize != IntSize.Zero) {
+                                val centerGeo = GeoPosition(
+                                    viewModel.mapCenter.value.latitude.toDouble(),
+                                    viewModel.mapCenter.value.longitude.toDouble()
+                                )
+                                val currentZoom = viewModel.mapZoom.value
+                                val topLeftGeo = screenPixelToGeo(
+                                    IntOffset(0, 0),
+                                    centerGeo,
+                                    currentZoom,
+                                    viewportSize
+                                )
+                                val bottomRightGeo = screenPixelToGeo(
+                                    IntOffset(viewportSize.width, viewportSize.height),
+                                    centerGeo,
+                                    currentZoom,
+                                    viewportSize
+                                )
+                                viewModel.startSeedingAreaToWatch(
+                                    centerGeo = centerGeo,
+                                    topLeftGeo = topLeftGeo,
+                                    bottomRightGeo = bottomRightGeo,
+                                )
+                            } else {
+                                Napier.d("Viewport size not available yet.")
+                            }
+                        },
+                    ) {
+                        Icon(
+                            Icons.Default.Watch,
+                            contentDescription = "Download map area on watch",
+                            modifier = Modifier.size(ButtonDefaults.IconSize),
+                        )
+                        Icon(
+                            Icons.Default.Download,
+                            contentDescription = "Download map area on watch",
+                            modifier = Modifier.size(ButtonDefaults.IconSize),
+                        )
+                    }
                 }
-            } // This is the end of the corrected section
+            }
         }
 
         SendingFileOverlay(

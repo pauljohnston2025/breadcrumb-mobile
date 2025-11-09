@@ -55,7 +55,7 @@ sealed class MapViewNavigationEvent {
 }
 
 class MapViewModel(
-    private val connection: IConnection,
+    public val connection: IConnection,
     private val deviceSelector: DeviceSelector,
     private val tileRepository: ITileRepository,
     val tileServerRepository: TileServerRepo,

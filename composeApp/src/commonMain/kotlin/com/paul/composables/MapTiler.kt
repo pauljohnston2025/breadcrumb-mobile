@@ -92,7 +92,8 @@ fun MapTilerComposable(
     routeToDisplay: Route? = null,
     routeColor: Color = Color.Blue,
     routeStrokeWidth: Float = 5f,
-    fitToBoundsPaddingPercent: Float = 0.1f
+    fitToBoundsPaddingPercent: Float = 0.1f,
+    isWatchFeatureDisabled: Boolean
 ) {
     // Create and remember Paint objects for drawing the angle text
     val textPaint = remember {
@@ -349,18 +350,26 @@ fun MapTilerComposable(
                                     val prevPointGeo = route.route[turnIndex - 1]
 
                                     val turnScreenPoint = geoToScreenPixel(
-                                        GeoPosition(turnPointGeo.latitude.toDouble(), turnPointGeo.longitude.toDouble()),
+                                        GeoPosition(
+                                            turnPointGeo.latitude.toDouble(),
+                                            turnPointGeo.longitude.toDouble()
+                                        ),
                                         localCenterGeo, integerZoom.toFloat(), viewportSize
                                     ).let { Offset(it.x.toFloat(), it.y.toFloat()) }
 
                                     val prevScreenPoint = geoToScreenPixel(
-                                        GeoPosition(prevPointGeo.latitude.toDouble(), prevPointGeo.longitude.toDouble()),
+                                        GeoPosition(
+                                            prevPointGeo.latitude.toDouble(),
+                                            prevPointGeo.longitude.toDouble()
+                                        ),
                                         localCenterGeo, integerZoom.toFloat(), viewportSize
                                     ).let { Offset(it.x.toFloat(), it.y.toFloat()) }
 
                                     val dx = turnScreenPoint.x - prevScreenPoint.x
                                     val dy = turnScreenPoint.y - prevScreenPoint.y
-                                    val incomingBearingOnScreen = Math.toDegrees(kotlin.math.atan2(dy, dx).toDouble()).toFloat()
+                                    val incomingBearingOnScreen =
+                                        Math.toDegrees(kotlin.math.atan2(dy, dx).toDouble())
+                                            .toFloat()
 
                                     val finalAngleDeg = incomingBearingOnScreen + direction.angleDeg
 
@@ -524,45 +533,47 @@ fun MapTilerComposable(
                 Icon(Icons.Default.Colorize, contentDescription = "Create Palette from Map")
             }
 
-            Button(
-                onClick = {
-                    if (viewportSize != IntSize.Zero) {
-                        val topLeftGeo = screenPixelToGeo(
-                            IntOffset(0, 0),
-                            localCenterGeo,
-                            localZoom,
-                            viewportSize
-                        )
-                        val bottomRightGeo = screenPixelToGeo(
-                            IntOffset(viewportSize.width, viewportSize.height),
-                            localCenterGeo,
-                            localZoom,
-                            viewportSize
-                        )
-                        viewModel.showLocationOnWatch(
-                            centerGeo = localCenterGeo,
-                            topLeftGeo = topLeftGeo,
-                            bottomRightGeo = bottomRightGeo
-                        )
-                    } else {
-                        Napier.d("Viewport size not available yet.")
+            if (!isWatchFeatureDisabled) {
+                Button(
+                    onClick = {
+                        if (viewportSize != IntSize.Zero) {
+                            val topLeftGeo = screenPixelToGeo(
+                                IntOffset(0, 0),
+                                localCenterGeo,
+                                localZoom,
+                                viewportSize
+                            )
+                            val bottomRightGeo = screenPixelToGeo(
+                                IntOffset(viewportSize.width, viewportSize.height),
+                                localCenterGeo,
+                                localZoom,
+                                viewportSize
+                            )
+                            viewModel.showLocationOnWatch(
+                                centerGeo = localCenterGeo,
+                                topLeftGeo = topLeftGeo,
+                                bottomRightGeo = bottomRightGeo
+                            )
+                        } else {
+                            Napier.d("Viewport size not available yet.")
+                        }
                     }
-                }
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy((-2).dp)
                 ) {
-                    Icon(
-                        Icons.Default.Watch,
-                        contentDescription = "Show on watch",
-                        modifier = Modifier.size(17.dp)
-                    )
-                    Icon(
-                        Icons.Default.RemoveRedEye,
-                        contentDescription = "Show on watch",
-                        modifier = Modifier.size(17.dp)
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy((-2).dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Watch,
+                            contentDescription = "Show on watch",
+                            modifier = Modifier.size(17.dp)
+                        )
+                        Icon(
+                            Icons.Default.RemoveRedEye,
+                            contentDescription = "Show on watch",
+                            modifier = Modifier.size(17.dp)
+                        )
+                    }
                 }
             }
             Button(

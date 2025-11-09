@@ -8,7 +8,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.paul.domain.IqDevice
 import com.paul.infrastructure.connectiq.IConnection
-import com.paul.infrastructure.connectiq.IConnection.Companion.ULTRA_LIGHT_BREADCRUMB_DATAFIELD_ID
 import com.paul.protocol.fromdevice.Settings
 import com.paul.protocol.todevice.SaveSettings
 import io.github.aakira.napier.Napier

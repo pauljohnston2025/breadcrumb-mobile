@@ -13,14 +13,16 @@ class SaveSettings(val settings: Map<String, Any>, val currentAppId: String) : P
         var settingsToSend: Map<String, Any> = settings
 
         if (currentAppId == ULTRA_LIGHT_BREADCRUMB_DATAFIELD_ID) {
-            val aliasedSettings = mutableMapOf<String, Any>()
-            settings.forEach { (key, value) ->
+            // only keep alias keys, its all that the ultralight app supports, we do not want to
+            // send a giant dictionary wen we enable a profile
+            settingsToSend = settings.mapNotNull { (key, value) ->
                 val alias = settingsAliases[key]
-                // Use the alias if it exists, otherwise use the full key
-                aliasedSettings[alias ?: key] = value
-            }
-            settingsToSend = aliasedSettings
-            Napier.d("Saving settings for ULTRA_LIGHT_BREADCRUMB_DATAFIELD_ID with aliases: $aliasedSettings")
+                // Only keep the entry if an alias exists, mapping it to the value.
+                // mapNotNull automatically filters out nulls (keys without an alias).
+                alias?.let { it to value }
+            }.toMap() // Convert the resulting list of Pairs back into a Map
+
+            Napier.d("Saving settings for ULTRA_LIGHT_BREADCRUMB_DATAFIELD_ID with aliases: $settingsToSend")
         } else {
             Napier.d("Saving settings for $currentAppId without aliases.")
         }
