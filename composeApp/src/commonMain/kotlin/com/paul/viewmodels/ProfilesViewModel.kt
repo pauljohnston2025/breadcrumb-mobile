@@ -196,7 +196,7 @@ class ProfilesViewModel(
                 return@sendingMessage
             }
 
-            connection.send(device, SaveSettings(profile.deviceSettings()))
+            connection.send(device, SaveSettings(profile.deviceSettings(), connection.connectIqAppIdFlow().value))
             delay(1000) // wait for a bit so users can read message (its almost instant in sim but real device goes slow anyway)
         }
         sendingMessage("Applying app settings") {

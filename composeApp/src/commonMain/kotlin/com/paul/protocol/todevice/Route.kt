@@ -462,6 +462,12 @@ class Route(val name: String, var route: List<Point>, directionsIn: List<Directi
             directions
         )
     }
+
+    fun toUl(): RouteUL {
+        return RouteUL(
+            route.mapNotNull { it.convert2XY() },
+        )
+    }
 }
 
 class Route2(
@@ -496,6 +502,29 @@ class Route2(
         data.add(directionData)
 
 
+        return data
+    }
+}
+
+class RouteUL(
+    private val route: List<RectPoint>,
+) : Protocol {
+    override fun type(): ProtocolType {
+        // keep the same protocol, ultralight app just handles it differently
+        return ProtocolType.PROTOCOL_ROUTE_DATA_UL
+    }
+
+    @OptIn(ExperimentalEncodingApi::class)
+    override fun payload(): List<Any> {
+        val data = mutableListOf<Any>()
+
+        // just x and y the UL app does not support elevation
+        val routeData = mutableListOf<Any>()
+        for (point in route) {
+            routeData.add(point.x)
+            routeData.add(point.y)
+        }
+        data.add(routeData)
         return data
     }
 }

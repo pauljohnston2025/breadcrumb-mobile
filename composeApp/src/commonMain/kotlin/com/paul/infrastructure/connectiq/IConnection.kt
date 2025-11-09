@@ -30,6 +30,7 @@ abstract class IConnection {
         val settings: Settings = Settings()
 
         val BREADCRUMB_DATAFIELD_ID = "20edd04a-9fdc-4291-b061-f49d5699394d"
+        val ULTRA_LIGHT_BREADCRUMB_DATAFIELD_ID = "ef62306c-4693-48e2-8f6b-beee5db9a2b8"
         val defaultConnectIqAppId = BREADCRUMB_DATAFIELD_ID // default to breadcrumb datafields (the original)
 
         fun getConnectIqAppIdOnStart(): String {
@@ -37,9 +38,10 @@ abstract class IConnection {
         }
 
         val availableConnectIqApps = listOf(
-            ConnectIqApp("BreadcrumbDataField", "20edd04a-9fdc-4291-b061-f49d5699394d"),
+            ConnectIqApp("BreadcrumbDataField", BREADCRUMB_DATAFIELD_ID),
             ConnectIqApp("BreadcrumbApp", "fa3e1362-11b0-4420-90cb-9ac14591bf68"),
-            ConnectIqApp("LWBreadcrumbDataField", "65f96e86-28e7-4c92-9c5e-1bf7954bde41")
+            ConnectIqApp("LWBreadcrumbDataField", "65f96e86-28e7-4c92-9c5e-1bf7954bde41"),
+            ConnectIqApp("ULBreadcrumbDataField", ULTRA_LIGHT_BREADCRUMB_DATAFIELD_ID),
         )
     }
 

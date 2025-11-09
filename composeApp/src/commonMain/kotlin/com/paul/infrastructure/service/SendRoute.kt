@@ -6,6 +6,7 @@ import com.paul.domain.HistoryItem
 import com.paul.domain.IRoute
 import com.paul.infrastructure.connectiq.IConnection
 import com.paul.infrastructure.connectiq.IConnection.Companion.BREADCRUMB_DATAFIELD_ID
+import com.paul.infrastructure.connectiq.IConnection.Companion.ULTRA_LIGHT_BREADCRUMB_DATAFIELD_ID
 import com.paul.infrastructure.repositories.HistoryRepository
 import com.paul.infrastructure.repositories.RouteRepository
 import com.paul.protocol.todevice.Route
@@ -67,7 +68,10 @@ class SendRoute {
                         } else {
                             connection.send(device, route!!)
                         }
-                    } else {
+                    } else if(connection.connectIqAppIdFlow().value == ULTRA_LIGHT_BREADCRUMB_DATAFIELD_ID) {
+                        connection.send(device, route!!.toUl())
+                    }
+                    else {
                         // all other apps were released much later after it stabalised, so all versions support v2 routes
                         connection.send(device, route!!.toV2())
                     }

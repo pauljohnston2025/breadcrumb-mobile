@@ -6,9 +6,9 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.navigation.NavHostController
 import com.paul.domain.IqDevice
 import com.paul.infrastructure.connectiq.IConnection
+import com.paul.infrastructure.connectiq.IConnection.Companion.ULTRA_LIGHT_BREADCRUMB_DATAFIELD_ID
 import com.paul.protocol.fromdevice.Settings
 import com.paul.protocol.todevice.SaveSettings
 import io.github.aakira.napier.Napier
@@ -110,6 +110,19 @@ data class PropertyDefinition(
     val type: PropertyType,
     val initialValue: String // Keep initial value as string for easy parsing
 )
+
+val settingsAliases = mapOf(
+    "maxTrackPoints" to "k",
+    "centerUserOffsetY" to "j",
+    "recalculateIntervalS" to "c",
+    "displayLatLong" to "o",
+    "routesEnabled" to "n",
+    "metersAroundUser" to "d",
+    "zoomAtPaceMode" to "b",
+    "zoomAtPaceSpeedMPS" to "e",
+)
+
+val reverseAliases = settingsAliases.entries.associate { (longKey, alias) -> alias to longKey }
 
 // Place this somewhere accessible, like a constants file or companion object
 val listOptionsMapping: Map<String, List<ListOption>> = mapOf(
@@ -244,7 +257,6 @@ class DeviceSettings(
     val navigationEvents: SharedFlow<DeviceSettingsNavigationEvent> = _navigationEvents.asSharedFlow()
 
     val propertyDefinitions = settings.settings.mapNotNull { entry ->
-
         val key = entry.key
         val value = entry.value
 
@@ -473,9 +485,9 @@ class DeviceSettings(
             try {
                 val settings = connection.send(
                     device,
-                    SaveSettings(updatedValues)
+                    SaveSettings(updatedValues, connection.connectIqAppIdFlow().value)
                 )
-                Napier.d("got settings $settings")
+                Napier.d("got settings $updatedValues")
                 settingsSaving.value = false
                 viewModelScope.launch {
                     _navigationEvents.emit(DeviceSettingsNavigationEvent.PopBackStack)
