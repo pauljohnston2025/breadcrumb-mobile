@@ -88,31 +88,112 @@ fun DeviceSettings(
 
     // --- PROPERTY DEFINITIONS LISTS (For section visibility) ---
     val generalProps = remember(editableProperties) {
-        listOf("activityType", "mode", "uiMode", "elevationMode", "scale", "recalculateIntervalS", "renderMode", "centerUserOffsetY", "displayLatLong", "maxTrackPoints", "mapMoveScreenSize").mapNotNull { findProp(it) }
+        listOf(
+            "activityType",
+            "mode",
+            "uiMode",
+            "elevationMode",
+            "scale",
+            "recalculateIntervalS",
+            "renderMode",
+            "centerUserOffsetY",
+            "displayLatLong",
+            "maxTrackPoints",
+            "topDataType",
+            "bottomDataType",
+            "useTrackAsHeadingSpeedMPS",
+            "mapMoveScreenSize"
+        ).mapNotNull { findProp(it) }
     }
     val zoomProps = remember(editableProperties) {
-        listOf("zoomAtPaceMode", "metersAroundUser", "zoomAtPaceSpeedMPS").mapNotNull { findProp(it) }
+        listOf(
+            "zoomAtPaceMode",
+            "metersAroundUser",
+            "zoomAtPaceSpeedMPS"
+        ).mapNotNull { findProp(it) }
     }
     val mapSettingProps = remember(editableProperties) {
-        listOf("tileCacheSize", "tileCachePadding", "maxPendingWebRequests", "disableMapsFailure", "httpErrorTileTTLS", "errorTileTTLS", "fixedLatitude", "fixedLongitude", "scaleRestrictedToTileLayers", "packingFormat", "useDrawBitmap").mapNotNull { findProp(it) }
+        listOf(
+            "tileCacheSize",
+            "tileCachePadding",
+            "maxPendingWebRequests",
+            "disableMapsFailure",
+            "httpErrorTileTTLS",
+            "errorTileTTLS",
+            "fixedLatitude",
+            "fixedLongitude",
+            "scaleRestrictedToTileLayers",
+            "packingFormat",
+            "useDrawBitmap"
+        ).mapNotNull { findProp(it) }
     }
     val tileServerProps = remember(editableProperties) {
-        listOf("mapChoice", "tileUrl", "authToken", "tileSize", "scaledTileSize", "tileLayerMax", "tileLayerMin", "fullTileSize").mapNotNull { findProp(it) }
+        listOf(
+            "mapChoice",
+            "tileUrl",
+            "authToken",
+            "tileSize",
+            "scaledTileSize",
+            "tileLayerMax",
+            "tileLayerMin",
+            "fullTileSize"
+        ).mapNotNull { findProp(it) }
     }
     val offlineStorageProps = remember(editableProperties) {
-        listOf("cacheTilesInStorage", "storageMapTilesOnly", "storageTileCacheSize", "storageTileCachePageCount", "storageSeedBoundingBox", "storageSeedRouteDistanceM").mapNotNull { findProp(it) }
+        listOf(
+            "cacheTilesInStorage",
+            "storageMapTilesOnly",
+            "storageTileCacheSize",
+            "storageTileCachePageCount",
+            "storageSeedBoundingBox",
+            "storageSeedRouteDistanceM"
+        ).mapNotNull { findProp(it) }
     }
     val alertProps = remember(editableProperties) {
-        listOf("enableOffTrackAlerts", "offTrackAlertsDistanceM", "offTrackCheckIntervalS", "offTrackWrongDirection", "offTrackAlertsMaxReportIntervalS", "drawLineToClosestPoint", "drawCheverons", "alertType", "turnAlertTimeS", "minTurnAlertDistanceM").mapNotNull { findProp(it) }
+        listOf(
+            "enableOffTrackAlerts",
+            "offTrackAlertsDistanceM",
+            "offTrackCheckIntervalS",
+            "offTrackWrongDirection",
+            "offTrackAlertsMaxReportIntervalS",
+            "drawLineToClosestPoint",
+            "drawCheverons",
+            "alertType",
+            "turnAlertTimeS",
+            "minTurnAlertDistanceM"
+        ).mapNotNull { findProp(it) }
     }
     val colorProps = remember(editableProperties) {
-        listOf("trackColour", "defaultRouteColour", "elevationColour", "userColour", "normalModeColour", "uiColour", "debugColour").mapNotNull { findProp(it) }
+        listOf(
+            "trackColour",
+            "defaultRouteColour",
+            "elevationColour",
+            "userColour",
+            "normalModeColour",
+            "uiColour",
+            "debugColour"
+        ).mapNotNull { findProp(it) }
     }
     val routeConfigProps = remember(editableProperties) {
-        listOf("routesEnabled", "displayRouteNames", "routeMax", "routes").mapNotNull { findProp(it) }
+        listOf(
+            "routesEnabled",
+            "displayRouteNames",
+            "routeMax",
+            "routes"
+        ).mapNotNull { findProp(it) }
     }
     val debugProps = remember(editableProperties) {
-        listOf("showPoints", "drawLineToClosestTrack", "showTileBorders", "showErrorTileMessages", "tileErrorColour", "includeDebugPageInOnScreenUi", "drawHitBoxes", "showDirectionPoints", "showDirectionPointTextUnderIndex").mapNotNull { findProp(it) }
+        listOf(
+            "showPoints",
+            "drawLineToClosestTrack",
+            "showTileBorders",
+            "showErrorTileMessages",
+            "tileErrorColour",
+            "includeDebugPageInOnScreenUi",
+            "drawHitBoxes",
+            "showDirectionPoints",
+            "showDirectionPointTextUnderIndex"
+        ).mapNotNull { findProp(it) }
     }
     // --------------------------------------------------------------------------
 
@@ -161,7 +242,10 @@ fun DeviceSettings(
                             enter = fadeIn(),
                             exit = fadeOut(),
                         ) {
-                            CollapsibleSectionWithProperties("Tile Server Settings", tileServerProps)
+                            CollapsibleSectionWithProperties(
+                                "Tile Server Settings",
+                                tileServerProps
+                            )
                         }
                     }
                 }
@@ -173,7 +257,10 @@ fun DeviceSettings(
                             enter = fadeIn(),
                             exit = fadeOut(),
                         ) {
-                            CollapsibleSectionWithProperties("Offline Tile Storage", offlineStorageProps)
+                            CollapsibleSectionWithProperties(
+                                "Offline Tile Storage",
+                                offlineStorageProps
+                            )
                         }
                     }
                 }
@@ -964,6 +1051,7 @@ val sportsData = listOf(
         )
     ),
 )
+
 @OptIn(ExperimentalMaterialApi::class)
 @Composable
 fun SportAndSubSportPicker(property: EditableProperty<Int>) {

@@ -123,6 +123,22 @@ val settingsAliases = mapOf(
 
 val reverseAliases = settingsAliases.entries.associate { (longKey, alias) -> alias to longKey }
 
+val dataFieldTypes = listOf(
+    ListOption(0, "None"),
+    ListOption(1, "Map Scale"),
+    ListOption(2, "Altitude"),
+    ListOption(3, "Avg Heart Rate"),
+    ListOption(4, "Avg Speed"),
+    ListOption(5, "Heart Rate"),
+    ListOption(6, "Speed"),
+    ListOption(7, "Distance"),
+    ListOption(8, "Time"),
+    ListOption(9, "Total Ascent"),
+    ListOption(10, "Total Descent"),
+    ListOption(11, "Avg Pace"),
+    ListOption(12, "Pace"),
+)
+
 // Place this somewhere accessible, like a constants file or companion object
 val listOptionsMapping: Map<String, List<ListOption>> = mapOf(
     "mode" to listOf(
@@ -198,7 +214,9 @@ val listOptionsMapping: Map<String, List<ListOption>> = mapOf(
         ListOption(30, "Mapy - Outdoor (auth required)"),
         ListOption(31, "Mapy - Winter (auth required)"),
         ListOption(32, "Mapy - Aerial (auth required)"),
-    )
+    ),
+    "topDataType" to dataFieldTypes,
+    "bottomDataType" to dataFieldTypes,
 )
 
 val labelOverrides: Map<String, String> = mapOf(
@@ -227,6 +245,9 @@ val labelOverrides: Map<String, String> = mapOf(
     "showDirectionPoints" to "Show Turn Points",
     "showDirectionPointTextUnderIndex" to "Show Turn Point Text Under Index",
     "activityType" to "Activity Type",
+    "useTrackAsHeadingSpeedMPS" to "Use Track As Heading Speed (m/s)",
+    "topDataType" to "Top Data Field Type",
+    "bottomDataType" to "Bottom Data Field Type",
 )
 
 val descriptions: Map<String, String> = mapOf(
@@ -332,6 +353,7 @@ class DeviceSettings(
                     )
 
                     // --- Floats ---
+                    "useTrackAsHeadingSpeedMPS",
                     "zoomAtPaceSpeedMPS" -> EditableProperty(
                         key,
                         PropertyType.FLOAT,
