@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.benasher44.uuid.uuid4
 import com.paul.domain.AppSettings
 import com.paul.domain.ExportedProfile
+import com.paul.domain.IqDevice
 import com.paul.domain.LastKnownDevice
 import com.paul.domain.Profile
 import com.paul.domain.ProfileSettings
@@ -23,7 +24,10 @@ import com.paul.protocol.fromdevice.Settings
 import com.paul.protocol.todevice.RequestSettings
 import com.paul.protocol.todevice.SaveSettings
 import io.github.aakira.napier.Napier
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -57,6 +61,9 @@ class ProfilesViewModel(
     // State for controlling the delete confirmation dialog
     private val _deletingProfile = MutableStateFlow<Profile?>(null)
     val deletingProfile: StateFlow<Profile?> = _deletingProfile.asStateFlow()
+
+    val settingsLoading: MutableState<Boolean> = mutableStateOf(false)
+    public var settingsJob: Deferred<Settings?>? = null
 
     fun startCreate() {
         _creatingProfile.value = true
@@ -321,8 +328,17 @@ class ProfilesViewModel(
             snackbarHostState.showSnackbar("no devices selected")
             return null
         }
+        settingsJob = viewModelScope.async(Dispatchers.IO) {
+            openDeviceSettingsSuspend(device)
+        }
 
-        return sendingMessage("Loading Settings From Device.\nEnsure an activity with the datafield is running (or at least open) or this will fail.") {
+        return settingsJob!!.await()
+    }
+
+    suspend fun openDeviceSettingsSuspend(device: IqDevice): Settings? {
+        settingsLoading.value = true
+        return sendingMessage("Loading Settings From Device.\n" +
+                "Ensure an activity with the datafield is running (or at least open) or this will fail. Note: this can take a long time (up to 5 minutes) on older devices, be patient. Press back to cancel") {
             return@sendingMessage try {
                 val settings = connection.query<Settings>(
                     device,
@@ -330,12 +346,21 @@ class ProfilesViewModel(
                     ProtocolResponse.PROTOCOL_SEND_SETTINGS
                 )
                 Napier.d("got settings $settings")
+                settingsLoading.value = false
                 settings
             } catch (t: Throwable) {
+                settingsLoading.value = false
                 snackbarHostState.showSnackbar("Failed to load settings. Please ensure an activity is running on the watch.")
                 null
             }
         }
+    }
+
+    fun cancelDeviceSettingsLoading() {
+        Napier.d("Cancelling settings load job.")
+        settingsJob?.cancel()
+        // Immediately update UI state
+        settingsLoading.value = false
     }
 
     private suspend fun getAppVersion(): Int? {

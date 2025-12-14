@@ -26,8 +26,11 @@ import kotlinx.datetime.toLocalDateTime
 
 @Composable
 fun ProfilesScreen(viewModel: ProfilesViewModel) {
-    BackHandler(enabled = viewModel.sendingMessage.value != "") {
+    BackHandler(enabled = viewModel.sendingMessage.value != "" || viewModel.settingsLoading.value) {
         // prevent back handler when we are trying to do things, todo cancel the job we are trying to do
+        if (viewModel.settingsLoading.value) {
+            viewModel.cancelDeviceSettingsLoading()
+        }
     }
 
     val profiles by viewModel.profileRepo.availableProfilesFlow().collectAsState()
