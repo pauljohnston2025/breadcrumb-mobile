@@ -217,6 +217,24 @@ val listOptionsMapping: Map<String, List<ListOption>> = mapOf(
     ),
     "topDataType" to dataFieldTypes,
     "bottomDataType" to dataFieldTypes,
+    "dataFieldTextSize" to listOf(
+        ListOption(0, "Extra Tiny"),
+        ListOption(1, "Tiny"),
+        ListOption(2, "Small"),
+        ListOption(3, "Medium"),
+        ListOption(4, "Large"),
+        // numbers cannot be used because we add letters too, and the numbers fonts only renders numbers
+//        ListOption(5, "Number Mild"),
+//        ListOption(6, "Number Medium"),
+//        ListOption(7, "Number Hot"),
+//        ListOption(8, "Number Thai Hot"),
+        // <!-- System Fonts seem to be almost the same, so save the space for the strings and code-->
+//        ListOption(9, "System Extra Tiny"),
+//        ListOption(10, "System Tiny"),
+//        ListOption(11, "System Small"),
+//        ListOption(12, "System Medium"),
+//        ListOption(13, "System Large")
+    )
 )
 
 val labelOverrides: Map<String, String> = mapOf(
@@ -248,6 +266,7 @@ val labelOverrides: Map<String, String> = mapOf(
     "useTrackAsHeadingSpeedMPS" to "Use Track As Heading Speed (m/s)",
     "topDataType" to "Top Data Field Type",
     "bottomDataType" to "Bottom Data Field Type",
+    "recalculateIntervalS" to "Compute Interval (s)",
 )
 
 val descriptions: Map<String, String> = mapOf(
@@ -274,7 +293,8 @@ class DeviceSettings(
     val settingsSaving: MutableState<Boolean> = mutableStateOf(false)
 
     private val _navigationEvents = MutableSharedFlow<DeviceSettingsNavigationEvent>()
-    val navigationEvents: SharedFlow<DeviceSettingsNavigationEvent> = _navigationEvents.asSharedFlow()
+    val navigationEvents: SharedFlow<DeviceSettingsNavigationEvent> =
+        _navigationEvents.asSharedFlow()
 
     val propertyDefinitions = settings.settings.mapNotNull { entry ->
         val key = entry.key

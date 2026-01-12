@@ -101,6 +101,7 @@ fun DeviceSettings(
             "maxTrackPoints",
             "topDataType",
             "bottomDataType",
+            "dataFieldTextSize",
             "useTrackAsHeadingSpeedMPS",
             "mapMoveScreenSize"
         ).mapNotNull { findProp(it) }

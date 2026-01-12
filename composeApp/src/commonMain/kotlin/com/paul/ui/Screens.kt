@@ -29,7 +29,7 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     object Devices : Screen("devices", "Devices", Icons.Default.DeviceHub)
     object DeviceSelection : Screen("deviceSelection", "Device Selection", Icons.Default.DeviceHub)
     object DeviceSettings : Screen("deviceSettings", "Device Settings", Icons.Default.Settings)
-    object Map : Screen("map", "Map View", Icons.Default.Place)
+    object Map : Screen("map", "Map View", Icons.Default.Place) // Icons.Default.Map is a bit ugly
     object Storage : Screen("storage", "Storage Info", Icons.Default.SdStorage)
     object Debug : Screen("debug", "Debug Info", Icons.Default.Terminal)
     object Routes : Screen("routes", "Routes", Icons.Default.Route)
