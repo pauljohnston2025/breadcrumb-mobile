@@ -119,6 +119,8 @@ val settingsAliases = mapOf(
     "metersAroundUser" to "d",
     "zoomAtPaceMode" to "b",
     "zoomAtPaceSpeedMPS" to "e",
+    "useTrackAsHeadingSpeedMPS" to "p",
+    "minTrackPointDistanceM" to "q",
 )
 
 val reverseAliases = settingsAliases.entries.associate { (longKey, alias) -> alias to longKey }
