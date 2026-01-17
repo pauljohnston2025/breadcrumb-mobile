@@ -234,6 +234,10 @@ val listOptionsMapping: Map<String, List<ListOption>> = mapOf(
 //        ListOption(11, "System Small"),
 //        ListOption(12, "System Medium"),
 //        ListOption(13, "System Large")
+    ),
+    "trackPointReductionMethod" to listOf (
+        ListOption(0, "Downsample"),
+        ListOption(1, "Reumann Witkam"),
     )
 )
 
@@ -267,6 +271,7 @@ val labelOverrides: Map<String, String> = mapOf(
     "topDataType" to "Top Data Field Type",
     "bottomDataType" to "Bottom Data Field Type",
     "recalculateIntervalS" to "Compute Interval (s)",
+    "minTrackPointDistanceM" to "Min Track Point Distance (m)",
 )
 
 val descriptions: Map<String, String> = mapOf(
@@ -362,6 +367,7 @@ class DeviceSettings(
                     "disableMapsFailureCount",
                     "httpErrorTileTTLS",
                     "errorTileTTLS",
+                    "minTrackPointDistanceM",
                     "routeMax" -> EditableProperty(
                         key,
                         PropertyType.NUMBER,

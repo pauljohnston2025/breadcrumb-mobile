@@ -102,6 +102,8 @@ fun DeviceSettings(
             "topDataType",
             "bottomDataType",
             "dataFieldTextSize",
+            "minTrackPointDistanceM",
+            "trackPointReductionMethod",
             "useTrackAsHeadingSpeedMPS",
             "mapMoveScreenSize"
         ).mapNotNull { findProp(it) }
@@ -870,67 +872,100 @@ fun UnknownTypeEditor(property: EditableProperty<*>) {
     }
 }
 
-@OptIn(ExperimentalMaterialApi::class) // For ExposedDropdownMenuBox in M2
+@Composable
+fun PropertyRow(
+    label: String,
+    description: String? = null,
+    editor: @Composable () -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+                .defaultMinSize(minHeight = 56.dp), // Standard Material touch target height
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Label Section: Takes up all available space and wraps text
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(end = 16.dp)
+            ) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.subtitle1,
+                    softWrap = true
+                )
+                if (!description.isNullOrEmpty()) {
+                    Spacer(modifier = Modifier.size(4.dp))
+                    Text(
+                        text = description,
+                        style = MaterialTheme.typography.caption,
+                        color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f)
+                    )
+                }
+            }
+
+            // Editor Section: Sits on the right
+            Box(
+                modifier = Modifier.widthIn(max = 200.dp),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                editor()
+            }
+        }
+
+        Divider(
+            modifier = Modifier.fillMaxWidth(),
+            thickness = 1.dp,
+            color = MaterialTheme.colors.onSurface.copy(alpha = 0.12f)
+        )
+    }
+}
+@OptIn(ExperimentalMaterialApi::class)
 @Composable
 fun ListNumberEditor(property: EditableProperty<Int>) {
-    // Retrieve options safely, ensuring they exist for this property type
-    val options = remember(property.id) { property.options ?: emptyList() }
-    if (options.isEmpty() && property.type == PropertyType.LIST_NUMBER) {
-        // This case indicates an error in setup (called ListNumberEditor without options)
-        PropertyEditorRow(label = property.label, description = property.description) {
-            Text("Error: Options missing", color = MaterialTheme.colors.error)
-        }
-        return
-    }
-
     var expanded by remember { mutableStateOf(false) }
-    val selectedValue by property.state // Observe the current Int value state
+    val selectedOption = property.options?.find { it.value == property.state.value }
 
-    // Find the display text corresponding to the currently selected value
-    val selectedDisplayText = remember(selectedValue, options) {
-        options.find { it.value == selectedValue }?.display ?: "Select..." // Default/fallback text
-    }
-
-    PropertyEditorRow(
+    PropertyRow(
         label = property.label,
         description = property.description,
-    ) { // Reuse your existing row layout
-        ExposedDropdownMenuBox(
-            expanded = expanded,
-            onExpandedChange = { expanded = !expanded },
-//            modifier = Modifier.widthIn(min = 200.dp, max = 200.dp) // Give it enough width
-        ) {
-            // Text field displaying the current selection (usually read-only)
-            OutlinedTextField(
-                // Or regular TextField if preferred
-                value = selectedDisplayText,
-                onValueChange = {}, // Selection is handled by the menu items
-                readOnly = true,
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                // colors = ExposedDropdownMenuDefaults.textFieldColors(), // Optional M2 styling
-//                modifier = Modifier.menuAnchor() // Anchor the dropdown menu to this text field (M3)
-                // For M2, this modifier might not be needed directly on TextField
-            )
-
-            // The actual dropdown menu
-            ExposedDropdownMenu(
+        editor = {
+            ExposedDropdownMenuBox(
                 expanded = expanded,
-                onDismissRequest = { expanded = false },
+                onExpandedChange = { expanded = !expanded }
             ) {
-                options.forEach { option ->
-                    DropdownMenuItem(
-                        onClick = {
-                            property.state.value =
-                                option.value // Update the state with the selected Int
-                            expanded = false // Close the dropdown
-                        },
-                    ) {
-                        Text(text = option.display)
+                OutlinedTextField(
+                    readOnly = true,
+                    value = selectedOption?.display ?: property.state.value.toString(),
+                    onValueChange = {},
+                    trailingIcon = {
+                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+                    },
+                    colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                    textStyle = MaterialTheme.typography.body2,
+                    modifier = Modifier.widthIn(min = 140.dp) // Ensures readability
+                )
+
+                ExposedDropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false }
+                ) {
+                    property.options?.forEach { option ->
+                        DropdownMenuItem(onClick = {
+                            property.state.value = option.value
+                            expanded = false
+                        }) {
+                            Text(text = option.display)
+                        }
                     }
                 }
             }
         }
-    }
+    )
 }
 
 data class SubSport(val name: String, val value: Int)
