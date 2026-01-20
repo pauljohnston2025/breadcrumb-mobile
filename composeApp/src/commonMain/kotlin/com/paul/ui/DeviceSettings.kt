@@ -98,14 +98,22 @@ fun DeviceSettings(
             "renderMode",
             "centerUserOffsetY",
             "displayLatLong",
+            "mapMoveScreenSize"
+        ).mapNotNull { findProp(it) }
+    }
+    val trackProps = remember(editableProperties) {
+        listOf(
             "maxTrackPoints",
-            "topDataType",
-            "bottomDataType",
-            "dataFieldTextSize",
             "minTrackPointDistanceM",
             "trackPointReductionMethod",
             "useTrackAsHeadingSpeedMPS",
-            "mapMoveScreenSize"
+        ).mapNotNull { findProp(it) }
+    }
+    val dataFieldProps = remember(editableProperties) {
+        listOf(
+            "topDataType",
+            "bottomDataType",
+            "dataFieldTextSize",
         ).mapNotNull { findProp(it) }
     }
     val zoomProps = remember(editableProperties) {
@@ -212,6 +220,14 @@ fun DeviceSettings(
             LazyColumn(modifier = Modifier.weight(1f)) {
                 item {
                     CollapsibleSectionWithProperties("General", generalProps)
+                }
+
+                item {
+                    CollapsibleSectionWithProperties("Track", trackProps)
+                }
+
+                item {
+                    CollapsibleSectionWithProperties("Data Fields", dataFieldProps)
                 }
 
                 item {
