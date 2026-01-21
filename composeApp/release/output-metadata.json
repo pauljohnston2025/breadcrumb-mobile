@@ -1,0 +1,20 @@
+{
+  "version": 3,
+  "artifactType": {
+    "type": "APK",
+    "kind": "Directory"
+  },
+  "applicationId": "com.paul.breadcrumb",
+  "variantName": "release",
+  "elements": [
+    {
+      "type": "SINGLE",
+      "filters": [],
+      "attributes": [],
+      "versionCode": 228,
+      "versionName": "0.0.15",
+      "outputFile": "composeApp-release.apk"
+    }
+  ],
+  "elementType": "File"
+}
