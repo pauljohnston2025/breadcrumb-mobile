@@ -4,14 +4,39 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import com.paul.viewmodels.ListOption
 import com.paul.viewmodels.RouteItem
+
+val trackStyles = listOf(
+    ListOption(0, "Line"),
+    ListOption(1, "Dashed"),
+    ListOption(2, "Raw Points"),
+    ListOption(3, "Points"),
+    ListOption(4, "Raw Boxes"),
+    ListOption(5, "Boxes"),
+    ListOption(6, "Raw Filled Squares"),
+    ListOption(7, "Filled Squares"),
+    ListOption(8, "Raw Circle Outlines"),
+    ListOption(9, "Circle Outlines"),
+    ListOption(10, "Checkerboard"),
+    ListOption(11, "Hazard Stripes"),
+    ListOption(12, "Dot Matrix"),
+    ListOption(13, "Polka Dot"),
+    ListOption(14, "Diamond Scale")
+)
 
 @Composable
 fun RouteEditDialog(
@@ -20,11 +45,21 @@ fun RouteEditDialog(
     onDismissRequest: () -> Unit,
     onSaveRoute: (RouteItem) -> Unit
 ) {
+
     var name by remember { mutableStateOf(initialRoute.name) }
     var enabled by remember { mutableStateOf(initialRoute.enabled) }
     var reversed by remember { mutableStateOf(initialRoute.reversed) }
     var colorHex by remember { mutableStateOf(initialRoute.colour) } // Store hex AARRGGBB
+
+    // --- New State for Style and Width ---
+    var selectedStyle by remember { mutableStateOf(initialRoute.style.toInt()) }
+    var widthText by remember { mutableStateOf(initialRoute.width.toString()) }
+    // Ensure width is a valid number and at least 1
+    val widthValue = widthText.toIntOrNull() ?: 1
+    val isWidthValid = widthValue >= 1
+
     var showColorPicker by remember { mutableStateOf(false) }
+    var styleExpanded by remember { mutableStateOf(false) }
 
     // Parse the current hex for the preview/picker initial state
     val currentColor = remember(colorHex) { parseColor(colorHex) } // Use updated parser
@@ -38,7 +73,11 @@ fun RouteEditDialog(
             shape = MaterialTheme.shapes.medium,
             elevation = 8.dp
         ) {
-            Column(modifier = Modifier.padding(vertical = 20.dp, horizontal = 24.dp)) {
+            // Added verticalScroll to ensure the dialog is usable on smaller screens
+            Column(modifier = Modifier
+                .padding(vertical = 20.dp, horizontal = 24.dp)
+                .verticalScroll(rememberScrollState())
+            ) {
 
                 // --- Title ---
                 Text(
@@ -63,6 +102,61 @@ fun RouteEditDialog(
                 )
                 if (!isNameValid) {
                     Text("Name cannot be empty", color = MaterialTheme.colors.error, style = MaterialTheme.typography.caption)
+                }
+                Spacer(Modifier.height(16.dp))
+
+                // --- Track Style Dropdown ---
+                Box {
+                    OutlinedTextField(
+                        value = trackStyles.find { it.value == selectedStyle }?.display ?: "Select Style",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Style") },
+                        modifier = Modifier.fillMaxWidth(),
+                        trailingIcon = {
+                            IconButton(onClick = { styleExpanded = true }) {
+                                Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                            }
+                        }
+                    )
+                    // Transparent overlay to make the whole field clickable for the dropdown
+                    Box(modifier = Modifier
+                        .matchParentSize()
+                        .clickable { styleExpanded = true })
+
+                    DropdownMenu(
+                        expanded = styleExpanded,
+                        onDismissRequest = { styleExpanded = false }
+                    ) {
+                        trackStyles.forEach { option ->
+                            DropdownMenuItem(onClick = {
+                                selectedStyle = option.value
+                                styleExpanded = false
+                            }) {
+                                Text(option.display)
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+
+                // --- Width Number Picker ---
+                OutlinedTextField(
+                    value = widthText,
+                    onValueChange = { newValue ->
+                        // Only allow numeric input
+                        if (newValue.all { it.isDigit() }) {
+                            widthText = newValue
+                        }
+                    },
+                    label = { Text("Width (pixels)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    isError = !isWidthValid
+                )
+                if (!isWidthValid) {
+                    Text("Width must be 1 or more", color = MaterialTheme.colors.error, style = MaterialTheme.typography.caption)
                 }
                 Spacer(Modifier.height(16.dp))
 
@@ -126,7 +220,9 @@ fun RouteEditDialog(
                                 name = name.trim(), // Trim whitespace
                                 enabled = enabled,
                                 reversed = reversed,
-                                colour = colorHex // Save the hex string directly
+                                colour = colorHex, // Save the hex string directly
+                                style = selectedStyle,
+                                width = widthValue
                             )
                             onSaveRoute(updatedRoute)
                         },

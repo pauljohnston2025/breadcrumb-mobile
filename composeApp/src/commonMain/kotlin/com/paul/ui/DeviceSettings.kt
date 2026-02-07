@@ -104,6 +104,8 @@ fun DeviceSettings(
     val trackProps = remember(editableProperties) {
         listOf(
             "maxTrackPoints",
+            "trackStyle",
+            "trackWidth",
             "minTrackPointDistanceM",
             "trackPointReductionMethod",
             "useTrackAsHeadingSpeedMPS",

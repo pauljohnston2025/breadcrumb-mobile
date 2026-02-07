@@ -6,6 +6,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.paul.composables.trackStyles
 import com.paul.domain.IqDevice
 import com.paul.infrastructure.connectiq.IConnection
 import com.paul.protocol.fromdevice.Settings
@@ -31,7 +32,9 @@ data class RouteItem(
     val name: String = "",
     val enabled: Boolean = true,
     val reversed: Boolean = false,
-    val colour: String = "FF0000FF" // Default to opaque Blue (AARRGGBB)
+    val colour: String = "FF0000FF", // Default to opaque Blue (AARRGGBB)
+    val style: Number = 0,
+    val width: Number = 4,
 ) {
     companion object {
         fun fromDict(map: Map<*, *>): RouteItem {
@@ -40,19 +43,22 @@ data class RouteItem(
                 name = map["name"] as String,
                 enabled = map["enabled"] as Boolean,
                 reversed = map["reversed"] as Boolean,
-                colour = padColorString(map["colour"] as String)
+                colour = padColorString(map["colour"] as String),
+                style = map["style"] as? Number ?: 0,
+                width = map["width"] as? Number ?: 4
             )
         }
     }
 
     fun toDict(): Map<String, Any> {
-        return mapOf<String, Any>( // Explicit Map type for clarity
-            // Use the keys that your storage/Garmin settings expect
+        return mapOf(
             "routeId" to routeId,
             "name" to name,
             "enabled" to enabled,
             "reversed" to reversed,
-            "colour" to colour // Ensure this is the AARRGGBB string
+            "colour" to colour,
+            "style" to style,
+            "width" to width
         )
     }
 }
@@ -237,10 +243,11 @@ val listOptionsMapping: Map<String, List<ListOption>> = mapOf(
 //        ListOption(12, "System Medium"),
 //        ListOption(13, "System Large")
     ),
-    "trackPointReductionMethod" to listOf (
+    "trackPointReductionMethod" to listOf(
         ListOption(0, "Downsample"),
         ListOption(1, "Reumann Witkam"),
-    )
+    ),
+    "trackStyle" to trackStyles,
 )
 
 val labelOverrides: Map<String, String> = mapOf(
@@ -265,6 +272,7 @@ val labelOverrides: Map<String, String> = mapOf(
     "turnAlertTimeS" to "Turn Alert Time (s)",
     "minTurnAlertDistanceM" to "Min Turn Alert Distance (m)",
     "maxTrackPoints" to "Max Track Points",
+    "trackWidth" to "Track Width (pixels)",
     "drawHitBoxes" to "Draw Hit Boxes",
     "showDirectionPoints" to "Show Turn Points",
     "showDirectionPointTextUnderIndex" to "Show Turn Point Text Under Index",
@@ -344,6 +352,7 @@ class DeviceSettings(
                     "turnAlertTimeS",
                     "minTurnAlertDistanceM",
                     "maxTrackPoints",
+                    "trackWidth",
                     "showDirectionPointTextUnderIndex",
                     "mode",
                     "uiMode",
