@@ -22,20 +22,20 @@ import com.paul.viewmodels.RouteItem
 
 val trackStyles = listOf(
     ListOption(0, "Line"),
-    ListOption(1, "Dashed"),
+    ListOption(1, "Dashed (CPU)"),
     ListOption(2, "Raw Points"),
-    ListOption(3, "Points"),
+    ListOption(3, "Points (CPU)"),
     ListOption(4, "Raw Boxes"),
-    ListOption(5, "Boxes"),
+    ListOption(5, "Boxes (CPU)"),
     ListOption(6, "Raw Filled Squares"),
-    ListOption(7, "Filled Squares"),
+    ListOption(7, "Filled Squares (CPU)"),
     ListOption(8, "Raw Circle Outlines"),
-    ListOption(9, "Circle Outlines"),
-    ListOption(10, "Checkerboard"),
-    ListOption(11, "Hazard Stripes"),
-    ListOption(12, "Dot Matrix"),
-    ListOption(13, "Polka Dot"),
-    ListOption(14, "Diamond Scale")
+    ListOption(9, "Circle Outlines (CPU)"),
+    ListOption(10, "Checkerboard (Texture)"),
+    ListOption(11, "Hazard Stripes (Texture)"),
+    ListOption(12, "Dot Matrix (Texture)"),
+    ListOption(13, "Polka Dot (Texture)"),
+    ListOption(14, "Diamond Scale (Texture)")
 )
 
 @Composable
