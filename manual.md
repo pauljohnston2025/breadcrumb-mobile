@@ -46,6 +46,10 @@ Configure the app settings. Note some of the tile server settings will clear the
 ![](images/manual/appsettings.png)
 ![](images/manual/appsettings-custom.png)
 
+### Connect IQ App
+
+You must set the connect iq app you wish to talk to (this is the app/datafield installed on the watch)
+
 ### Phone Hosted Tile Server
 
 The phone hosts a tile server for the watch to query tiles from. The tiles downloaded are cached locally on the phone for use with offline map support. To stop the tile server (and stop getting the 'tile server running' notifications), you need to close the app, not just background it. ie. open recent apps draw on android and swipe the app away to close it.    
@@ -207,3 +211,4 @@ Shows all of the app logs, to aid in debugging whilst away from a computer. Plea
 ![](images/manual/debugpage.png)
 
 ---
+
