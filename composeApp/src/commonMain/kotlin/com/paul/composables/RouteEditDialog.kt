@@ -50,6 +50,7 @@ fun RouteEditDialog(
     var enabled by remember { mutableStateOf(initialRoute.enabled) }
     var reversed by remember { mutableStateOf(initialRoute.reversed) }
     var colorHex by remember { mutableStateOf(initialRoute.colour) } // Store hex AARRGGBB
+    var color2Hex by remember { mutableStateOf(initialRoute.colour2) } // Store hex AARRGGBB
 
     // --- New State for Style and Width ---
     var selectedStyle by remember { mutableStateOf(initialRoute.style.toInt()) }
@@ -59,10 +60,12 @@ fun RouteEditDialog(
     val isWidthValid = widthValue >= 1
 
     var showColorPicker by remember { mutableStateOf(false) }
+    var showColorPicker2 by remember { mutableStateOf(false) }
     var styleExpanded by remember { mutableStateOf(false) }
 
     // Parse the current hex for the preview/picker initial state
     val currentColor = remember(colorHex) { parseColor(colorHex) } // Use updated parser
+    val currentColor2 = remember(color2Hex) { parseColor(color2Hex) } // Use updated parser
 
     val isNameValid = name.isNotBlank()
 
@@ -204,6 +207,27 @@ fun RouteEditDialog(
                 }
                 Spacer(Modifier.height(24.dp)) // Space before buttons
 
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Colour 2", style = MaterialTheme.typography.body1)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("#${color2Hex.uppercase()}", style = MaterialTheme.typography.caption) // Show hex
+                        Spacer(Modifier.width(8.dp))
+                        Box( // Color Preview Button
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(MaterialTheme.shapes.small)
+                                .background(currentColor2)
+                                .border(1.dp, LocalContentColor.current.copy(alpha = ContentAlpha.disabled), MaterialTheme.shapes.small)
+                                .clickable { showColorPicker2 = true }
+                        )
+                    }
+                }
+                Spacer(Modifier.height(24.dp)) // Space before buttons
+
                 // --- Action Buttons ---
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -222,7 +246,8 @@ fun RouteEditDialog(
                                 reversed = reversed,
                                 colour = colorHex, // Save the hex string directly
                                 style = selectedStyle,
-                                width = widthValue
+                                width = widthValue,
+                                colour2 = color2Hex
                             )
                             onSaveRoute(updatedRoute)
                         },
@@ -248,6 +273,20 @@ fun RouteEditDialog(
                 colorHex = colorToHexString(selectedColor) // Use updated converter
                 showColorPicker = false // Close picker immediately after selection
             }
+        )
+    }
+
+    if (showColorPicker2) {
+        ColorPickerDialog( // Reuse the existing dialog
+            initialColor = currentColor2,
+            showDialog = showColorPicker2,
+            onDismissRequest = { showColorPicker2 = false },
+            onColorSelected = { selectedColor ->
+                // Update the hex state within this dialog when picker confirms
+                color2Hex = colorToHexString(selectedColor, true) // Use updated converter
+                showColorPicker2 = false // Close picker immediately after selection
+            },
+            allowTransparent = true
         )
     }
 }

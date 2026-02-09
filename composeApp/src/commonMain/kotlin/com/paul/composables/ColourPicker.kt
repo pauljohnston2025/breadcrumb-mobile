@@ -1,7 +1,10 @@
 package com.paul.composables
 
+import androidx.compose.ui.draw.alpha
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,9 +21,11 @@ import androidx.compose.material.Button
 import androidx.compose.material.Card
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Slider
+import androidx.compose.material.Switch
 import androidx.compose.material.Tab
 import androidx.compose.material.TabRow
 import androidx.compose.material.Text
+import androidx.compose.material.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -145,138 +150,165 @@ fun ColorPickerDialog(
     initialColor: Color,
     showDialog: Boolean,
     onDismissRequest: () -> Unit,
-    onColorSelected: (Color) -> Unit
+    onColorSelected: (Color) -> Unit,
+    allowTransparent: Boolean = false
 ) {
     if (showDialog) {
-        var selectedTabIndex by remember { mutableStateOf(0) } // 0 for RGB, 1 for HSV
+        var selectedTabIndex by remember { mutableStateOf(0) }
         val tabs = listOf("RGB", "HSV")
 
-        // Primary state: The current color being manipulated
-        var currentColor by remember { mutableStateOf(initialColor) }
+        // 1. Initialize State with sanitization
+        // If transparency isn't allowed, we force the initial color to be opaque immediately
+        val sanitizedInitial = remember(initialColor, allowTransparent) {
+            if (!allowTransparent && initialColor.alpha == 0f) initialColor.copy(alpha = 0xFE / 255f)
+            else initialColor
+        }
 
-        // RGB component states (Only needed for the RGB tab now)
-        var red by remember { mutableStateOf(initialColor.red) }
-        var green by remember { mutableStateOf(initialColor.green) }
-        var blue by remember { mutableStateOf(initialColor.blue) }
+        var currentColor by remember { mutableStateOf(sanitizedInitial) }
 
-        // Effect to sync RGB sliders WHEN switching TO RGB tab or if initialColor changes
+        // Toggle only exists if allowed AND the color is actually transparent
+        var isFullyTransparent by remember {
+            mutableStateOf(allowTransparent && sanitizedInitial.alpha == 0f)
+        }
+
+        var red by remember { mutableStateOf(sanitizedInitial.red) }
+        var green by remember { mutableStateOf(sanitizedInitial.green) }
+        var blue by remember { mutableStateOf(sanitizedInitial.blue) }
+
+        // Sync RGB sliders when currentColor changes
         LaunchedEffect(currentColor, selectedTabIndex) {
-            if (selectedTabIndex == 0) { // Only update RGB if RGB tab is active
+            if (selectedTabIndex == 0) {
                 red = currentColor.red
                 green = currentColor.green
                 blue = currentColor.blue
             }
-            // No need to explicitly update HSV state variables here anymore,
-            // the HsvColorPickerSquareSlider takes initialColor and manages its own HSV.
         }
 
-        // Effect to reset everything if the initialColor prop changes externally
-        LaunchedEffect(initialColor) {
-            currentColor = initialColor
-            // The LaunchedEffect above handles syncing RGB sliders if needed
+        // 2. Handle external initialColor changes (prop updates)
+        LaunchedEffect(initialColor, allowTransparent) {
+            val updatedSanitized = if (!allowTransparent && initialColor.alpha == 0f) {
+                initialColor.copy(alpha = 1f)
+            } else {
+                initialColor
+            }
+            currentColor = updatedSanitized
+            isFullyTransparent = allowTransparent && updatedSanitized.alpha == 0f
         }
 
-        Dialog(
-            onDismissRequest = onDismissRequest
-        ) {
-            // Use Card or Surface for background, shape, elevation etc.
+        Dialog(onDismissRequest = onDismissRequest) {
             Card(
                 modifier = Modifier
                     .wrapContentHeight()
-                    .fillMaxWidth(0.9f), // Example sizing
+                    .fillMaxWidth(0.9f),
                 shape = MaterialTheme.shapes.medium,
                 elevation = 8.dp
             ) {
-                Column(
-                    modifier = Modifier.padding(
-                        vertical = 20.dp,
-                        horizontal = 24.dp
-                    ) // Overall padding
-                ) {
-                    // --- Title ---
-                    Text(
-                        "Select Color",
-                        style = MaterialTheme.typography.h6 // Or subtitle1
-                    )
-                    // --- Explicit Spacer After Title ---
-                    Spacer(modifier = Modifier.height(16.dp)) // Control this space
-                    // --- Color Preview Box ---
+                Column(modifier = Modifier.padding(vertical = 20.dp, horizontal = 24.dp)) {
+                    Text("Select Color", style = MaterialTheme.typography.h6)
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Preview Box
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(50.dp)
-                            .background(currentColor) // Always reflects master color
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // --- Tabs for RGB / HSV ---
-                    TabRow(selectedTabIndex = selectedTabIndex) {
-                        tabs.forEachIndexed { index, title ->
-                            Tab(
-                                selected = selectedTabIndex == index,
-                                onClick = { selectedTabIndex = index },
-                                text = { Text(title) }
+                            .background(
+                                if (isFullyTransparent) Color.Transparent else currentColor.copy(
+                                    alpha = 1f
+                                )
                             )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(16.dp))
+                            .border(1.dp, MaterialTheme.colors.onSurface.copy(0.12f))
+                    )
 
-                    // --- Picker Section (Conditional based on tab) ---
-                    when (selectedTabIndex) {
-                        // --- RGB Sliders ---
-                        0 -> Column {
-                            // Update master color immediately when RGB sliders change
-                            LaunchedEffect(red, green, blue) {
-                                val tempRgbColor = Color(red, green, blue, currentColor.alpha)
-                                if (tempRgbColor != currentColor) {
-                                    currentColor = tempRgbColor
+                    // --- Toggle Logic ---
+                    if (allowTransparent) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Fully Transparent (-1)", style = MaterialTheme.typography.body2)
+                            Switch(
+                                checked = isFullyTransparent,
+                                onCheckedChange = { checked ->
+                                    isFullyTransparent = checked
+                                    if (!checked) currentColor = currentColor.copy(alpha = 1f)
                                 }
-                            }
-                            ColorSlider("Red", red, 0f..1f) { newR -> red = newR }
-                            ColorSlider("Green", green, 0f..1f) { newG -> green = newG }
-                            ColorSlider("Blue", blue, 0f..1f) { newB -> blue = newB }
-                            // Optional: Alpha slider could go here
-                        }
-
-                        // --- HSV Picker ---
-                        1 -> {
-                            HsvColorPickerSquareSlider(
-                                initialColor = currentColor, // Pass the current color
-                                // When the picker changes color, update the master state
-                                onColorChanged = { newColor ->
-                                    currentColor = newColor
-                                },
-                                modifier = Modifier.align(Alignment.CenterHorizontally)
-                                // Adjust size/spacing props if needed:
-                                // squareSize = 180.dp,
-                                // hueSliderWidth = 25.dp
                             )
                         }
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text( // Display Hex always based on the master currentColor
-                        "Hex: #${colorToHexString(currentColor)}",
+
+                    // Picker Section
+                    Box(modifier = Modifier.alpha(if (isFullyTransparent) 0.4f else 1f)) {
+                        Column {
+                            TabRow(selectedTabIndex = selectedTabIndex) {
+                                tabs.forEachIndexed { index, title ->
+                                    Tab(
+                                        selected = selectedTabIndex == index,
+                                        onClick = {
+                                            if (!isFullyTransparent) selectedTabIndex = index
+                                        },
+                                        text = { Text(title) }
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            when (selectedTabIndex) {
+                                0 -> Column {
+                                    LaunchedEffect(red, green, blue) {
+                                        currentColor = Color(red, green, blue, 1f)
+                                    }
+                                    ColorSlider("Red", red) { if (!isFullyTransparent) red = it }
+                                    ColorSlider("Green", green) {
+                                        if (!isFullyTransparent) green = it
+                                    }
+                                    ColorSlider("Blue", blue) { if (!isFullyTransparent) blue = it }
+                                }
+
+                                1 -> HsvColorPickerSquareSlider(
+                                    initialColor = currentColor.copy(alpha = 1f),
+                                    onColorChanged = { newColor ->
+                                        if (!isFullyTransparent) currentColor =
+                                            newColor.copy(alpha = 1f)
+                                    },
+                                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                                )
+                            }
+                        }
+                        if (isFullyTransparent) {
+                            Box(modifier = Modifier
+                                .matchParentSize()
+                                .clickable(enabled = false) {})
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Final Hex Logic
+                    val hexValue = colorToHexString(currentColor, isFullyTransparent)
+                    Text(
+                        "Hex: #$hexValue",
                         style = MaterialTheme.typography.caption,
                         modifier = Modifier.align(Alignment.End)
                     )
 
-                    // --- Action Buttons ---
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End // Align buttons to the end
+                        horizontalArrangement = Arrangement.End
                     ) {
-                        Button(
-                            onClick = onDismissRequest,
-                            // Use TextButton for less emphasis if desired
-                            // colors = ButtonDefaults.textButtonColors()
-                        ) {
-                            Text("Cancel")
-                        }
+                        TextButton(onClick = onDismissRequest) { Text("Cancel") }
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(onClick = {
-                            onColorSelected(currentColor)
-                            onDismissRequest() // Still need to dismiss
+                            val finalColor =
+                                if (isFullyTransparent) Color.Transparent else currentColor.copy(
+                                    alpha = 1f
+                                )
+                            onColorSelected(finalColor)
+                            onDismissRequest()
                         }) {
                             Text("OK")
                         }
@@ -648,6 +680,12 @@ private fun ColorSlider(
  * Returns Color.Black if parsing fails or format is invalid.
  */
 fun parseColor(hexString: String): Color {
+    if (hexString == "FFFFFFFF") {
+        // special case on garmin this is fully transparent
+        // even though the alpha channel is set to FF
+        return Color(red = 0xFF, green = 0xFF, blue = 0xFF, alpha = 0)
+    }
+
     val funcName = "parseColor"
     return try {
         var sanitized = hexString.trim().removePrefix("#").uppercase()
@@ -680,10 +718,10 @@ fun parseColor(hexString: String): Color {
 /**
  * Converts a Compose Color into an uppercase 8-character AARRGGBB hex string (without '#').
  */
-fun colorToHexString(color: Color): String {
+fun colorToHexString(color: Color, allowTransparent: Boolean = false): String {
     val argb = color.toArgb()
     val ret = argb.toLong().and(0xFFFFFFFF).toString(16).uppercase().padStart(8, '0')
-    if (ret == "FFFFFFFF") {
+    if (ret == "FFFFFFFF" && !allowTransparent) {
         // -1 is full transparent on the the watch, rather than being 00FFFFFF
         return "FEFFFFFF";
     }

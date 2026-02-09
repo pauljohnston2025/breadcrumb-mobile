@@ -179,6 +179,7 @@ fun DeviceSettings(
     val colorProps = remember(editableProperties) {
         listOf(
             "trackColour",
+            "trackColour2",
             "defaultRouteColour",
             "elevationColour",
             "userColour",
@@ -544,6 +545,7 @@ fun PropertyEditorResolver(property: EditableProperty<*>) {
     when (property.type) {
         PropertyType.STRING -> StringEditor(property as EditableProperty<String>)
         PropertyType.COLOR -> ColorEditor(property as EditableProperty<String>)
+        PropertyType.COLOR_TRANSPARENT -> TransparentColorEditor(property as EditableProperty<String>)
         PropertyType.NUMBER -> NumberEditor(property as EditableProperty<Int>)
         PropertyType.FLOAT -> FloatEditor(property as EditableProperty<Float>)
         PropertyType.ZERO_DISABLED_FLOAT -> ZeroDisabledFloatEditor(property as EditableProperty<Float>)
@@ -696,6 +698,70 @@ fun ColorEditor(property: EditableProperty<String>) {
             property.state.value = colorToHexString(selectedColor)
             // Dialog dismissal is handled by its own buttons triggering onDismissRequest
         },
+    )
+}
+
+@Composable
+fun TransparentColorEditor(property: EditableProperty<String>) {
+    // State to control the visibility of the color picker dialog
+    var showDialog by remember { mutableStateOf(false) }
+
+    // Get the current hex string state
+    val currentHex by property.state // Observe the state directly
+
+    // Parse the current hex string into a Compose Color for the preview/initial dialog state
+    // Use remember with currentHex as key to recalculate only when hex changes
+    val currentColor = remember(currentHex) { parseColor(currentHex) }
+
+    PropertyEditorRow(
+        label = property.label,
+        description = property.description,
+    ) { // Assuming you still use this layout helper
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            // Clickable Color Preview Box
+            Box(
+                modifier = Modifier
+                    .size(36.dp) // Adjust size as needed
+                    .clip(MaterialTheme.shapes.small)
+                    .background(currentColor)
+                    .border(
+                        width = 1.dp,
+                        // Use LocalContentColor for border to adapt to theme light/dark
+                        color = LocalContentColor.current.copy(alpha = ContentAlpha.disabled),
+                        shape = MaterialTheme.shapes.small,
+                    )
+                    .clickable { showDialog = true }, // Open the dialog on click
+            )
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            // Display the Hex value (read-only)
+            Text(
+                text = "#${currentHex.uppercase()}", // Display with # prefix
+                style = MaterialTheme.typography.body2, // Or caption
+                modifier = Modifier
+                    .align(Alignment.CenterVertically)
+                    .width(90.dp)
+                    .clickable { showDialog = true }, // Open the dialog on click
+            )
+        }
+    }
+
+    // Conditionally display the ColorPickerDialog
+    // Pass currentColor derived from the state. It acts as the initial value
+    // when the dialog opens.
+    ColorPickerDialog(
+        initialColor = currentColor,
+        showDialog = showDialog,
+        onDismissRequest = { showDialog = false }, // Lambda to close the dialog
+        onColorSelected = { selectedColor ->
+            // Update the property's state with the new hex string
+            // This will trigger recomposition, ColorEditor will recalculate currentColor,
+            // and the preview box will update.
+            property.state.value = colorToHexString(selectedColor)
+            // Dialog dismissal is handled by its own buttons triggering onDismissRequest
+        },
+        allowTransparent = true
     )
 }
 

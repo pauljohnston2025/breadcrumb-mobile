@@ -35,6 +35,7 @@ data class RouteItem(
     val colour: String = "FF0000FF", // Default to opaque Blue (AARRGGBB)
     val style: Number = 0,
     val width: Number = 4,
+    val colour2: String = "FFFFFFFF", // Default to fully transparent (-1)
 ) {
     companion object {
         fun fromDict(map: Map<*, *>): RouteItem {
@@ -45,7 +46,8 @@ data class RouteItem(
                 reversed = map["reversed"] as Boolean,
                 colour = padColorString(map["colour"] as String),
                 style = map["style"] as? Number ?: 0,
-                width = map["width"] as? Number ?: 4
+                width = map["width"] as? Number ?: 4,
+                colour2 = padColorString(map["colour2"] as? String ?: "FFFFFFFF")
             )
         }
     }
@@ -58,7 +60,8 @@ data class RouteItem(
             "reversed" to reversed,
             "colour" to colour,
             "style" to style,
-            "width" to width
+            "width" to width,
+            "colour2" to colour2
         )
     }
 }
@@ -86,6 +89,7 @@ enum class PropertyType {
     STRING,
     ARRAY,  // Special handling needed
     COLOR,  // Treat as String for now, potential for color picker later
+    COLOR_TRANSPARENT,  // Treat as String for now, potential for color picker later
     UNKNOWN,
     SPORT,
 }
@@ -475,6 +479,20 @@ class DeviceSettings(
                         EditableProperty(
                             key,
                             PropertyType.COLOR,
+                            mutableStateOf(padColorString(colorString)),
+                            padColorString(originalString),
+                            description = description,
+                            label = label
+                        )
+                    }
+
+                    // --- Transparent Colors ---
+                    "trackColour2" -> {
+                        // Safe cast and default to a guaranteed valid color string
+                        val colorString = (value as? String) ?: "FF0000FF"
+                        EditableProperty(
+                            key,
+                            PropertyType.COLOR_TRANSPARENT,
                             mutableStateOf(padColorString(colorString)),
                             padColorString(originalString),
                             description = description,

@@ -37,6 +37,8 @@ fun RouteItemRow(
     onDeleteClick: () -> Unit // Add confirmation logic before calling this in real app
 ) {
     val routeColor = remember(route.colour) { parseColor(route.colour) } // Use your updated parser
+    val routeColor2 = remember(route.colour2) { parseColor(route.colour2) } // Use your updated parser
+    val styleLabel = trackStyles.find { it.value == route.style.toInt() }?.display ?: "Unknown"
 
     Row(
         modifier = Modifier
@@ -57,6 +59,13 @@ fun RouteItemRow(
                     .background(routeColor)
                     .border(1.dp, LocalContentColor.current.copy(alpha = ContentAlpha.disabled), MaterialTheme.shapes.small)
             )
+            Box(
+                modifier = Modifier
+                    .size(24.dp)
+                    .clip(MaterialTheme.shapes.small)
+                    .background(routeColor2)
+                    .border(1.dp, LocalContentColor.current.copy(alpha = ContentAlpha.disabled), MaterialTheme.shapes.small)
+            )
             Spacer(Modifier.width(12.dp))
             Column {
                 Text(
@@ -69,6 +78,11 @@ fun RouteItemRow(
                 Text(
                     // Concise status, maybe include ID if useful and not editing
                     "ID: ${route.routeId} - ${if (route.enabled) "Enabled" else "Disabled"}  ${if (route.reversed) "Reversed" else "Forward"}",
+                    style = MaterialTheme.typography.caption,
+                    color = LocalContentColor.current.copy(alpha = ContentAlpha.medium)
+                )
+                Text(
+                    "Style: ${styleLabel} - Width: ${route.width}px",
                     style = MaterialTheme.typography.caption,
                     color = LocalContentColor.current.copy(alpha = ContentAlpha.medium)
                 )
