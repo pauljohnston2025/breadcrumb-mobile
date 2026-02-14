@@ -858,6 +858,7 @@ fun KmpMapAttributionDisplay(
 
     if (annotatedString.text.isBlank()) return // Double check if anything was actually appended
 
+    @Suppress("DEPRECATION")
     ClickableText(
         text = annotatedString,
         modifier = modifier,

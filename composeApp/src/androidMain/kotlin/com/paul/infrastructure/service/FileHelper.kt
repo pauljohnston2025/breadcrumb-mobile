@@ -72,7 +72,7 @@ class FileHelper(
                 continuation.resumeWithException(Exception("failed to load file: $uri"))
             } else {
                 Napier.d("Load file: " + uri.toString())
-                continuation.resume(uri.toString()) {
+                continuation.resume(uri.toString()) { cause, _, _ ->
                     Napier.d("failed to resume")
                 }
             }

@@ -117,6 +117,11 @@ class KomootRepository {
         return CoordinatesRoute(name, points, directions.map { DirectionInfo(it.index) })
     }
 
+    private val json = Json {
+        isLenient = true
+        ignoreUnknownKeys = true
+    }
+
     private suspend fun parseGpxRouteFromKomoot(komootUrl: String): KomootSetPropsRoot? {
         val response = client.get(komootUrl)
         if (response.status.isSuccess()) {
@@ -131,11 +136,9 @@ class KomootRepository {
             if (jsonStringEscaped == null) {
                 throw RuntimeException("could find json in komoot webpage")
             }
-            val jsonString = Json {
-                isLenient = true
-            }.decodeFromString<String>(jsonStringEscaped)
+            val jsonString = json.decodeFromString<String>(jsonStringEscaped)
 
-            val root = Json { ignoreUnknownKeys = true }.decodeFromString<KomootSetPropsRoot>(
+            val root = json.decodeFromString<KomootSetPropsRoot>(
                 jsonString
             )
 //            Napier.d("$root")

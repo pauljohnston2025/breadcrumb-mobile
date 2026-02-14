@@ -47,7 +47,7 @@ class Connection(private val context: Context) : IConnection() {
         if (isConnected) {
             // we are already connected, todo handle the case where 2 callers call connect at the same time (before onSdkReady is called)
             // need to make an outstanding task that gets returned?
-            continuation.resume(Unit) {
+            continuation.resume(Unit) { cause, _, _ ->
                 Napier.d("cancelled whilst resuming")
             }
         } else {
@@ -67,7 +67,7 @@ class Connection(private val context: Context) : IConnection() {
                 override fun onSdkReady() {
                     Napier.d("onSdkReady()")
                     isConnected = true
-                    continuation.resume(Unit) {
+                    continuation.resume(Unit) { cause, _, _ ->
                         Napier.d("cancelled whilst resuming")
                     }
                 }
@@ -124,6 +124,7 @@ class Connection(private val context: Context) : IConnection() {
                     // they can add the other options array.
                     // or it's aside effect of how im sending it?
                     // There does not seem to be any other way though
+                    @Suppress("UNCHECKED_CAST")
                     trySendBlocking(Response.decode(messageData[0] as List<Any>))
                 } else {
                     cancel(CancellationException("Device Listen: $status"))
@@ -177,7 +178,7 @@ class Connection(private val context: Context) : IConnection() {
                             "app info: " + iqApp.version() + " " + iqApp.displayName + " " + iqApp.status + " " + iqApp.applicationId
                         )
 
-                        continuation.resume(AppInfo(iqApp.version())) {
+                        continuation.resume(AppInfo(iqApp.version())) { cause, _, _ ->
                             Napier.d("cancelled whilst resuming")
                         }
                     }
@@ -215,7 +216,7 @@ class Connection(private val context: Context) : IConnection() {
                         if (!completed) {
                             // we get PROMPT_NOT_SHOWN_ON_DEVICE if the app is already open, so mark it as success
                             if (status == ConnectIQ.IQOpenApplicationStatus.PROMPT_SHOWN_ON_DEVICE || status == ConnectIQ.IQOpenApplicationStatus.PROMPT_NOT_SHOWN_ON_DEVICE) {
-                                continuation.resume(Unit) {
+                                continuation.resume(Unit) { cause, _, _ ->
                                     Napier.d("cancelled whilst resuming")
                                 }
                             } else {
@@ -257,6 +258,7 @@ class Connection(private val context: Context) : IConnection() {
                 started.complete(Unit)
                 deviceMessages(device).collect {
                     if (it != null && it.type == type) {
+                        @Suppress("UNCHECKED_CAST")
                         fut.complete(it as T)
                         cancel()
                     }
@@ -306,7 +308,7 @@ class Connection(private val context: Context) : IConnection() {
 
                     completed = true
                     Napier.d("onMessageStatus: reciver.send")
-                    continuation.resume(Unit) {
+                    continuation.resume(Unit) { cause, _, _ ->
                         Napier.d("cancelled whilst resuming")
                     }
                 }

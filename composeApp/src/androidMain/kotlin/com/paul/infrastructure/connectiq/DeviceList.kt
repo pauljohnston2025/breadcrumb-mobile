@@ -35,7 +35,7 @@ class DeviceList(private val connection: Connection) : IDeviceList {
         val toAdd = CommonDeviceImpl(device)
         // on disconnect and reconnect it seems to loose its name
         toAdd.friendlyName =
-            if (toAdd.friendlyName != null && toAdd.friendlyName != "") toAdd.friendlyName else oldDevice?.friendlyName
+            if (toAdd.friendlyName != "") toAdd.friendlyName else oldDevice?.friendlyName
                 ?: ""
 
         // dummy device for testing

@@ -99,6 +99,7 @@ fun DeviceSettings(
     val editableProperties = deviceSettings.propertyDefinitions
     // --- State Management ---
     val mapEnabledProp = remember(editableProperties) {
+        @Suppress("UNCHECKED_CAST")
         editableProperties.find { it.id == "mapEnabled" } as? EditableProperty<Boolean>
     }
     val showMapSection by mapEnabledProp?.state ?: remember { mutableStateOf(false) }

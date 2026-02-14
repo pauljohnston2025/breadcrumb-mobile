@@ -7,6 +7,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import com.benasher44.uuid.uuid4
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone.Companion.currentSystemDefault
 import kotlinx.datetime.toLocalDateTime
@@ -47,6 +48,7 @@ object DebugLogRepository {
 
     // Optional: Function to clear logs (if needed from ViewModel/UI)
     // This only clears the replay buffer, existing collectors won't lose past logs
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun clearLogs() {
         _logFlow.resetReplayCache()
         // You might want to add a special "Logs Cleared" entry

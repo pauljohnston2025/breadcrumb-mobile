@@ -168,13 +168,15 @@ class ProfilesViewModel(
         }
     }
 
+    private val json1 = Json {
+        prettyPrint = true
+    }
+
     fun exportProfile(profile: Profile) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val exported = profile.export(tileServerRepo, colourPaletteRepo)
-                clipboardHandler.copyTextToClipboard(Json {
-                    prettyPrint = true
-                }.encodeToString(exported))
+                clipboardHandler.copyTextToClipboard(json1.encodeToString(exported))
                 // already logged in clipboard handler
                 // snackbarHostState.showSnackbar("Profile copied to clipboard")
             } catch (t: Throwable) {
@@ -230,11 +232,13 @@ class ProfilesViewModel(
         }
     }
 
+    private val json2 = Json { ignoreUnknownKeys = true }
+
     fun onImportProfile(json: String) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val exportedProfile =
-                    Json { ignoreUnknownKeys = true }.decodeFromString<ExportedProfile>(json)
+                    json2.decodeFromString<ExportedProfile>(json)
                 if (profileRepo.get(exportedProfile.profileSettings.id) != null) {
 
                     snackbarHostState.showSnackbar("Profile id already exists, skipping")
