@@ -24,8 +24,10 @@ datetime = "0.6.2"
 napier = "2.7.1"
 androidxFragment = "1.7.1"
 garmin-ciq-sdk = "2.3.0"
+reorderable = "2.4.1"
 
 [libraries]
+reorderable = { group = "sh.calvin.reorderable", name = "reorderable", version.ref = "reorderable" }
 androidx-fragment = { group = "androidx.fragment", name = "fragment-ktx", version.ref = "androidxFragment" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 kotlin-test-junit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }

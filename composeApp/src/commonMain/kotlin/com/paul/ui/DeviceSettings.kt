@@ -1,8 +1,12 @@
 package com.paul.ui
 
+import com.paul.ui.OrderedListPopupEditor
+import com.paul.ui.OrderedListSummary
+import com.paul.ui.PropertyEditorRow
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -22,7 +26,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.*
+import androidx.compose.material.icons.filled.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.Button
 import androidx.compose.material.ContentAlpha
@@ -39,7 +51,11 @@ import androidx.compose.material.OutlinedTextField
 import androidx.compose.material.Switch
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -52,8 +68,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import com.paul.composables.ColorPickerDialog
 import com.paul.composables.LoadingOverlay
 import com.paul.composables.RoutesArrayEditor
@@ -61,8 +80,10 @@ import com.paul.composables.colorToHexString
 import com.paul.composables.parseColor
 import com.paul.viewmodels.DeviceSettings
 import com.paul.viewmodels.EditableProperty
+import com.paul.viewmodels.ListOption
 import com.paul.viewmodels.PropertyType
 import com.paul.viewmodels.RouteItem
+import com.paul.viewmodels.modes
 import io.github.aakira.napier.Napier
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
@@ -90,6 +111,7 @@ fun DeviceSettings(
     val generalProps = remember(editableProperties) {
         listOf(
             "activityType",
+            "modeDisplayOrder",
             "mode",
             "uiMode",
             "elevationMode",
@@ -98,6 +120,7 @@ fun DeviceSettings(
             "renderMode",
             "centerUserOffsetY",
             "displayLatLong",
+            "useStartForStop",
             "mapMoveScreenSize"
         ).mapNotNull { findProp(it) }
     }
@@ -343,6 +366,11 @@ fun DeviceSettings(
                                 Napier.d("Error transforming routes list for saving for key '$key': ${e.message}")
                                 key to emptyList<Map<String, Any>>()
                             }
+                        } else if (key == "modeDisplayOrder" && currentValue is List<*>) {
+                            // Filter to ensure we only have ListOptions, then join values with commas
+                            val csvList = (currentValue as List<*>).filterIsInstance<ListOption>()
+                                .joinToString(",") { it.value.toString() }
+                            key to csvList
                         } else {
                             // For all other properties, use the value directly
                             key to currentValue
@@ -554,72 +582,28 @@ fun PropertyEditorResolver(property: EditableProperty<*>) {
         PropertyType.LIST_NUMBER -> ListNumberEditor(property as EditableProperty<Int>)
         PropertyType.UNKNOWN -> UnknownTypeEditor(property) // Handle unknown gracefully
         PropertyType.SPORT -> SportAndSubSportPicker(property as EditableProperty<Int>)
-    }
-}
+        PropertyType.CSV_ORDERED_LIST -> {
+            var showPopup by remember { mutableStateOf(false) }
+            val typedProperty = property as EditableProperty<MutableList<ListOption>>
 
+            // 1. Show the placeholder summary
+            OrderedListSummary(
+                property = typedProperty,
+                onEditClick = { showPopup = true }
+            )
 
-// Generic Row Layout for Editors
-@Composable
-fun PropertyEditorRow(
-    label: String,
-    modifier: Modifier = Modifier,
-    description: String? = null, // Add description parameter
-//    content: @Composable BoxScope.() -> Unit
-    content: @Composable RowScope.() -> Unit,
-) {
-    Column { // Wrap the Row and Divider in a Column for better structure
-        Row(
-            modifier = modifier
-                .fillMaxWidth()
-                .defaultMinSize(minHeight = 56.dp)
-                .padding(vertical = 8.dp, horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // Column for Label and Description
-            Column(
-                modifier = Modifier,
-//                    .weight(1f) // Takes available horizontal space
-//                    .padding(end = 16.dp) // Padding between label/desc and controls
-            ) {
-                Row(
-                    Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    // Main Label Text
-                    Text(
-                        text = label,
-                        style = MaterialTheme.typography.body1, // Or subtitle1
-                    )
-
-                    Spacer(Modifier.weight(1f)) // fill the gap in the iddle to push the box to the right
-
-//                    Box(
-//                        // enough room for description to render on the left, of the content gets to wide and
-//                        // the description is long the description become vertical and makes this item take
-//                        // up too much space
-//                        modifier = Modifier.widthIn(100.dp, 200.dp),
-//                        contentAlignment = Alignment.CenterEnd
-//                    ) {
-                    content()
-//                    }
-                }
-
-                // Conditional Description Text
-                if (!description.isNullOrBlank()) { // Check if description exists and isn't empty
-                    Text(
-                        text = description,
-                        style = MaterialTheme.typography.caption, // Smaller style
-                        color = LocalContentColor.current.copy(alpha = ContentAlpha.medium), // De-emphasize
-                        modifier = Modifier
-                            .padding(top = 2.dp)
-                            .fillMaxWidth(),
-                    )
-                }
+            // 2. Show the modal when requested
+            if (showPopup) {
+                OrderedListPopupEditor(
+                    property = typedProperty,
+                    allAvailableOptions = modes,
+                    onDismiss = { showPopup = false }
+                )
             }
         }
-        Divider(modifier = Modifier.padding(start = 16.dp, end = 16.dp)) // Indent divider slightly
     }
 }
+
 
 // --- Specific Editors ---
 @Composable
@@ -1008,6 +992,7 @@ fun PropertyRow(
         )
     }
 }
+
 @OptIn(ExperimentalMaterialApi::class)
 @Composable
 fun ListNumberEditor(property: EditableProperty<Int>) {
@@ -1057,188 +1042,206 @@ data class Sport(val name: String, val value: Int, val subSports: List<SubSport>
 
 val sportsData = listOf(
     // CAT_RUN
-    Sport("Running", 1000, listOf(
-        SubSport("Running", 1000),
-        SubSport("Treadmill", 1001),
-        SubSport("Street", 1002),
-        SubSport("Trail", 1003),
-        SubSport("Track", 1004),
-        SubSport("Indoor", 1045),
-        SubSport("Virtual", 1058),
-        SubSport("Obstacle", 1059),
-        SubSport("Ultra", 1067)
-    )),
+    Sport(
+        "Running", 1000, listOf(
+            SubSport("Running", 1000),
+            SubSport("Treadmill", 1001),
+            SubSport("Street", 1002),
+            SubSport("Trail", 1003),
+            SubSport("Track", 1004),
+            SubSport("Indoor", 1045),
+            SubSport("Virtual", 1058),
+            SubSport("Obstacle", 1059),
+            SubSport("Ultra", 1067)
+        )
+    ),
 
     // CAT_CYCLE
-    Sport("Cycling", 2000, listOf(
-        SubSport("Cycling", 2000),
-        SubSport("Spin", 2005),
-        SubSport("Indoor", 2006),
-        SubSport("Road", 2007),
-        SubSport("Mountain", 2008),
-        SubSport("Downhill", 2009),
-        SubSport("Recumbent", 2010),
-        SubSport("Cyclocross", 2011),
-        SubSport("Hand", 2012),
-        SubSport("Track", 2013),
-        SubSport("BMX", 2029),
-        SubSport("Gravel", 2046),
-        SubSport("Commute", 2048),
-        SubSport("Mixed Surface", 2049),
-        SubSport("E-Bike", 21000),
-        SubSport("E-Bike Fitness", 21028),
-        SubSport("E-Bike Mountain", 21047)
-    )),
+    Sport(
+        "Cycling", 2000, listOf(
+            SubSport("Cycling", 2000),
+            SubSport("Spin", 2005),
+            SubSport("Indoor", 2006),
+            SubSport("Road", 2007),
+            SubSport("Mountain", 2008),
+            SubSport("Downhill", 2009),
+            SubSport("Recumbent", 2010),
+            SubSport("Cyclocross", 2011),
+            SubSport("Hand", 2012),
+            SubSport("Track", 2013),
+            SubSport("BMX", 2029),
+            SubSport("Gravel", 2046),
+            SubSport("Commute", 2048),
+            SubSport("Mixed Surface", 2049),
+            SubSport("E-Bike", 21000),
+            SubSport("E-Bike Fitness", 21028),
+            SubSport("E-Bike Mountain", 21047)
+        )
+    ),
 
     // CAT_WALK_MULTI
-    Sport("Walking & Multi", 11000, listOf(
-        SubSport("Walking", 11000),
-        SubSport("Indoor Walking", 11027),
-        SubSport("Casual Walking", 11030),
-        SubSport("Speed Walking", 11031),
-        SubSport("Multisport", 18000),
-        SubSport("Triathlon", 18078),
-        SubSport("Duathlon", 18079),
-        SubSport("Brick", 18080),
-        SubSport("Swimrun", 18081),
-        SubSport("Adventure Race", 18082),
-        SubSport("Transition", 3000)
-    )),
+    Sport(
+        "Walking & Multi", 11000, listOf(
+            SubSport("Walking", 11000),
+            SubSport("Indoor Walking", 11027),
+            SubSport("Casual Walking", 11030),
+            SubSport("Speed Walking", 11031),
+            SubSport("Multisport", 18000),
+            SubSport("Triathlon", 18078),
+            SubSport("Duathlon", 18079),
+            SubSport("Brick", 18080),
+            SubSport("Swimrun", 18081),
+            SubSport("Adventure Race", 18082),
+            SubSport("Transition", 3000)
+        )
+    ),
 
     // CAT_GYM
-    Sport("Fitness & Gym", 4000, listOf(
-        SubSport("Fitness Equipment", 4000),
-        SubSport("Indoor Rowing", 4014),
-        SubSport("Elliptical", 4015),
-        SubSport("Stair Climbing", 4016),
-        SubSport("Strength", 4020),
-        SubSport("Cardio", 4026),
-        SubSport("Yoga", 4043),
-        SubSport("Pilates", 4044),
-        SubSport("Indoor Climbing", 4068),
-        SubSport("Bouldering", 4069),
-        SubSport("Floor Climbing", 48000),
-        SubSport("HIIT", 62000),
-        SubSport("HIIT AMRAP", 62073),
-        SubSport("HIIT EMOM", 62074),
-        SubSport("HIIT Tabata", 62075)
-    )),
+    Sport(
+        "Fitness & Gym", 4000, listOf(
+            SubSport("Fitness Equipment", 4000),
+            SubSport("Indoor Rowing", 4014),
+            SubSport("Elliptical", 4015),
+            SubSport("Stair Climbing", 4016),
+            SubSport("Strength", 4020),
+            SubSport("Cardio", 4026),
+            SubSport("Yoga", 4043),
+            SubSport("Pilates", 4044),
+            SubSport("Indoor Climbing", 4068),
+            SubSport("Bouldering", 4069),
+            SubSport("Floor Climbing", 48000),
+            SubSport("HIIT", 62000),
+            SubSport("HIIT AMRAP", 62073),
+            SubSport("HIIT EMOM", 62074),
+            SubSport("HIIT Tabata", 62075)
+        )
+    ),
 
     // CAT_WATER
-    Sport("Water Sports", 5000, listOf(
-        SubSport("Swimming", 5000),
-        SubSport("Lap Swimming", 5017),
-        SubSport("Open Water", 5018),
-        SubSport("Rowing", 15000),
-        SubSport("Paddling", 19000),
-        SubSport("Boating", 23000),
-        SubSport("Boating / Sailing", 23032),
-        SubSport("Sailing", 32000),
-        SubSport("Sailing Race", 32065),
-        SubSport("SUP", 37000),
-        SubSport("Surfing", 38000),
-        SubSport("Wakeboarding", 39000),
-        SubSport("Water Skiing", 40000),
-        SubSport("Kayaking", 41000),
-        SubSport("White Water Kayak", 41041),
-        SubSport("Rafting", 42000),
-        SubSport("White Water Rafting", 42041),
-        SubSport("Windsurfing", 43000),
-        SubSport("Kitesurfing", 44000),
-        SubSport("Tubing", 76000),
-        SubSport("Wakesurfing", 77000)
-    )),
+    Sport(
+        "Water Sports", 5000, listOf(
+            SubSport("Swimming", 5000),
+            SubSport("Lap Swimming", 5017),
+            SubSport("Open Water", 5018),
+            SubSport("Rowing", 15000),
+            SubSport("Paddling", 19000),
+            SubSport("Boating", 23000),
+            SubSport("Boating / Sailing", 23032),
+            SubSport("Sailing", 32000),
+            SubSport("Sailing Race", 32065),
+            SubSport("SUP", 37000),
+            SubSport("Surfing", 38000),
+            SubSport("Wakeboarding", 39000),
+            SubSport("Water Skiing", 40000),
+            SubSport("Kayaking", 41000),
+            SubSport("White Water Kayak", 41041),
+            SubSport("Rafting", 42000),
+            SubSport("White Water Rafting", 42041),
+            SubSport("Windsurfing", 43000),
+            SubSport("Kitesurfing", 44000),
+            SubSport("Tubing", 76000),
+            SubSport("Wakesurfing", 77000)
+        )
+    ),
 
     // CAT_WINTER
-    Sport("Winter Sports", 58000, listOf(
-        SubSport("Winter Sports", 58000),
-        SubSport("XC Skiing", 12000),
-        SubSport("XC Skate Ski", 12042),
-        SubSport("Alpine Skiing", 13000),
-        SubSport("Backcountry Ski", 13037),
-        SubSport("Resort Ski", 13038),
-        SubSport("Snowboarding", 14000),
-        SubSport("Backcountry Snowboard", 14037),
-        SubSport("Resort Snowboard", 14038),
-        SubSport("Ice Skating", 33000),
-        SubSport("Ice Skating / Hockey", 33073),
-        SubSport("Snowshoeing", 35000),
-        SubSport("Snowmobiling", 36000)
-    )),
+    Sport(
+        "Winter Sports", 58000, listOf(
+            SubSport("Winter Sports", 58000),
+            SubSport("XC Skiing", 12000),
+            SubSport("XC Skate Ski", 12042),
+            SubSport("Alpine Skiing", 13000),
+            SubSport("Backcountry Ski", 13037),
+            SubSport("Resort Ski", 13038),
+            SubSport("Snowboarding", 14000),
+            SubSport("Backcountry Snowboard", 14037),
+            SubSport("Resort Snowboard", 14038),
+            SubSport("Ice Skating", 33000),
+            SubSport("Ice Skating / Hockey", 33073),
+            SubSport("Snowshoeing", 35000),
+            SubSport("Snowmobiling", 36000)
+        )
+    ),
 
     // CAT_RACKET_BALL
-    Sport("Racket & Ball", 64000, listOf(
-        SubSport("Racket Sports", 64000),
-        SubSport("Pickleball", 64084),
-        SubSport("Padel", 64085),
-        SubSport("Squash", 64094),
-        SubSport("Badminton", 64095),
-        SubSport("Racquetball", 64096),
-        SubSport("Table Tennis", 64097),
-        SubSport("Basketball", 6000),
-        SubSport("Soccer", 7000),
-        SubSport("Tennis", 8000),
-        SubSport("American Football", 9000),
-        SubSport("Baseball", 49000),
-        SubSport("Softball Fast", 50000),
-        SubSport("Softball Slow", 51000),
-        SubSport("Team Sport", 70000),
-        SubSport("Ultimate Disc", 70092),
-        SubSport("Cricket", 71000),
-        SubSport("Rugby", 72000),
-        SubSport("Hockey", 73000),
-        SubSport("Field Hockey", 73090),
-        SubSport("Ice Hockey", 73091),
-        SubSport("Lacrosse", 74000),
-        SubSport("Volleyball", 75000)
-    )),
+    Sport(
+        "Racket & Ball", 64000, listOf(
+            SubSport("Racket Sports", 64000),
+            SubSport("Pickleball", 64084),
+            SubSport("Padel", 64085),
+            SubSport("Squash", 64094),
+            SubSport("Badminton", 64095),
+            SubSport("Racquetball", 64096),
+            SubSport("Table Tennis", 64097),
+            SubSport("Basketball", 6000),
+            SubSport("Soccer", 7000),
+            SubSport("Tennis", 8000),
+            SubSport("American Football", 9000),
+            SubSport("Baseball", 49000),
+            SubSport("Softball Fast", 50000),
+            SubSport("Softball Slow", 51000),
+            SubSport("Team Sport", 70000),
+            SubSport("Ultimate Disc", 70092),
+            SubSport("Cricket", 71000),
+            SubSport("Rugby", 72000),
+            SubSport("Hockey", 73000),
+            SubSport("Field Hockey", 73090),
+            SubSport("Ice Hockey", 73091),
+            SubSport("Lacrosse", 74000),
+            SubSport("Volleyball", 75000)
+        )
+    ),
 
     // CAT_OUTDOOR_GOLF
-    Sport("Outdoor & Golf", 17000, listOf(
-        SubSport("Hiking", 17000),
-        SubSport("Mountaineering", 16000),
-        SubSport("Golf", 25000),
-        SubSport("Hang Gliding", 26000),
-        SubSport("Horseback Riding", 27000),
-        SubSport("Hunting", 28000),
-        SubSport("Fishing", 29000),
-        SubSport("Rock Climbing", 31000),
-        SubSport("Indoor Rock Climbing", 31068),
-        SubSport("Bouldering", 31069),
-        SubSport("Sky Diving", 34000),
-        SubSport("Wingsuit", 34040),
-        SubSport("Disc Golf", 69000)
-    )),
+    Sport(
+        "Outdoor & Golf", 17000, listOf(
+            SubSport("Hiking", 17000),
+            SubSport("Mountaineering", 16000),
+            SubSport("Golf", 25000),
+            SubSport("Hang Gliding", 26000),
+            SubSport("Horseback Riding", 27000),
+            SubSport("Hunting", 28000),
+            SubSport("Fishing", 29000),
+            SubSport("Rock Climbing", 31000),
+            SubSport("Indoor Rock Climbing", 31068),
+            SubSport("Bouldering", 31069),
+            SubSport("Sky Diving", 34000),
+            SubSport("Wingsuit", 34040),
+            SubSport("Disc Golf", 69000)
+        )
+    ),
 
     // CAT_MISC
-    Sport("Misc", 0, listOf(
-        SubSport("Generic", 0),
-        SubSport("Training", 10000),
-        SubSport("Flying", 20000),
-        SubSport("Drone", 20039),
-        SubSport("Motorcycle", 22000),
-        SubSport("ATV", 22035),
-        SubSport("Motocross", 22036),
-        SubSport("Driving", 24000),
-        SubSport("Inline Skating", 30000),
-        SubSport("Tactical", 45000),
-        SubSport("Jumpmaster", 46000),
-        SubSport("Boxing", 47000),
-        SubSport("Shooting", 56000),
-        SubSport("Auto Racing", 57000),
-        SubSport("Grinding", 59000),
-        SubSport("Health Monitoring", 60000),
-        SubSport("Marine", 61000),
-        SubSport("Gaming", 63000),
-        SubSport("Esports", 63077),
-        SubSport("Wheelchair Walk", 65000),
-        SubSport("Wheelchair Walk Indoor", 65086),
-        SubSport("Wheelchair Run", 66000),
-        SubSport("Wheelchair Run Indoor", 66087),
-        SubSport("Meditation", 67000),
-        SubSport("Breathwork", 67062),
-        SubSport("Parasport", 68000)
-    ))
+    Sport(
+        "Misc", 0, listOf(
+            SubSport("Generic", 0),
+            SubSport("Training", 10000),
+            SubSport("Flying", 20000),
+            SubSport("Drone", 20039),
+            SubSport("Motorcycle", 22000),
+            SubSport("ATV", 22035),
+            SubSport("Motocross", 22036),
+            SubSport("Driving", 24000),
+            SubSport("Inline Skating", 30000),
+            SubSport("Tactical", 45000),
+            SubSport("Jumpmaster", 46000),
+            SubSport("Boxing", 47000),
+            SubSport("Shooting", 56000),
+            SubSport("Auto Racing", 57000),
+            SubSport("Grinding", 59000),
+            SubSport("Health Monitoring", 60000),
+            SubSport("Marine", 61000),
+            SubSport("Gaming", 63000),
+            SubSport("Esports", 63077),
+            SubSport("Wheelchair Walk", 65000),
+            SubSport("Wheelchair Walk Indoor", 65086),
+            SubSport("Wheelchair Run", 66000),
+            SubSport("Wheelchair Run Indoor", 66087),
+            SubSport("Meditation", 67000),
+            SubSport("Breathwork", 67062),
+            SubSport("Parasport", 68000)
+        )
+    )
 )
 
 @OptIn(ExperimentalMaterialApi::class)

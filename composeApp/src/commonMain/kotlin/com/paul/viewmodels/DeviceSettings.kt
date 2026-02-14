@@ -75,7 +75,8 @@ fun createNewRouteItem(idSuggestion: Int = -1): RouteItem {
         name = "New Route",
         enabled = true,
         reversed = false,
-        colour = "FF0000FF"
+        colour = "FF0000FF",
+        colour2 = "FFFFFFFF"
     )
 }
 
@@ -92,6 +93,7 @@ enum class PropertyType {
     COLOR_TRANSPARENT,  // Treat as String for now, potential for color picker later
     UNKNOWN,
     SPORT,
+    CSV_ORDERED_LIST,
 }
 
 data class ListOption(
@@ -151,14 +153,19 @@ val dataFieldTypes = listOf(
     ListOption(12, "Pace"),
 )
 
+val modes = listOf(
+    ListOption(0, "Track/Route"), // Replace with actual strings later
+    ListOption(1, "Elevation"),
+    ListOption(2, "Map Move"),
+    ListOption(3, "Debug"),
+    ListOption(4, "Zoom"),
+    ListOption(5, "Up/Down"),
+    ListOption(6, "Left/Right"),
+)
+
 // Place this somewhere accessible, like a constants file or companion object
 val listOptionsMapping: Map<String, List<ListOption>> = mapOf(
-    "mode" to listOf(
-        ListOption(0, "Track/Route Mode"), // Replace with actual strings later
-        ListOption(1, "Elevation Mode"),
-        ListOption(2, "Map Move Mode"),
-        ListOption(3, "Debug Mode")
-    ),
+    "mode" to modes,
     "zoomAtPaceMode" to listOf(
         ListOption(0, "Zoom When Moving"),
         ListOption(1, "Zoom When Stopped"),
@@ -342,6 +349,40 @@ class DeviceSettings(
                 )
             } else {
                 when (key) {
+                    "modeDisplayOrder" -> {
+                        val rawString = (value as? String) ?: ""
+
+                        // 1. Split CSV and Parse to Ints
+                        val rawIds = rawString.split(",")
+                            .map { it.trim() }
+                            .filter { it.isNotEmpty() }
+                            .mapNotNull { it.toIntOrNull() }
+
+                        // 2. Validate (Non-negative) and De-duplicate (keep first occurrence)
+                        val validatedIds = rawIds.filter { it >= 0 }.distinct()
+
+                        if (rawIds.size != validatedIds.size) {
+                            Napier.d("Cleaned up modeDisplayOrder: removed duplicates or invalid ints.")
+                            // Optional: show snackbar here if you want to notify user immediately
+                        }
+
+                        // 3. Map IDs to ListOption objects.
+                        // If an ID isn't in our 'modes' list, we create an "Unknown" placeholder
+                        // so we don't accidentally delete data the app doesn't recognize yet.
+                        val initialOrderedList = validatedIds.map { id ->
+                            modes.find { it.value == id } ?: ListOption(id, "Unknown ($id)")
+                        }.toMutableList()
+
+                        EditableProperty(
+                            key,
+                            PropertyType.CSV_ORDERED_LIST,
+                            mutableStateOf(initialOrderedList),
+                            originalString,
+                            options = modes, // This provides the full "Available" list for the UI to pick from
+                            description = "",
+                            label = "Mode Display Order"
+                        )
+                    }
                     // --- Sport ---
                     "activityType" -> EditableProperty(
                         key,
@@ -423,6 +464,7 @@ class DeviceSettings(
 
                     // --- Booleans ---
                     "mapEnabled",
+                    "useStartForStop",
                     "storageSeedBoundingBox",
                     "useDrawBitmap",
                     "drawCheverons",

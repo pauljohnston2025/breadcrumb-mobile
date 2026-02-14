@@ -1,5 +1,6 @@
 package com.paul.composables
 
+import com.paul.ui.PropertyEditorRow
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
@@ -8,7 +9,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.paul.ui.PropertyEditorRow
 import com.paul.viewmodels.EditableProperty
 import com.paul.viewmodels.RouteItem
 import com.paul.viewmodels.createNewRouteItem

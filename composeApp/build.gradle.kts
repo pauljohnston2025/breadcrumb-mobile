@@ -42,6 +42,7 @@ kotlin {
             implementation(libs.multiplatform.settings.no.arg)
             implementation(libs.serialization.json)
             implementation(libs.kotlinx.datetime)
+            implementation(libs.reorderable)
 
             implementation(libs.androidx.activity.compose)
             implementation(libs.androidx.navigation)
