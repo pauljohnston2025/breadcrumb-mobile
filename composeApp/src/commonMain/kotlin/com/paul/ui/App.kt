@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Column
 import android.annotation.SuppressLint
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.Button
 import androidx.compose.material.DrawerValue
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
@@ -22,6 +23,10 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
@@ -42,7 +47,9 @@ import com.paul.infrastructure.service.IFileHelper
 import com.paul.infrastructure.service.IGpxFileLoader
 import com.paul.infrastructure.service.ILocationService
 import com.paul.infrastructure.service.IntentHandler
+import com.paul.infrastructure.web.KtorClient.client
 import com.paul.infrastructure.web.WebServerController
+import com.paul.infrastructure.web.versionName
 import com.paul.viewmodels.DebugViewModel
 import com.paul.viewmodels.DeviceSettingsNavigationEvent
 import com.paul.viewmodels.MapViewModel
@@ -54,10 +61,13 @@ import com.paul.viewmodels.StartNavigationEvent
 import com.paul.viewmodels.MapViewNavigationEvent
 import com.paul.viewmodels.StartViewModel
 import com.paul.viewmodels.StorageViewModel
+import io.github.aakira.napier.Napier
+import io.ktor.client.request.head
 import kotlinx.coroutines.launch
 import com.paul.viewmodels.DeviceSelector as DeviceSelectorModel
 import com.paul.viewmodels.DeviceSettings as DeviceSettingsModel
 import com.paul.viewmodels.Settings as SettingsViewModel
+import androidx.compose.material.AlertDialog
 
 @Composable
 fun App(
@@ -73,6 +83,49 @@ fun App(
     locationService: ILocationService,
 
     ) {
+    // Inside the App composable:
+    var updateVersion by remember { mutableStateOf<String?>(null) }
+    val currentVersion = versionName()
+
+    LaunchedEffect(Unit) {
+        val latestUrl = "https://github.com/pauljohnston2025/breadcrumb-mobile/releases/latest"
+
+        try {
+            // Use a HEAD request to find the redirect tag without downloading the whole page
+            val response = client.head(latestUrl)
+            val finalUrl = response.call.request.url.toString()
+
+            // Extracts "0.0.16" from ".../tag/0.0.16"
+            val latestVersion = finalUrl.substringAfterLast("/")
+
+            if (latestVersion != currentVersion && latestVersion.isNotEmpty()) {
+                updateVersion = latestVersion
+            }
+        } catch (e: Exception) {
+            Napier.d("Update check failed: $e")
+        }
+    }
+
+    if (updateVersion != null) {
+        AlertDialog(
+            onDismissRequest = { updateVersion = null },
+            title = { Text("Update Available") },
+            text = { Text("A new version ($updateVersion) is available. Your version is ${currentVersion}.") },
+            confirmButton = {
+                Button(onClick = {
+                    webServerController.openWebPage("https://github.com/pauljohnston2025/breadcrumb-mobile/releases/latest")
+                }) {
+                    Text("Update Now")
+                }
+            },
+            dismissButton = {
+                Button(onClick = { updateVersion = null }) {
+                    Text("Later")
+                }
+            }
+        )
+    }
+
     AppTheme {
         val navController = rememberNavController()
         val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)

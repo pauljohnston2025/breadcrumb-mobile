@@ -19,6 +19,7 @@ import kotlinx.serialization.json.Json
 
 expect fun createHttpClientEngine(): HttpClientEngineFactory<*>
 expect fun platformInfo(): String
+expect fun versionName(): String
 
 object KtorClient {
 

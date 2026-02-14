@@ -11,6 +11,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+import android.net.Uri
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
@@ -33,6 +34,11 @@ class WebServerController(private val context: Context) : CommonWebServerControl
         {
             startWebServer()
         }
+    }
+
+    override fun openWebPage(url: String) {
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+        context.startActivity(intent)
     }
 
     override fun changeTileServerEnabled(tileServerEnabled: Boolean) {

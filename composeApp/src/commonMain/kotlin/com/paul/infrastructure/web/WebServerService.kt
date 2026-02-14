@@ -1,6 +1,8 @@
 package com.paul.infrastructure.web
 
 import android.app.Service.START_STICKY
+import android.content.Intent
+import android.net.Uri
 import com.paul.domain.ColourPalette
 import com.paul.infrastructure.repositories.ITileRepository
 import io.github.aakira.napier.Napier
@@ -96,6 +98,7 @@ val RequestLogging = createApplicationPlugin(name = "RequestLogging") {
 
 interface WebServerController {
     fun changeTileServerEnabled(tileServerEnabled: Boolean)
+    fun openWebPage(url: String)
 }
 
 class WebServerService(

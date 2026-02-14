@@ -1,5 +1,7 @@
 package com.paul.infrastructure.web
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import io.ktor.client.engine.HttpClientEngineFactory
 import io.ktor.client.engine.okhttp.* // Or import io.ktor.client.engine.android.*
@@ -16,3 +18,5 @@ actual fun platformInfo(): String
 
     return "($osName $osVersion $deviceModel)"
 }
+
+actual fun versionName(): String = com.paul.BuildConfig.VERSION_NAME
