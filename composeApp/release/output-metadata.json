@@ -11,8 +11,8 @@
       "type": "SINGLE",
       "filters": [],
       "attributes": [],
-      "versionCode": 239,
-      "versionName": "0.0.17",
+      "versionCode": 242,
+      "versionName": "0.0.18",
       "outputFile": "composeApp-release.apk"
     }
   ],
