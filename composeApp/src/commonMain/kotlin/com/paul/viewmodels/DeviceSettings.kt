@@ -387,7 +387,27 @@ class DeviceSettings(
 
         try {
             // --- Check for LIST_NUMBER properties FIRST ---
-            if (listOptionsMapping.containsKey(key)) {
+            if (key == "mode") {
+                val currentCountsCsv = settings.settings["dataFieldPageCounts"] as? String ?: ""
+                val pageCount = if (currentCountsCsv.isEmpty()) 0 else currentCountsCsv.split(",").filter { it.isNotEmpty() }.size
+
+                // Create the augmented list: Static Modes + Dynamic Data Pages
+                val fullAvailableOptions = modes.toMutableList()
+                for (i in 0 until pageCount) {
+                    fullAvailableOptions.add(ListOption(DATA_PAGE_BASE_ID + i, "Data Page $i"))
+                }
+
+                return@mapNotNull EditableProperty(
+                    key,
+                    PropertyType.LIST_NUMBER,
+                    mutableStateOf((value as? Int) ?: 0),
+                    originalString,
+                    options = fullAvailableOptions, // Injects Data Page 0, 1, etc.
+                    description = description,
+                    label = label
+                )
+            }
+            else if (listOptionsMapping.containsKey(key)) {
                 val options = listOptionsMapping[key]!! // Safe due to containsKey check
                 EditableProperty(
                     key,
