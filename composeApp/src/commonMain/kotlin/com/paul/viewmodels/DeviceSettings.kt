@@ -9,6 +9,8 @@ import androidx.lifecycle.viewModelScope
 import com.paul.composables.trackStyles
 import com.paul.domain.IqDevice
 import com.paul.infrastructure.connectiq.IConnection
+import com.paul.infrastructure.connectiq.IConnection.Companion.BREADCRUMB_APP_GLANCE_ID
+import com.paul.infrastructure.connectiq.IConnection.Companion.BREADCRUMB_APP_ID
 import com.paul.protocol.fromdevice.Settings
 import com.paul.protocol.todevice.SaveSettings
 import io.github.aakira.napier.Napier
@@ -234,11 +236,6 @@ val listOptionsMapping: Map<String, List<ListOption>> = mapOf(
         ListOption(3, "Always Zoom"),
         ListOption(4, "Routes Without Track"),
     ),
-    "uiMode" to listOf(
-        ListOption(0, "Show On Top"),
-        ListOption(1, "Hidden"),
-        ListOption(2, "Disabled")
-    ),
     "alertType" to listOf(
         ListOption(0, "Toast (notification)"),
         ListOption(1, "Alerts (requires enable in garmin settings)"),
@@ -416,6 +413,32 @@ class DeviceSettings(
                     label = label
                 )
             }
+            else if (key == "uiMode") {
+                val currentAppId = connection.connectIqAppIdFlow().value
+                val isAppType = currentAppId == BREADCRUMB_APP_ID || currentAppId == BREADCRUMB_APP_GLANCE_ID
+
+                // Define the base options that everyone gets
+                val uiOptions = mutableListOf(
+                    ListOption(0, "Show On Top"),
+                    ListOption(1, "Hidden"),
+                    ListOption(2, "Tap Disabled")
+                )
+
+                if (isAppType) {
+                    uiOptions.add(ListOption(3, "Show Touch Only"))
+                    uiOptions.add(ListOption(4, "Show Buttons Only"))
+                }
+
+                EditableProperty(
+                    id = key,
+                    type = PropertyType.LIST_NUMBER,
+                    state = mutableStateOf((value as? Int) ?: 0),
+                    stringVal = originalString,
+                    options = uiOptions, // This list is now context-aware
+                    description = description,
+                    label = label
+                )
+            }
             else if (listOptionsMapping.containsKey(key)) {
                 val options = listOptionsMapping[key]!! // Safe due to containsKey check
                 EditableProperty(
@@ -506,8 +529,6 @@ class DeviceSettings(
                     "maxTrackPoints",
                     "trackWidth",
                     "showDirectionPointTextUnderIndex",
-                    "mode",
-                    "uiMode",
                     "alertType",
                     "renderMode",
                     "elevationMode",
