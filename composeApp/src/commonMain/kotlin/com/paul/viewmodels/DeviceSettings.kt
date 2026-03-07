@@ -351,6 +351,7 @@ val labelOverrides: Map<String, String> = mapOf(
     "bottomDataType" to "Bottom Data Field Type",
     "recalculateIntervalS" to "Compute Interval (s)",
     "minTrackPointDistanceM" to "Min Track Point Distance (m)",
+    "autoLapDistanceM" to "Auto Lap Distance (m)",
 )
 
 val descriptions: Map<String, String> = mapOf(
@@ -552,6 +553,7 @@ class DeviceSettings(
                     "httpErrorTileTTLS",
                     "errorTileTTLS",
                     "minTrackPointDistanceM",
+                    "autoLapDistanceM",
                     "routeMax" -> EditableProperty(
                         key,
                         PropertyType.NUMBER,
@@ -643,6 +645,8 @@ class DeviceSettings(
                     "userColour",
                     "normalModeColour",
                     "uiColour",
+                    "dataFieldPageColour",
+                    "dataFieldPageColour2",
                     "debugColour" -> {
                         // Safe cast and default to a guaranteed valid color string
                         val colorString = (value as? String) ?: "FF0000FF"

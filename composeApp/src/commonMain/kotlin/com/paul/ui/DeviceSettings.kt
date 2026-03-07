@@ -125,6 +125,7 @@ fun DeviceSettings(
             "topDataType",
             "bottomDataType",
             "dataFieldTextSize",
+            "autoLapDistanceM",
             "dataFieldPagesEditor",
         ).mapNotNull { findProp(it) }
     }
@@ -195,6 +196,8 @@ fun DeviceSettings(
             "userColour",
             "normalModeColour",
             "uiColour",
+            "dataFieldPageColour",
+            "dataFieldPageColour2",
             "debugColour"
         ).mapNotNull { findProp(it) }
     }
