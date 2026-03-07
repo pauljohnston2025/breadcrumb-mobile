@@ -93,13 +93,65 @@ enum class PropertyType {
     COLOR_TRANSPARENT,  // Treat as String for now, potential for color picker later
     UNKNOWN,
     SPORT,
-    CSV_ORDERED_LIST,
+    CSV_ORDERED_MODE_LIST,
+    DATA_FIELD_PAGES,
 }
 
 data class ListOption(
     val value: Int, // The actual value stored (matches the property's Int state)
     val display: String // The user-friendly text shown in the dropdown
 )
+
+const val DATA_PAGE_BASE_ID = 100
+
+data class DataFieldPage(
+    val fields: MutableList<Int> = mutableListOf(0) // Default to one field (DATA_TYPE_NONE)
+) {
+    fun deepCopy(): DataFieldPage {
+        return DataFieldPage(fields.toMutableList())
+    }
+}
+
+/**
+ * Converts the flattened Garmin CSV strings into a nested List of DataFieldPage objects.
+ * * @param countsCsv The CSV string containing the number of fields per page (e.g., "1,2,1")
+ * @param typesCsv The CSV string containing the flattened field types (e.g., "0,4,2,1")
+ */
+fun createDataPagesFromCsv(countsCsv: String, typesCsv: String): MutableList<DataFieldPage> {
+    // 1. Parse the strings into Lists of Integers
+    val counts = countsCsv.split(",")
+        .mapNotNull { it.trim().toIntOrNull() }
+
+    val types = typesCsv.split(",")
+        .mapNotNull { it.trim().toIntOrNull() }
+
+    val pages = mutableListOf<DataFieldPage>()
+    var typeOffset = 0
+
+    // 2. Distribute the flattened types into Page objects based on the counts
+    for (count in counts) {
+        val pageFields = mutableListOf<Int>()
+
+        // Take 'count' number of elements from the types list starting at the current offset
+        for (i in 0 until count) {
+            if (typeOffset < types.size) {
+                pageFields.add(types[typeOffset])
+                typeOffset++
+            } else {
+                // If the types CSV is shorter than counts expect, pad with DATA_TYPE_NONE (0)
+                pageFields.add(0)
+            }
+        }
+        pages.add(DataFieldPage(pageFields))
+    }
+
+    // 3. Safety Check: If both strings were empty, provide one default page so the UI isn't empty
+    if (pages.isEmpty()) {
+        pages.add(DataFieldPage(mutableListOf(0)))
+    }
+
+    return pages
+}
 
 // Data class to hold the editable state in the UI
 data class EditableProperty<T>(
@@ -347,39 +399,65 @@ class DeviceSettings(
                     description = description,
                     label = label
                 )
+            } // --- Special Handling for Data Field Pages ---
+            else if (key == "dataFieldPageTypes") {
+                return@mapNotNull null // Skip, handled by counts key
+            } else if (key == "dataFieldPageCounts") {
+                val countsCsv = value as? String ?: ""
+                val typesCsv = settings.settings["dataFieldPageTypes"] as? String ?: ""
+                val initialPages = createDataPagesFromCsv(countsCsv, typesCsv)
+
+                return@mapNotNull EditableProperty(
+                    id = "dataFieldPagesEditor", // This is the ID our Save button looks for
+                    type = PropertyType.DATA_FIELD_PAGES,
+                    state = mutableStateOf(initialPages),
+                    stringVal = originalString,
+                    label = "Data Screen Layout",
+                    description = "Configure pages and data field types"
+                )
             } else {
                 when (key) {
                     "modeDisplayOrder" -> {
                         val rawString = (value as? String) ?: ""
-
-                        // 1. Split CSV and Parse to Ints
                         val rawIds = rawString.split(",")
                             .map { it.trim() }
                             .filter { it.isNotEmpty() }
                             .mapNotNull { it.toIntOrNull() }
+                            .filter { it >= 0 }
+                            .distinct()
 
-                        // 2. Validate (Non-negative) and De-duplicate (keep first occurrence)
-                        val validatedIds = rawIds.filter { it >= 0 }.distinct()
+                        // 1. Calculate how many pages we currently have to build dynamic labels
+                        val currentCountsCsv =
+                            settings.settings["dataFieldPageCounts"] as? String ?: ""
+                        val pageCount =
+                            if (currentCountsCsv.isEmpty()) 0 else currentCountsCsv.split(",").size
 
-                        if (rawIds.size != validatedIds.size) {
-                            Napier.d("Cleaned up modeDisplayOrder: removed duplicates or invalid ints.")
-                            // Optional: show snackbar here if you want to notify user immediately
+                        // 2. Build the full list of available options (Standard Modes + Dynamic Data Pages)
+                        val fullAvailableOptions = modes.toMutableList()
+                        for (i in 0 until pageCount) {
+                            fullAvailableOptions.add(
+                                ListOption(
+                                    DATA_PAGE_BASE_ID + i,
+                                    "(${DATA_PAGE_BASE_ID + i}) Data Page $i"
+                                )
+                            )
                         }
 
-                        // 3. Map IDs to ListOption objects.
-                        // If an ID isn't in our 'modes' list, we create an "Unknown" placeholder
-                        // so we don't accidentally delete data the app doesn't recognize yet.
-                        val initialOrderedList = validatedIds.map { id ->
-                            modes.find { it.value == id } ?: ListOption(id, "Unknown ($id)")
+                        // 3. Map IDs to ListOptions using the augmented list
+                        val initialOrderedList = rawIds.map { id ->
+                            fullAvailableOptions.find { it.value == id } ?: ListOption(
+                                id,
+                                "Unknown ($id)"
+                            )
                         }.toMutableList()
 
                         EditableProperty(
                             key,
-                            PropertyType.CSV_ORDERED_LIST,
+                            PropertyType.CSV_ORDERED_MODE_LIST,
                             mutableStateOf(initialOrderedList),
                             originalString,
-                            options = modes, // This provides the full "Available" list for the UI to pick from
-                            description = "",
+                            options = fullAvailableOptions,
+                            description = description,
                             label = "Mode Display Order"
                         )
                     }

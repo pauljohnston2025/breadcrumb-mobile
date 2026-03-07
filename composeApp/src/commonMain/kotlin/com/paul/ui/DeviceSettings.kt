@@ -1,12 +1,8 @@
 package com.paul.ui
 
-import com.paul.ui.OrderedListPopupEditor
-import com.paul.ui.OrderedListSummary
-import com.paul.ui.PropertyEditorRow
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -17,7 +13,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
@@ -28,9 +23,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.runtime.*
@@ -51,11 +43,7 @@ import androidx.compose.material.OutlinedTextField
 import androidx.compose.material.Switch
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDownward
-import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -68,11 +56,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import com.paul.composables.ColorPickerDialog
 import com.paul.composables.LoadingOverlay
 import com.paul.composables.RoutesArrayEditor
@@ -81,6 +65,7 @@ import com.paul.composables.parseColor
 import com.paul.viewmodels.DeviceSettings
 import com.paul.viewmodels.EditableProperty
 import com.paul.viewmodels.ListOption
+import com.paul.viewmodels.DataFieldPage
 import com.paul.viewmodels.PropertyType
 import com.paul.viewmodels.RouteItem
 import com.paul.viewmodels.modes
@@ -133,6 +118,7 @@ fun DeviceSettings(
             "minTrackPointDistanceM",
             "trackPointReductionMethod",
             "useTrackAsHeadingSpeedMPS",
+            "dataFieldPagesEditor",
         ).mapNotNull { findProp(it) }
     }
     val dataFieldProps = remember(editableProperties) {
@@ -345,38 +331,43 @@ fun DeviceSettings(
                 horizontalArrangement = Arrangement.SpaceEvenly,
             ) {
                 Button(onClick = {
-                    val updatedValues = editableProperties.associate { prop ->
+                    val updatedValues = editableProperties.flatMap { prop ->
                         val key = prop.id
-                        val currentValue = prop.state.value // Get the value from the MutableState
+                        val currentValue = prop.state.value
 
-                        // *** SPECIAL HANDLING FOR 'routes' ARRAY ***
-                        if (key == "routes" && currentValue is List<*>) { // Check key and type for safety
-                            try {
-                                // Attempt to cast to the specific list type we expect
+                        when {
+                            // --- DATA FIELD PAGES SPECIAL HANDLING ---
+                            // This converts your 1 UI Property into 2 Garmin CSV Strings
+                            key == "dataFieldPagesEditor" && currentValue is List<*> -> {
                                 @Suppress("UNCHECKED_CAST")
-                                val routeList = currentValue as List<RouteItem>
-
-                                // Transform the List<RouteItem> back into a List of Maps
-                                val serializableRouteList = routeList.map { routeItem ->
-                                    routeItem.toDict()
-                                }
-                                // Pair the "routes" key with the transformed List<Map<String, Any>>
-                                key to serializableRouteList
-                            } catch (e: Exception) {
-                                // Handle potential casting errors or other issues during transformation
-                                Napier.d("Error transforming routes list for saving for key '$key': ${e.message}")
-                                key to emptyList<Map<String, Any>>()
+                                val pages = currentValue as List<DataFieldPage>
+                                listOf(
+                                    "dataFieldPageCounts" to pages.joinToString(",") { it.fields.size.toString() },
+                                    "dataFieldPageTypes" to pages.flatMap { it.fields }
+                                        .joinToString(",")
+                                )
                             }
-                        } else if (key == "modeDisplayOrder" && currentValue is List<*>) {
-                            // Filter to ensure we only have ListOptions, then join values with commas
-                            val csvList = (currentValue as List<*>).filterIsInstance<ListOption>()
-                                .joinToString(",") { it.value.toString() }
-                            key to csvList
-                        } else {
-                            // For all other properties, use the value directly
-                            key to currentValue
+
+                            // --- ROUTES SPECIAL HANDLING ---
+                            key == "routes" && currentValue is List<*> -> {
+                                val serializable =
+                                    (currentValue as? List<RouteItem>)?.map { it.toDict() }
+                                        ?: emptyList()
+                                listOf(key to serializable)
+                            }
+
+                            // --- MODE DISPLAY ORDER SPECIAL HANDLING ---
+                            key == "modeDisplayOrder" && currentValue is List<*> -> {
+                                val csvList =
+                                    (currentValue as List<*>).filterIsInstance<ListOption>()
+                                        .joinToString(",") { it.value.toString() }
+                                listOf(key to csvList)
+                            }
+
+                            // --- DEFAULT CASE ---
+                            else -> listOf(key to currentValue)
                         }
-                    }
+                    }.toMap() // Converts the list of pairs into the final map
                     deviceSettings.onSave(updatedValues)
                 }) {
                     Text("Save")
@@ -583,7 +574,7 @@ fun PropertyEditorResolver(property: EditableProperty<*>) {
         PropertyType.LIST_NUMBER -> ListNumberEditor(property as EditableProperty<Int>)
         PropertyType.UNKNOWN -> UnknownTypeEditor(property) // Handle unknown gracefully
         PropertyType.SPORT -> SportAndSubSportPicker(property as EditableProperty<Int>)
-        PropertyType.CSV_ORDERED_LIST -> {
+        PropertyType.CSV_ORDERED_MODE_LIST -> {
             var showPopup by remember { mutableStateOf(false) }
             val typedProperty = property as EditableProperty<MutableList<ListOption>>
 
@@ -597,10 +588,14 @@ fun PropertyEditorResolver(property: EditableProperty<*>) {
             if (showPopup) {
                 OrderedListPopupEditor(
                     property = typedProperty,
-                    allAvailableOptions = modes,
+                    allAvailableOptions = property.options!!,
                     onDismiss = { showPopup = false }
                 )
             }
+        }
+        PropertyType.DATA_FIELD_PAGES -> {
+            val typedProperty = property as EditableProperty<MutableList<DataFieldPage>>
+            DataFieldPagesEditor(property = typedProperty)
         }
     }
 }
