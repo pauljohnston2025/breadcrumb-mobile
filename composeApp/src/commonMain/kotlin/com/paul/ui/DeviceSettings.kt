@@ -118,7 +118,6 @@ fun DeviceSettings(
             "minTrackPointDistanceM",
             "trackPointReductionMethod",
             "useTrackAsHeadingSpeedMPS",
-            "dataFieldPagesEditor",
         ).mapNotNull { findProp(it) }
     }
     val dataFieldProps = remember(editableProperties) {
@@ -126,6 +125,7 @@ fun DeviceSettings(
             "topDataType",
             "bottomDataType",
             "dataFieldTextSize",
+            "dataFieldPagesEditor",
         ).mapNotNull { findProp(it) }
     }
     val zoomProps = remember(editableProperties) {
@@ -594,8 +594,22 @@ fun PropertyEditorResolver(property: EditableProperty<*>) {
             }
         }
         PropertyType.DATA_FIELD_PAGES -> {
+            var showPopup by remember { mutableStateOf(false) }
             val typedProperty = property as EditableProperty<MutableList<DataFieldPage>>
-            DataFieldPagesEditor(property = typedProperty)
+
+            // 1. Show the Summary Row in the LazyColumn
+            DataFieldPagesSummary(
+                property = typedProperty,
+                onEditClick = { showPopup = true }
+            )
+
+            // 2. Show the Dialog when requested
+            if (showPopup) {
+                DataFieldPagesPopupEditor(
+                    property = typedProperty,
+                    onDismiss = { showPopup = false }
+                )
+            }
         }
     }
 }

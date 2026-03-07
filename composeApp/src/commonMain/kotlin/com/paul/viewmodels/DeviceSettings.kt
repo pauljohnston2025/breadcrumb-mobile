@@ -203,6 +203,15 @@ val dataFieldTypes = listOf(
     ListOption(10, "Total Descent"),
     ListOption(11, "Avg Pace"),
     ListOption(12, "Pace"),
+    ListOption(13, "Time of Day"),
+    ListOption(14, "Cur. Lap Time"),
+    ListOption(15, "Cur. Lap Pace"),
+    ListOption(16, "Last Lap Time"),
+    ListOption(17, "Last Lap Pace"),
+    ListOption(18, "Grade"),
+    ListOption(19, "Heading"),
+    ListOption(20, "GPS Accuracy"),
+    ListOption(21, "Cur. Lap Dist"),
 )
 
 val modes = listOf(
