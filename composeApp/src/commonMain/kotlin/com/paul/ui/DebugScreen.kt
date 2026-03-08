@@ -33,6 +33,7 @@ import com.paul.infrastructure.repositories.LogEntry
 import com.paul.infrastructure.service.IFileHelper
 import com.paul.viewmodels.DebugViewModel
 import kotlinx.coroutines.launch
+import kotlinx.datetime.TimeZone.Companion.currentSystemDefault
 import kotlinx.datetime.toLocalDateTime
 
 @Composable
@@ -130,7 +131,9 @@ fun DebugScreen(viewModel: DebugViewModel, fileHelper: IFileHelper) {
 
             LazyColumn(
                 state = listState,
-                modifier = Modifier.weight(1f).background(MaterialTheme.colors.surface)
+                modifier = Modifier
+                    .weight(1f)
+                    .background(MaterialTheme.colors.surface)
             ) {
                 items(items = filteredLogs, key = { it.id }) { log ->
                     val isSelected = selectedIds.contains(log.id)
@@ -171,9 +174,7 @@ fun LogItem(
     // Full ISO-8601 Date Formatting
     val timeStr = remember(log.timestamp) {
         val instant = kotlinx.datetime.Instant.fromEpochMilliseconds(log.timestamp)
-        val localDateTime = instant.toLocalDateTime(kotlinx.datetime.TimeZone.currentSystemDefault())
-        // Formats to: YYYY-MM-DD HH:mm:ss
-        "${localDateTime.date} ${localDateTime.hour.toString().padStart(2, '0')}:${localDateTime.minute.toString().padStart(2, '0')}:${localDateTime.second.toString().padStart(2, '0')}"
+        instant.toLocalDateTime(currentSystemDefault()).toString()
     }
 
     Surface(
