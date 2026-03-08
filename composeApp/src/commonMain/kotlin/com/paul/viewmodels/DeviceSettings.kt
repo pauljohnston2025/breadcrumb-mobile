@@ -217,13 +217,13 @@ val dataFieldTypes = listOf(
 )
 
 val modes = listOf(
-    ListOption(0, "Track/Route"), // Replace with actual strings later
-    ListOption(1, "Elevation"),
-    ListOption(2, "Map Move"),
-    ListOption(3, "Debug"),
-    ListOption(4, "Zoom"),
-    ListOption(5, "Up/Down"),
-    ListOption(6, "Left/Right"),
+    ListOption(0, "(0) Track/Route"), // Replace with actual strings later
+    ListOption(1, "(1) Elevation"),
+    ListOption(2, "(2) Map Move"),
+    ListOption(3, "(3) Debug"),
+    ListOption(4, "(4) Zoom"),
+    ListOption(5, "(5) Up/Down"),
+    ListOption(6, "(6) Left/Right"),
 )
 
 // Place this somewhere accessible, like a constants file or companion object
