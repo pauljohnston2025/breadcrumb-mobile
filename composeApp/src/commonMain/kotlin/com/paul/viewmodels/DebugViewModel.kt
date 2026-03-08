@@ -15,29 +15,31 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 
-// Simple KMP ViewModel approach (manage scope manually or via framework)
-class DebugViewModel:
-    ViewModel() {
+class DebugViewModel : ViewModel() {
     private val _logs = MutableStateFlow<List<LogEntry>>(emptyList())
-    val logs: StateFlow<List<LogEntry>> = _logs.asStateFlow()
+    val logs = _logs.asStateFlow()
 
-    // Define max logs to keep in UI state to prevent memory issues
-    private val maxLogCount = 1000
+    // UI State for Sorting
+    private val _isDescending = MutableStateFlow(true)
+    val isDescending = _isDescending.asStateFlow()
 
     init {
-        // Collect logs from the repository
+        // 1. Collect New Logs
         DebugLogRepository.logFlow
-            .onEach { newEntry ->
-                _logs.update { currentLogs ->
-                    val updatedList = currentLogs + newEntry
-                    // Trim old logs if the list exceeds the maximum count
-                    if (updatedList.size > maxLogCount) {
-                        updatedList.takeLast(maxLogCount)
-                    } else {
-                        updatedList
-                    }
-                }
+            .onEach { entry ->
+                _logs.update { (it + entry).takeLast(1000) }
             }
-            .launchIn(viewModelScope) // Launch collection in the ViewModel's scope
+            .launchIn(viewModelScope)
+
+        // 2. Listen for Clear Signal
+        DebugLogRepository.clearSignal
+            .onEach { _logs.value = emptyList() }
+            .launchIn(viewModelScope)
+    }
+
+    fun clear() = DebugLogRepository.clearLogs()
+
+    fun toggleSort() {
+        _isDescending.update { !it }
     }
 }

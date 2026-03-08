@@ -46,12 +46,13 @@ object DebugLogRepository {
         }
     }
 
-    // Optional: Function to clear logs (if needed from ViewModel/UI)
-    // This only clears the replay buffer, existing collectors won't lose past logs
+    private val _clearSignal = MutableSharedFlow<Unit>()
+    val clearSignal = _clearSignal.asSharedFlow()
+
     @OptIn(ExperimentalCoroutinesApi::class)
     fun clearLogs() {
         _logFlow.resetReplayCache()
-        // You might want to add a special "Logs Cleared" entry
-        // addLog(LogEntry(System.currentTimeMillis(), "INFO", "DebugLog", "Logs Cleared"))
+        scope.launch { _clearSignal.emit(Unit) }
+        addLog(LogEntry(System.currentTimeMillis(), "INFO", "DebugLog", "Logs Cleared"))
     }
 }
