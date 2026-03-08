@@ -6,6 +6,7 @@ interface IFileHelper {
     suspend fun readFile(filename: String): ByteArray?
     suspend fun readLocalFile(filename: String): ByteArray?
     suspend fun writeLocalFile(filename: String, data: ByteArray)
+    suspend fun writeFile(uriString: String, lines: List<String>): Boolean
     suspend fun getFileName(fullName: String) : String?
     /** returns the file name to open */
     suspend fun findFile(): String

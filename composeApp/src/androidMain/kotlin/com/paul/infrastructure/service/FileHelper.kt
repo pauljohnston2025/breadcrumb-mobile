@@ -64,6 +64,25 @@ class FileHelper(
         }
     }
 
+    override suspend fun writeFile(uriString: String, lines: List<String>): Boolean {
+        return withContext(Dispatchers.IO) {
+            try {
+                val uri = Uri.parse(uriString)
+                context.contentResolver.openOutputStream(uri)?.use { outputStream ->
+                    outputStream.bufferedWriter().use { writer ->
+                        lines.forEach { line ->
+                            writer.write(line)
+                            writer.newLine()
+                        }
+                    }
+                }
+                true
+            } catch (e: Exception) {
+                false
+            }
+        }
+    }
+
     @OptIn(ExperimentalCoroutinesApi::class)
     override suspend fun findFile(): String = suspendCancellableCoroutine { continuation ->
         require(searchCompletion == null)

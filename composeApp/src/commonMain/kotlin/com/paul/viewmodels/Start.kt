@@ -125,6 +125,7 @@ class StartViewModel(
                 uri = fileHelper.findFile()
             } catch (e: Exception) {
                 snackbarHostState.showSnackbar("Failed to find file (invalid or no selection)")
+                Napier.e("Failed to find file $e")
                 return@launch
             }
 

@@ -431,7 +431,7 @@ fun App(
                                 }
 
                                 composable(Screen.Debug.route) {
-                                    DebugScreen(debugViewModel)
+                                    DebugScreen(debugViewModel, fileHelper)
                                 }
                             } // End NavHost
                         }

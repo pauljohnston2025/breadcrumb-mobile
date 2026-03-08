@@ -1,59 +1,97 @@
 package com.paul.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
-import androidx.compose.runtime.*
-import androidx.compose.material.*
-import androidx.compose.runtime.Composable
-import androidx.compose.foundation.layout.Column
-import androidx.compose.ui.Modifier
-import com.paul.viewmodels.RoutesViewModel
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.paul.domain.RouteEntry
+import com.paul.domain.RouteType
 import com.paul.infrastructure.service.formatBytes
+import com.paul.viewmodels.RoutesViewModel
 import kotlinx.datetime.TimeZone.Companion.currentSystemDefault
 import kotlinx.datetime.toLocalDateTime
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Directions
-import androidx.compose.ui.unit.sp
 
+enum class RouteSortOrder(val label: String) {
+    DATE_DESC("Newest"),
+    DATE_ASC("Oldest"),
+    NAME_ASC("A-Z"),
+    SIZE_DESC("Largest")
+}
 
 @Composable
 fun RoutesScreen(viewModel: RoutesViewModel) {
-    BackHandler(enabled = viewModel.sendingFile.value != "") {
-        // prevent back handler when we are trying to do things, todo cancel the job we are trying to do
-    }
-
+    val scope = rememberCoroutineScope()
     val routes = viewModel.routeRepo.routes
     val routeBeingEdited by viewModel.editingRoute.collectAsState()
     val routeBeingDeleted by viewModel.deletingRoute.collectAsState()
-// Box allows stacking the sending overlay
+
+    // --- Filter & Sort State ---
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedType by remember { mutableStateOf<RouteType?>(null) }
+    var sortOrder by remember { mutableStateOf(RouteSortOrder.DATE_DESC) }
+
+    val filteredAndSortedRoutes by remember {
+        derivedStateOf {
+            routes.filter { route ->
+                val matchesSearch = route.name.contains(searchQuery, ignoreCase = true)
+                val matchesType = selectedType == null || route.type == selectedType
+                matchesSearch && matchesType
+            }.let { filtered ->
+                when (sortOrder) {
+                    RouteSortOrder.DATE_DESC -> filtered.sortedByDescending { it.createdAt }
+                    RouteSortOrder.DATE_ASC -> filtered.sortedBy { it.createdAt }
+                    RouteSortOrder.NAME_ASC -> filtered.sortedBy { it.name.lowercase() }
+                    RouteSortOrder.SIZE_DESC -> filtered.sortedByDescending { it.sizeBytes }
+                }
+            }
+        }
+    }
+
+    BackHandler(enabled = viewModel.sendingFile.value != "") { /* Handle Cancel */ }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .background(MaterialTheme.colors.background)
     ) {
-        // --- UI ---
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(16.dp)
         ) {
-            // Maybe add a button to create a new route? (Optional)
-            // Button(onClick = { /* TODO: Navigate to route creation */ }) { Text("Create New Route") }
-            // Spacer(Modifier.height(16.dp))
 
+            // --- Search, Type Filter, and Sort Header ---
+            RoutesHeader(
+                searchQuery = searchQuery,
+                onSearchChange = { searchQuery = it },
+                selectedType = selectedType,
+                onTypeChange = { selectedType = it },
+                currentSort = sortOrder,
+                onSortChange = { sortOrder = it }
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            // --- Main List ---
             RouteListSection(
-                routes = routes,
+                routes = filteredAndSortedRoutes,
                 onEditClick = { viewModel.startEditing(it) },
                 onPreviewClick = { viewModel.previewRoute(it) },
                 onSendClick = { viewModel.sendRoute(it) },
@@ -62,16 +100,14 @@ fun RoutesScreen(viewModel: RoutesViewModel) {
         }
 
         // --- Dialogs ---
-        // Edit Dialog
         routeBeingEdited?.let { route ->
             EditRouteDialog(
                 route = route,
-                onConfirm = { newName -> viewModel.confirmEdit(route.id, newName) },
+                onConfirm = { viewModel.confirmEdit(route.id, it) },
                 onDismiss = { viewModel.cancelEditing() }
             )
         }
 
-        // Delete Confirmation Dialog
         routeBeingDeleted?.let { route ->
             DeleteConfirmationDialog(
                 routeName = route.name,
@@ -80,48 +116,158 @@ fun RoutesScreen(viewModel: RoutesViewModel) {
             )
         }
 
-        // --- Sending Overlay ---
-        SendingFileOverlay(
-            sendingMessage = viewModel.sendingFile
+        SendingFileOverlay(sendingMessage = viewModel.sendingFile)
+    }
+}
+
+@Composable
+private fun RoutesHeader(
+    searchQuery: String,
+    onSearchChange: (String) -> Unit,
+    selectedType: RouteType?,
+    onTypeChange: (RouteType?) -> Unit,
+    currentSort: RouteSortOrder,
+    onSortChange: (RouteSortOrder) -> Unit
+) {
+    Column {
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = onSearchChange,
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("Search routes...", fontSize = 14.sp) },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            singleLine = true,
+            shape = RoundedCornerShape(12.dp)
         )
 
-    } // End Root Box
+        // Type Filter Chips
+        Row(
+            modifier = Modifier
+                .padding(vertical = 8.dp)
+                .horizontalScroll(rememberScrollState()),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Type: ", style = MaterialTheme.typography.caption, color = Color.Gray)
+            FilterChip(label = "All", isSelected = selectedType == null) { onTypeChange(null) }
+            RouteType.entries.forEach { type ->
+                Spacer(Modifier.width(4.dp))
+                FilterChip(
+                    label = type.name,
+                    isSelected = selectedType == type
+                ) { onTypeChange(type) }
+            }
+        }
+
+        // Sort Chips
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Default.Sort, null, modifier = Modifier.size(16.dp), tint = Color.Gray)
+            Spacer(Modifier.width(8.dp))
+            RouteSortOrder.entries.forEach { order ->
+                SortChip(label = order.label, isSelected = currentSort == order) {
+                    onSortChange(
+                        order
+                    )
+                }
+                Spacer(Modifier.width(4.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun FilterChip(label: String, isSelected: Boolean, onClick: () -> Unit) {
+    val backgroundColor = if (isSelected) {
+        MaterialTheme.colors.primary.copy(alpha = 0.15f) // Subtle tint of your primary brand color
+    } else {
+        MaterialTheme.colors.onSurface.copy(alpha = 0.05f) // Very light gray/white depending on theme
+    }
+
+    val contentColor = if (isSelected) {
+        MaterialTheme.colors.primary
+    } else {
+        MaterialTheme.colors.onSurface.copy(alpha = 0.6f) // De-emphasized text
+    }
+
+    val borderColor = if (isSelected) {
+        MaterialTheme.colors.primary
+    } else {
+        MaterialTheme.colors.onSurface.copy(alpha = 0.12f)
+    }
+
+    Surface(
+        modifier = Modifier.clickable { onClick() },
+        shape = RoundedCornerShape(16.dp),
+        color = backgroundColor,
+        border = BorderStroke(1.dp, borderColor)
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            color = contentColor,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+@Composable
+private fun SortChip(label: String, isSelected: Boolean, onClick: () -> Unit) {
+    val backgroundColor = if (isSelected) {
+        MaterialTheme.colors.primary.copy(alpha = 0.15f) // Subtle tint of your primary brand color
+    } else {
+        MaterialTheme.colors.onSurface.copy(alpha = 0.05f) // Very light gray/white depending on theme
+    }
+
+    val contentColor = if (isSelected) {
+        MaterialTheme.colors.primary
+    } else {
+        MaterialTheme.colors.onSurface.copy(alpha = 0.6f) // De-emphasized text
+    }
+
+    val borderColor = if (isSelected) {
+        MaterialTheme.colors.primary
+    } else {
+        MaterialTheme.colors.onSurface.copy(alpha = 0.12f)
+    }
+    Surface(
+        modifier = Modifier.clickable { onClick() },
+        shape = RoundedCornerShape(16.dp),
+        color = backgroundColor,
+        border = BorderStroke(1.dp, borderColor)
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            color = contentColor,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
 }
 
 @Composable
 private fun RouteListSection(
-    routes: SnapshotStateList<RouteEntry>,
+    routes: List<RouteEntry>,
     onEditClick: (RouteEntry) -> Unit,
     onPreviewClick: (RouteEntry) -> Unit,
     onSendClick: (RouteEntry) -> Unit,
     onDeleteClick: (RouteEntry) -> Unit
 ) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        if (routes.isEmpty()) {
-            Text(
-                "No saved routes found.",
-                style = MaterialTheme.typography.body2,
-                modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .padding(vertical = 16.dp)
-            )
-        } else {
-            Card(
-                modifier = Modifier.fillMaxWidth(), // Let height grow naturally or set max
-                elevation = 2.dp
-            ) {
-                val list = routes.toList().sortedByDescending { it.createdAt }
-                LazyColumn {
-                    items(list, key = { route -> route.id }) { route ->
-                        RouteListItem(
-                            route = route,
-                            onEditClick = { onEditClick(route) },
-                            onPreviewClick = { onPreviewClick(route) },
-                            onSendClick = { onSendClick(route) },
-                            onDeleteClick = { onDeleteClick(route) }
-                        )
-                        Divider() // Separator between items
-                    }
+    if (routes.isEmpty()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("No routes match your filters.", style = MaterialTheme.typography.caption)
+        }
+    } else {
+        Card(elevation = 2.dp, shape = RoundedCornerShape(8.dp)) {
+            LazyColumn {
+                items(routes, key = { it.id }) { route ->
+                    RouteListItem(route, onEditClick, onPreviewClick, onSendClick, onDeleteClick)
+                    Divider(color = Color.LightGray.copy(alpha = 0.2f))
                 }
             }
         }
@@ -131,91 +277,73 @@ private fun RouteListSection(
 @Composable
 private fun RouteListItem(
     route: RouteEntry,
-    onEditClick: () -> Unit,
-    onPreviewClick: () -> Unit,
-    onSendClick: () -> Unit,
-    onDeleteClick: () -> Unit
+    onEditClick: (RouteEntry) -> Unit,
+    onPreviewClick: (RouteEntry) -> Unit,
+    onSendClick: (RouteEntry) -> Unit,
+    onDeleteClick: (RouteEntry) -> Unit
 ) {
-
-    Row(
-        modifier = Modifier
-            .padding(start = 8.dp, top = 4.dp)
-            .fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically // Align icon and text vertically
-    ) {
-        // Conditionally display the checkmark if direction info is available
-        if (route.hasDirectionInfo) {
-            Icon(
-                imageVector = Icons.Default.Directions,
-                contentDescription = "Contains direction info",
-                modifier = Modifier.size(18.dp), // Adjust size as needed
-                tint = MaterialTheme.colors.primary
+    Column(modifier = Modifier.padding(12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (route.hasDirectionInfo) {
+                Icon(
+                    Icons.Default.Directions,
+                    null,
+                    Modifier.size(16.dp),
+                    tint = MaterialTheme.colors.primary
+                )
+                Spacer(Modifier.width(4.dp))
+            }
+            Text(
+                route.name.ifBlank { "<No Name>" },
+                style = MaterialTheme.typography.subtitle1,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
             )
-            Spacer(Modifier.width(6.dp)) // Space between icon and text
+            Text(route.type.name, style = MaterialTheme.typography.overline, color = Color.Gray)
         }
-        Text(
-            text = if (route.name.isNotBlank()) route.name else "<No Name>",
-            style = MaterialTheme.typography.subtitle1,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-    }
 
-    Row(
-        Modifier
-            .padding(start = 8.dp)
-            .fillMaxWidth()
-    ) {
         Text(
-            text = "Created At: " + route.createdAt.toLocalDateTime(currentSystemDefault())
-                .toString(),
+            text = route.createdAt.toLocalDateTime(currentSystemDefault()).toString()
+                .replace("T", " ").substring(0, 16),
             style = MaterialTheme.typography.caption,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            color = Color.Gray
         )
-    }
 
-    // Action Buttons Section
-    Row(
-        verticalAlignment = Alignment.Top,
-        // Add some space between info and buttons if needed
-        modifier = Modifier
-            .padding(start = 8.dp, bottom = 4.dp)
-            .fillMaxWidth()
-    ) {
-        Column {
-            Text(
-                text = "Size: ${formatBytes(route.sizeBytes)}", // Display type or other info
-                style = MaterialTheme.typography.caption,
-                maxLines = 1
-            )
-            Text(
-                text = "Type: ${route.type}", // Display type or other info
-                style = MaterialTheme.typography.caption,
-                maxLines = 1
-            )
-        }
-
-        Spacer(Modifier.weight(1f))
-        Row(
-            verticalAlignment = Alignment.CenterVertically, // Center buttons vertically within this row
-            horizontalArrangement = Arrangement.End // Arrange buttons closely together at the end
-        ) {
-            IconButton(onClick = onEditClick) {
-                Icon(Icons.Default.Edit, contentDescription = "Edit Route Name")
+        Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.padding(top = 4.dp)) {
+            Text("Size: ${formatBytes(route.sizeBytes)}", style = MaterialTheme.typography.caption)
+            Spacer(Modifier.weight(1f))
+            IconButton(onClick = { onEditClick(route) }, modifier = Modifier.size(24.dp)) {
+                Icon(
+                    Icons.Default.Edit,
+                    null,
+                    Modifier.size(18.dp)
+                )
             }
-            IconButton(onClick = onPreviewClick) {
-                Icon(Icons.Default.LocationOn, contentDescription = "Preview Route")
+            Spacer(Modifier.width(8.dp))
+            IconButton(onClick = { onPreviewClick(route) }, modifier = Modifier.size(24.dp)) {
+                Icon(
+                    Icons.Default.LocationOn,
+                    null,
+                    Modifier.size(18.dp)
+                )
             }
-            IconButton(onClick = onSendClick) {
-                Icon(Icons.Default.PlayArrow, contentDescription = "Send Route To Watch")
+            Spacer(Modifier.width(8.dp))
+            IconButton(onClick = { onSendClick(route) }, modifier = Modifier.size(24.dp)) {
+                Icon(
+                    Icons.Default.PlayArrow,
+                    null,
+                    tint = Color(0xFF4CAF50)
+                )
             }
-            IconButton(onClick = onDeleteClick) {
+            Spacer(Modifier.width(8.dp))
+            IconButton(onClick = { onDeleteClick(route) }, modifier = Modifier.size(24.dp)) {
                 Icon(
                     Icons.Default.Delete,
-                    contentDescription = "Delete Route",
-                    tint = MaterialTheme.colors.error
-                ) // Indicate destructive action
+                    null,
+                    tint = MaterialTheme.colors.error,
+                    modifier = Modifier.size(18.dp)
+                )
             }
         }
     }
