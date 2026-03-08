@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import com.paul.domain.ColourPalette
 import com.paul.infrastructure.repositories.ITileRepository
+import com.paul.infrastructure.repositories.TileServerRepo.Companion.getWebPortOnStart
 import io.github.aakira.napier.Napier
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
@@ -105,9 +106,9 @@ class WebServerService(
     // service has its own impl of tileGetter, since it runs outside of the main activity
     private val tileGetter: ITileRepository,
 ) {
-    private val serverPort = 8080
     private var server: EmbeddedServer<NettyApplicationEngine, NettyApplicationEngine.Configuration>? =
         null
+    private var startPort = getWebPortOnStart();
 
     fun start() {
         try {
@@ -127,7 +128,8 @@ class WebServerService(
         // adb forward tcp:8080 tcp:8080
         // need to listen externally so that we can still connect over wifi
         // or hotspot
-        server = embeddedServer(Netty, port = serverPort, host = "0.0.0.0") {
+        startPort = getWebPortOnStart();
+        server = embeddedServer(Netty, port = startPort, host = "0.0.0.0") {
             module()
         }.start(wait = false)
     }
@@ -227,5 +229,9 @@ class WebServerService(
                 call.respond(HttpStatusCode.OK)
             }
         }
+    }
+
+    fun port(): Int {
+        return startPort;
     }
 }

@@ -15,6 +15,7 @@ import com.paul.infrastructure.repositories.ColourPaletteRepository
 import com.paul.infrastructure.repositories.ITileRepository
 import com.paul.infrastructure.repositories.RouteRepository
 import com.paul.infrastructure.repositories.TileServerRepo
+import com.paul.infrastructure.repositories.TileServerRepo.Companion.defaultWebPort
 import com.paul.infrastructure.web.TileType
 import com.paul.infrastructure.web.WebServerController
 import com.paul.protocol.todevice.CompanionAppTileServerChanged
@@ -45,6 +46,14 @@ class Settings(
     val sendingMessage: MutableState<String> = mutableStateOf("")
 
     val connectIqAppId = connection.connectIqAppIdFlow()
+
+    val webServerPortFlow = tileServerRepo.webServerPortFlow()
+
+    fun onWebPortChange(newPort: Int) {
+        viewModelScope.launch(Dispatchers.IO) {
+            tileServerRepo.updateWebPort(newPort)
+        }
+    }
 
     fun onConnectIqAppIdChange(newAppId: String) {
         viewModelScope.launch(Dispatchers.IO) {

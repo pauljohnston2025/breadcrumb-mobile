@@ -65,6 +65,7 @@ import com.paul.domain.ServerType
 import com.paul.domain.TileServerInfo
 import com.paul.infrastructure.repositories.ColourPaletteRepository
 import com.paul.infrastructure.repositories.TileServerRepo
+import com.paul.infrastructure.repositories.TileServerRepo.Companion.defaultWebPort
 import com.paul.infrastructure.web.TileType
 import java.util.UUID
 import kotlin.math.roundToInt
@@ -608,6 +609,29 @@ fun Settings(
             }
 
             if (tileServerEnabled) {
+                val savedWebPort by viewModel.webServerPortFlow.collectAsState(8080)
+                // Use a local state that ONLY updates when the user types
+                var webPortInput by remember(savedWebPort) { mutableStateOf(savedWebPort.toString()) }
+
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = webPortInput,
+                        onValueChange = { webPortInput = it },
+                        label = { Text("Local Web Server Port") },
+                        modifier = Modifier.weight(1f),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+
+                    // Only show the button if the input is different from the saved port
+                    if (webPortInput != savedWebPort.toString()) {
+                        Button(onClick = {
+                            webPortInput.toIntOrNull()?.let { viewModel.onWebPortChange(it) }
+                        }) {
+                            Text("Apply")
+                        }
+                    }
+                }
+
                 ExposedDropdownMenuBox(
                     expanded = tileTypeExpanded,
                     onExpandedChange = { tileTypeExpanded = !tileTypeExpanded }

@@ -26,6 +26,7 @@ class TileServerRepo(
     private val tileRepo: ITileRepository, // the one running for the maps page (we update the webserver one through web calls)
 ) {
     companion object {
+        val WEB_SERVER_PORT_KEY = "WEB_SERVER_PORT_KEY"
         val TILE_SERVER_KEY = "TILE_SERVER"
         val TILE_TYPE_KEY = "TILE_TYPE"
         val AUTH_TOKEN_KEY = "AUTH_TOKEN"
@@ -34,6 +35,7 @@ class TileServerRepo(
         val settings: Settings = Settings()
 
         val defaultTileType = TileType.TILE_DATA_TYPE_64_COLOUR
+        val defaultWebPort = 8080
         val defaultTileServer = TileServerInfo(
             ServerType.OPENTOPOMAP,
             "Open Topo Map",
@@ -41,6 +43,8 @@ class TileServerRepo(
             0,
             15
         )
+
+        fun getWebPortOnStart(): Int = settings.getInt(WEB_SERVER_PORT_KEY, defaultWebPort)
 
         fun getTileServerOnStart(): TileServerInfo {
             val tileServer = settings.getStringOrNull(TILE_SERVER_KEY)
@@ -170,6 +174,20 @@ class TileServerRepo(
         return when (customServers) {
             null -> listOf()
             else -> Json.decodeFromString<List<TileServerInfo>>(customServers)
+        }
+    }
+
+    private val _webServerPort = MutableStateFlow(getWebPortOnStart())
+    fun webServerPortFlow(): StateFlow<Int> = _webServerPort.asStateFlow()
+
+    suspend fun updateWebPort(newPort: Int) {
+        _webServerPort.emit(newPort)
+        settings.putInt(WEB_SERVER_PORT_KEY, newPort)
+        // If the server is currently running, we cycle it to apply the new port
+        if (currentlyEnabled()) {
+            // This will trigger the startWebServer() in your controller with the new port
+            onTileServerEnabledChange(false)
+            onTileServerEnabledChange(true)
         }
     }
 

@@ -101,13 +101,13 @@ class WebServerService : Service() {
             if (Build.VERSION.SDK_INT >= 34) {
                 startForeground(
                     NOTIFICATION_ID,
-                    createNotification(this, "Web server FAILED", "Failed to start web server"),
+                    createNotification(this, "Web server FAILED", "Failed to start web server on port ${server.port()}"),
                     FOREGROUND_SERVICE_TYPE_SPECIAL_USE
                 )
             } else {
                 startForeground(
                     NOTIFICATION_ID,
-                    createNotification(this, "Web server FAILED", "Failed to start web server")
+                    createNotification(this, "Web server FAILED", "Failed to start web server on port ${server.port()}")
                 )
             }
             return START_STICKY
@@ -165,7 +165,7 @@ class WebServerService : Service() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.icon)
             .setContentTitle(if (runningStr.isNullOrEmpty()) "Server Running" else runningStr)
-            .setContentText(if (str.isNullOrEmpty()) "Tile server is active in the background." else str)
+            .setContentText(if (str.isNullOrEmpty()) "Tile server is active in the background on port ${server.port()}." else str)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
