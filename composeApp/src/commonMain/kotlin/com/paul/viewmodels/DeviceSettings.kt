@@ -396,12 +396,18 @@ class DeviceSettings(
             // --- Check for LIST_NUMBER properties FIRST ---
             if (key == "mode") {
                 val currentCountsCsv = settings.settings["dataFieldPageCounts"] as? String ?: ""
-                val pageCount = if (currentCountsCsv.isEmpty()) 0 else currentCountsCsv.split(",").filter { it.isNotEmpty() }.size
+                val pageCount = if (currentCountsCsv.isEmpty()) 0 else currentCountsCsv.split(",")
+                    .filter { it.isNotEmpty() }.size
 
                 // Create the augmented list: Static Modes + Dynamic Data Pages
                 val fullAvailableOptions = modes.toMutableList()
                 for (i in 0 until pageCount) {
-                    fullAvailableOptions.add(ListOption(DATA_PAGE_BASE_ID + i, "Data Page $i"))
+                    fullAvailableOptions.add(
+                        ListOption(
+                            DATA_PAGE_BASE_ID + i,
+                            "(${DATA_PAGE_BASE_ID + i}) Data Page $i"
+                        )
+                    )
                 }
 
                 return@mapNotNull EditableProperty(
@@ -413,10 +419,10 @@ class DeviceSettings(
                     description = description,
                     label = label
                 )
-            }
-            else if (key == "uiMode") {
+            } else if (key == "uiMode") {
                 val currentAppId = connection.connectIqAppIdFlow().value
-                val isAppType = currentAppId == BREADCRUMB_APP_ID || currentAppId == BREADCRUMB_APP_GLANCE_ID
+                val isAppType =
+                    currentAppId == BREADCRUMB_APP_ID || currentAppId == BREADCRUMB_APP_GLANCE_ID
 
                 // Define the base options that everyone gets
                 val uiOptions = mutableListOf(
@@ -439,8 +445,7 @@ class DeviceSettings(
                     description = description,
                     label = label
                 )
-            }
-            else if (listOptionsMapping.containsKey(key)) {
+            } else if (listOptionsMapping.containsKey(key)) {
                 val options = listOptionsMapping[key]!! // Safe due to containsKey check
                 EditableProperty(
                     key,

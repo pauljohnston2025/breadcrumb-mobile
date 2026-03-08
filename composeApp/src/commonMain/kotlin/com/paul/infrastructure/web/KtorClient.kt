@@ -1,5 +1,6 @@
 package com.paul.infrastructure.web
 
+import com.paul.infrastructure.repositories.TileServerRepo.Companion.getWebPortOnStart
 import io.github.aakira.napier.Napier
 import io.ktor.client.*
 import io.ktor.client.call.HttpClientCall
@@ -25,7 +26,6 @@ object KtorClient {
 
     private val REQUEST_URL_KEY = AttributeKey<String>("RequestUrlKey")
     private const val API_HOST = "127.0.0.1"
-    private const val API_PORT = 8080
     private val API_PROTOCOL = URLProtocol.HTTP
 
     val conciseHttpLogger = createClientPlugin("conciseHttpLogger") {
@@ -85,7 +85,7 @@ object KtorClient {
 
             install(DefaultRequest) {
                 host = API_HOST
-                port = API_PORT
+                port = getWebPortOnStart()
                 url {
                     protocol = API_PROTOCOL
                 }
