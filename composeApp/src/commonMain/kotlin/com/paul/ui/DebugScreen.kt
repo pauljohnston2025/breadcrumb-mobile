@@ -1,12 +1,11 @@
 package com.paul.ui
 
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.Divider
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
 import androidx.compose.material.MaterialTheme
@@ -27,6 +27,8 @@ import androidx.compose.material.Surface
 import androidx.compose.material.Text
 import androidx.compose.material.TextFieldDefaults
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -39,28 +41,31 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.paul.infrastructure.repositories.LogEntry
 import com.paul.infrastructure.service.IFileHelper
 import com.paul.viewmodels.DebugViewModel
-import io.github.aakira.napier.Napier
-import kotlinx.coroutines.launch
 
 
 @Composable
 fun DebugScreen(viewModel: DebugViewModel, fileHelper: IFileHelper) {
     val logs by viewModel.logs.collectAsState()
+    val clipboardManager = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
 
     var searchQuery by remember { mutableStateOf("") }
     var filterLevel by remember { mutableStateOf<String?>(null) }
 
-    // Efficient filtering logic
+    // Selection State
+    var selectedIds by remember { mutableStateOf(setOf<String>()) }
+    val isSelectionMode by remember { derivedStateOf { selectedIds.isNotEmpty() } }
+
     val filteredLogs by remember {
         derivedStateOf {
             logs.filter {
@@ -69,122 +74,133 @@ fun DebugScreen(viewModel: DebugViewModel, fileHelper: IFileHelper) {
                             searchQuery,
                             ignoreCase = true
                         ))
-            }.reversed() // Latest logs at the top
+            }.reversed()
         }
     }
-
-    val saveLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.CreateDocument("text/plain"),
-        onResult = { uri ->
-            uri?.let {
-                scope.launch {
-                    val success =
-                        fileHelper.writeFile(it.toString(), logs.map { l -> l.toString() })
-                    if (success) {
-                        // Optional: Show success Toast
-                    }
-                }
-            }
-        }
-    )
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colors.background) // Main background
+            .background(MaterialTheme.colors.background)
     ) {
-        // --- Search & Filter Header ---
-        HeaderSection(
-            searchQuery = searchQuery,
-            onSearchChange = { searchQuery = it },
-            selectedLevel = filterLevel,
-            onLevelSelect = { filterLevel = it },
-            onExport = {
-                // This opens the system "Save As" dialog
-                saveLauncher.launch("logs_${System.currentTimeMillis()}.txt")
-            }
-        )
+        if (isSelectionMode) {
+            // Contextual Header for Selection
+            SelectionHeader(
+                count = selectedIds.size,
+                onCopy = {
+                    val textToCopy = filteredLogs
+                        .filter { it.id in selectedIds }
+                        .joinToString("\n") { it.toString() }
+                    clipboardManager.setText(AnnotatedString(textToCopy))
+                    selectedIds = emptySet()
+                },
+                onClose = { selectedIds = emptySet() }
+            )
+        } else {
+            HeaderSection(
+                searchQuery = searchQuery,
+                onSearchChange = { searchQuery = it },
+                selectedLevel = filterLevel,
+                onLevelSelect = { filterLevel = it },
+                onExport = { /* your export launcher */ }
+            )
+        }
 
-        // The list area
         LazyColumn(modifier = Modifier.weight(1f)) {
             items(items = filteredLogs, key = { it.id }) { log ->
-                LogItem(log)
-                // Use the same divider color logic as the OutlinedTextField border
-                Spacer(
-                    Modifier
-                        .height(1.dp)
-                        .fillMaxWidth()
-                        .background(MaterialTheme.colors.onSurface.copy(alpha = 0.08f))
+                val isSelected = selectedIds.contains(log.id)
+
+                LogItem(
+                    log = log,
+                    isSelected = isSelected,
+                    onLongClick = {
+                        selectedIds = selectedIds + log.id
+                    },
+                    onClick = {
+                        if (isSelectionMode) {
+                            selectedIds =
+                                if (isSelected) selectedIds - log.id else selectedIds + log.id
+                        }
+                    }
                 )
+                Divider(color = MaterialTheme.colors.onSurface.copy(alpha = 0.08f))
             }
         }
     }
 }
 
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun LogItem(log: LogEntry) {
-    val contentColor = MaterialTheme.colors.onSurface
-
-    val severityColor = when (log.level.uppercase()) {
+fun LogItem(
+    log: LogEntry,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit
+) {
+    val highlightColor = when (log.level.uppercase()) {
         "ERROR" -> MaterialTheme.colors.error
-        "WARNING" -> Color(0xFFFBC02D)
-        "INFO" -> MaterialTheme.colors.secondary
-        "DEBUG" -> contentColor.copy(alpha = 0.5f)
-        else -> contentColor.copy(alpha = 0.3f)
+        else -> MaterialTheme.colors.primary
     }
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(severityColor.copy(alpha = 0.03f)) // Even subtler background
-            .padding(horizontal = 8.dp, vertical = 4.dp), // Reduced vertical padding
-        verticalAlignment = Alignment.Top
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
+            .background(
+                if (isSelected) highlightColor.copy(alpha = 0.2f)
+                else Color.Transparent
+            )
+            .padding(horizontal = 12.dp, vertical = 4.dp)
     ) {
-        // 1. Thin Marker (Fixed width, very compact)
-        Box(
-            modifier = Modifier
-                .width(3.dp)
-                .height(16.dp) // Shorter marker
-                .padding(top = 2.dp)
-                .background(severityColor, RoundedCornerShape(1.dp))
+        Text(
+            text = log.level.take(1),
+            color = if (isSelected) highlightColor else highlightColor.copy(alpha = 0.7f),
+            fontWeight = FontWeight.Bold,
+            fontFamily = FontFamily.Monospace,
+            fontSize = 12.sp,
+            modifier = Modifier.width(12.dp)
         )
 
         Spacer(Modifier.width(8.dp))
 
-        // 2. The Log Content
-        Column(modifier = Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                // Short Level Tag (e.g., "ERR", "INF")
-                Text(
-                    text = log.level.take(3).uppercase(),
-                    color = severityColor,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 10.sp
-                )
+        Text(
+            text = log.message,
+            color = MaterialTheme.colors.onSurface,
+            fontSize = 11.sp,
+            fontFamily = FontFamily.Monospace,
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
 
-                if (!log.tag.isNullOrBlank()) {
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        text = "[$log.tag]",
-                        color = contentColor.copy(alpha = 0.4f),
-                        fontSize = 10.sp,
-                        fontFamily = FontFamily.Monospace,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
+@Composable
+fun SelectionHeader(count: Int, onCopy: () -> Unit, onClose: () -> Unit) {
+    Surface(
+        elevation = 8.dp,
+        color = MaterialTheme.colors.primary, // Highlight the header in selection mode
+        contentColor = MaterialTheme.colors.onPrimary
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onClose) {
+                Icon(Icons.Default.Close, contentDescription = "Cancel")
             }
-
-            // 3. The Message
             Text(
-                text = log.message,
-                color = contentColor.copy(alpha = 0.9f),
-                fontSize = 11.sp, // Slightly smaller font for compactness
-                fontFamily = FontFamily.Monospace,
-                lineHeight = 14.sp
+                text = "$count Selected",
+                style = MaterialTheme.typography.h6,
+                modifier = Modifier.weight(1f)
             )
+            IconButton(onClick = onCopy) {
+                Icon(Icons.Default.ContentCopy, contentDescription = "Copy to Clipboard")
+            }
         }
     }
 }
