@@ -629,7 +629,7 @@ fun StringEditor(property: EditableProperty<String>) {
         OutlinedTextField(
             value = currentValue,
             onValueChange = { newValue -> currentValue = newValue },
-            modifier = Modifier.widthIn(min = 150.dp), // Adjust width as needed
+            modifier = Modifier.weight(1f),
             singleLine = true,
         )
     }

@@ -32,7 +32,6 @@ fun PropertyEditorRow(
                 .defaultMinSize(minHeight = 56.dp)
                 .padding(vertical = 12.dp, horizontal = 16.dp),
         ) {
-            // Top Row: Label and the Editor Content
             Row(
                 Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -41,14 +40,14 @@ fun PropertyEditorRow(
                 Text(
                     text = label,
                     style = MaterialTheme.typography.body1,
-                    modifier = Modifier.weight(1f) // Label takes available space
+                    modifier = Modifier.padding(end = 8.dp) // Space between label and editor
+                    // Removed weight(1f) from here so Label gets what it needs first
                 )
 
-                // The Content (Preview + Edit Button)
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    content = content
-                )
+                // The Content (The TextField or Color Picker)
+                // We don't wrap this in another Row usually, just call content()
+                // or let content() use weight
+                content()
             }
 
             // Description Row: Sits underneath the Label and Content
