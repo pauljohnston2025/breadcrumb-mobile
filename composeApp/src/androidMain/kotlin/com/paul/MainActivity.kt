@@ -51,40 +51,14 @@ class MainActivity : ComponentActivity() {
     val gpxFileLoader = GpxFileLoader()
     val webServerController = WebServerController(this)
     val intentHandler = IntentHandler()
-    val tileRepo = ITileRepository(
-        FileHelper(this)
-    )
+    val tileRepo = ITileRepository(fileHelper)
     val locationService = AndroidLocationService(this)
     val colourPaletteRepo = ColourPaletteRepository(tileRepo)
 
-    // based on ActivityResultContracts.OpenDocument()
-    val getFileContent =
-        registerForActivityResult(object : ActivityResultContract<Array<String>, Uri?>() {
-            @CallSuper
-            override fun createIntent(context: Context, input: Array<String>): Intent {
-                return Intent(Intent.ACTION_OPEN_DOCUMENT)
-                    .addCategory(Intent.CATEGORY_OPENABLE)
-                    .setType("*/*")
-            }
-
-            override fun getSynchronousResult(
-                context: Context,
-                input: Array<String>
-            ): SynchronousResult<Uri?>? = null
-
-            override fun parseResult(resultCode: Int, intent: Intent?): Uri? {
-                return intent.takeIf { resultCode == RESULT_OK }?.data
-            }
-        }) { uri: Uri? ->
-            fileHelper.fileLoaded(uri)
-        }
-
-    init {
-        fileHelper.setLauncher(getFileContent)
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        fileHelper.registerLauncher(this)
 
         Napier.base(DebugAntilog())
         Napier.base(InMemoryDebugAntilog())
@@ -164,7 +138,7 @@ class MainActivity : ComponentActivity() {
                         return@let null
                     }
 
-                    if (!it.data.toString().contains(".gpx")) {
+                    if (!it.data.toString().contains(".gpx") || !it.data.toString().contains(".xml")) {
 
                         // For ACTION_SEND, the URI is sometimes in the EXTRA_STREAM extra.
                         // We need a version check for compatibility with Android 13 (Tiramisu) and newer.

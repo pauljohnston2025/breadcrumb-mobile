@@ -3,8 +3,13 @@ package com.paul.infrastructure.service
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
+import androidx.activity.ComponentActivity
+import androidx.activity.result.ActivityResultCallback
 import io.github.aakira.napier.Napier
 import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.ActivityResultRegistry
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.lifecycle.LifecycleOwner
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -15,16 +20,20 @@ import java.io.IOException
 import kotlin.coroutines.resumeWithException
 
 class FileHelper(
-    private val context: Context,
+    private val context: Context
 ) : IFileHelper {
 
-    private var getContentLauncher: ActivityResultLauncher<Array<String>>? =
-        null
+    private var getContentLauncher: ActivityResultLauncher<Array<String>>? = null
     private var searchCompletion: ((Uri?) -> Unit)? = null
 
-    fun setLauncher(_getContentLauncher: ActivityResultLauncher<Array<String>>) {
-        require(getContentLauncher == null)
-        getContentLauncher = _getContentLauncher
+    fun registerLauncher(activity: ComponentActivity) {
+        getContentLauncher = activity.activityResultRegistry.register(
+            "file_picker_key",
+            activity,
+            ActivityResultContracts.OpenDocument()
+        ) { uri ->
+            fileLoaded(uri)
+        }
     }
 
     override suspend fun readFile(filename: String): ByteArray? {
@@ -85,6 +94,10 @@ class FileHelper(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     override suspend fun findFile(): String = suspendCancellableCoroutine { continuation ->
+        val launcher = getContentLauncher ?: throw IllegalStateException(
+            "findFile() can only be called from an instance of FileHelper registered with an Activity."
+        )
+
         require(searchCompletion == null)
         searchCompletion = { uri ->
             if (uri == null) {
@@ -99,8 +112,15 @@ class FileHelper(
             searchCompletion = null
         }
 
-        require(getContentLauncher != null)
-        getContentLauncher!!.launch(arrayOf("*"))
+        val mimeTypes = arrayOf(
+            "application/gpx+xml", // The "correct" type
+            "application/xml",     // Standard XML
+            "text/xml",            // Some older systems use this
+            "text/plain",          // Catch-all for text-based files
+            "application/octet-stream" // Last resort for "unknown" binary/data
+        )
+
+        launcher.launch(mimeTypes)
     }
 
     override suspend fun getFileName(fullName: String): String? {
