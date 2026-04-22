@@ -29,6 +29,7 @@ import com.paul.infrastructure.connectiq.DeviceList
 import com.paul.infrastructure.repositories.ColourPaletteRepository
 import com.paul.infrastructure.repositories.ITileRepository
 import com.paul.infrastructure.service.AndroidLocationService
+import com.paul.infrastructure.service.BrowserLauncher
 import com.paul.infrastructure.service.ClipboardHandler
 import com.paul.infrastructure.service.FileHelper
 import com.paul.infrastructure.service.GpxFileLoader
@@ -37,6 +38,7 @@ import com.paul.infrastructure.service.IntentHandler
 import com.paul.ui.App
 import io.github.aakira.napier.DebugAntilog
 import io.github.aakira.napier.Napier
+import com.paul.infrastructure.repositories.StravaRepository
 
 
 class MainActivity : ComponentActivity() {
@@ -54,6 +56,7 @@ class MainActivity : ComponentActivity() {
     val tileRepo = ITileRepository(fileHelper)
     val locationService = AndroidLocationService(this)
     val colourPaletteRepo = ColourPaletteRepository(tileRepo)
+    val stravaRepository = StravaRepository(BrowserLauncher(this))
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -82,6 +85,7 @@ class MainActivity : ComponentActivity() {
                     webServerController,
                     intentHandler,
                     locationService,
+                    stravaRepository,
                 )
             }
         }
@@ -94,6 +98,24 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleIntent(intent: Intent) {
+        val data: Uri? = intent.data
+
+        // 1. Check for the custom scheme com.paul://strava
+        if (data != null && data.scheme == "paulapp" && data.host == "localhost") {
+            val code = data.getQueryParameter("code")
+            val error = data.getQueryParameter("error")
+
+            if (code != null) {
+                Napier.d("Strava OAuth Success! Code: $code")
+                // Send this code to your Ktor client logic to get the Token
+                stravaRepository.stravaOauthSuccess(code)
+            } else if (error != null) {
+                Napier.e("Strava Auth Error: $error")
+                stravaRepository.stravaOauthFailed(error)
+            }
+            return
+        }
+
         if (intent.action == Intent.ACTION_MAIN && intent.hasCategory(Intent.CATEGORY_LAUNCHER)) {
             // This is a launch from the launcher icon.
             // If the app is already open, you don't want to navigate to the start screen.

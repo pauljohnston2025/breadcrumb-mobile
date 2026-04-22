@@ -23,6 +23,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.AlertDialog
 import androidx.compose.material.Button
+import androidx.compose.material.ButtonDefaults
+import androidx.compose.material.CircularProgressIndicator
 import androidx.compose.material.Divider
 import androidx.compose.material.DropdownMenuItem
 import androidx.compose.material.ExperimentalMaterialApi
@@ -31,6 +33,7 @@ import androidx.compose.material.ExposedDropdownMenuDefaults
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
 import androidx.compose.material.MaterialTheme
+import androidx.compose.material.OutlinedButton
 import androidx.compose.material.OutlinedTextField
 import androidx.compose.material.RadioButton
 import androidx.compose.material.Switch
@@ -613,7 +616,10 @@ fun Settings(
                 // Use a local state that ONLY updates when the user types
                 var webPortInput by remember(savedWebPort) { mutableStateOf(savedWebPort.toString()) }
 
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     OutlinedTextField(
                         value = webPortInput,
                         onValueChange = { webPortInput = it },
@@ -877,6 +883,9 @@ fun Settings(
                         })
                 }
             }
+
+            Divider(modifier = Modifier.padding(vertical = 16.dp))
+            StravaSettings(viewModel = viewModel)
         }
     }
 
@@ -910,5 +919,116 @@ fun AuthTokenEditor(
             visualTransformation = if (obscureText) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
             keyboardOptions = KeyboardOptions(keyboardType = if (obscureText) KeyboardType.Password else KeyboardType.Ascii)
         )
+    }
+}
+
+@Composable
+fun StravaSettings(viewModel: com.paul.viewmodels.Settings) {
+    val stravaClientId by viewModel.stravaClientId.collectAsState()
+    val stravaClientSecret by viewModel.stravaClientSecret.collectAsState()
+
+    // Observed from the Repository via the ViewModel
+    val stravaActivities by viewModel.stravaActivities.collectAsState()
+    val loginStatus by viewModel.stravaRepo.loginStatus.collectAsState()
+    val isSyncing by viewModel.stravaRepo.isSyncing.collectAsState()
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text("Strava Integration", style = MaterialTheme.typography.h6)
+
+        OutlinedTextField(
+            value = stravaClientId,
+            onValueChange = { viewModel.onStravaClientIdChange(it) },
+            label = { Text("Strava Client ID") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
+        )
+
+        OutlinedTextField(
+            value = stravaClientSecret,
+            onValueChange = { viewModel.onStravaClientSecretChange(it) },
+            label = { Text("Strava Client Secret") },
+            modifier = Modifier.fillMaxWidth(),
+            visualTransformation = PasswordVisualTransformation(),
+            singleLine = true
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Initiates the Browser flow
+            Button(
+                onClick = { viewModel.stravaLogin() },
+                modifier = Modifier.weight(1f),
+                enabled = stravaClientId.isNotBlank()
+            ) {
+                Text("Connect")
+            }
+
+            // Manual Sync
+            Button(
+                onClick = { viewModel.syncStravaActivities() },
+                modifier = Modifier.weight(1f),
+                enabled = stravaClientId.isNotBlank() && stravaClientSecret.isNotBlank()
+            ) {
+                if (isSyncing) {
+                    // Small spinner inside the button
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        color = MaterialTheme.colors.onPrimary,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Text("Sync")
+                }
+            }
+        }
+
+        OutlinedButton(
+            onClick = { viewModel.clearStravaCache() },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colors.error)
+        ) {
+            Icon(Icons.Default.Delete, contentDescription = null)
+            Spacer(Modifier.width(8.dp))
+            Text("Clear Local Cache")
+        }
+
+
+        // Status Feedback Area
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            loginStatus?.let { status ->
+                val isError = status.contains("Error", ignoreCase = true) ||
+                        status.contains("Failed", ignoreCase = true)
+
+                Text(
+                    text = status,
+                    style = MaterialTheme.typography.caption,
+                    color = if (isError) MaterialTheme.colors.error else MaterialTheme.colors.primary,
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                )
+            }
+
+            if (stravaActivities.isNotEmpty()) {
+                Text(
+                    text = "Currently indexed: ${stravaActivities.size} activities",
+                    style = MaterialTheme.typography.caption,
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                )
+            } else if (loginStatus == null) {
+                Text(
+                    text = "No activities synced yet.",
+                    style = MaterialTheme.typography.caption,
+                    color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f),
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                )
+            }
+        }
     }
 }

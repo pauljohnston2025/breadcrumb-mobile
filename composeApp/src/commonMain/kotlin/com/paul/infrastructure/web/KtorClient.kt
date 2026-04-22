@@ -10,6 +10,7 @@ import io.ktor.client.plugins.*
 import io.ktor.client.plugins.api.createClientPlugin
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.plugins.logging.*
+import io.ktor.client.plugins.observer.ResponseObserver
 import io.ktor.client.plugins.resources.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
@@ -51,7 +52,7 @@ object KtorClient {
             val status = call.response.status.value
 
             // Log the concise message
-//            Napier.d("Fetching $url, got response $status", tag="HTTP client")
+            Napier.d("Fetching $url, got response $status", tag="HTTP client")
 
             // Return the result of the execution (the HttpClientCall) to the pipeline
             call // Ensure the interceptor returns the call object
@@ -82,6 +83,13 @@ object KtorClient {
 //                level = LogLevel.ALL
 //
 //            }
+
+            install(ResponseObserver) {
+                onResponse { response ->
+                    val body = response.bodyAsText()
+                    Napier.d("Payload: $body", tag = "HTTP Payload")
+                }
+            }
 
             install(DefaultRequest) {
                 host = API_HOST

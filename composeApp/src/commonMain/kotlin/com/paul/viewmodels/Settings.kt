@@ -14,6 +14,7 @@ import com.paul.infrastructure.connectiq.IConnection
 import com.paul.infrastructure.repositories.ColourPaletteRepository
 import com.paul.infrastructure.repositories.ITileRepository
 import com.paul.infrastructure.repositories.RouteRepository
+import com.paul.infrastructure.repositories.StravaRepository
 import com.paul.infrastructure.repositories.TileServerRepo
 import com.paul.infrastructure.repositories.TileServerRepo.Companion.defaultWebPort
 import com.paul.infrastructure.web.TileType
@@ -34,7 +35,8 @@ class Settings(
     webServerController: WebServerController,
     tileRepo: ITileRepository,
     public val routesRepo: RouteRepository,
-    private val colourPaletteRepository: ColourPaletteRepository, // Inject ColourPaletteRepository
+    private val colourPaletteRepository: ColourPaletteRepository,
+    public val stravaRepo: StravaRepository,
 ) : ViewModel() {
 
     val tileServerRepo = TileServerRepo(webServerController, tileRepo)
@@ -48,6 +50,60 @@ class Settings(
     val connectIqAppId = connection.connectIqAppIdFlow()
 
     val webServerPortFlow = tileServerRepo.webServerPortFlow()
+
+    private val _stravaClientId = MutableStateFlow(stravaRepo.getClientId())
+    val stravaClientId = _stravaClientId.asStateFlow()
+
+    private val _stravaClientSecret = MutableStateFlow(stravaRepo.getClientSecret())
+    val stravaClientSecret = _stravaClientSecret.asStateFlow()
+
+    fun stravaLogin() {
+        viewModelScope.launch(Dispatchers.IO) {
+            // Check if credentials exist before trying to login
+            if (stravaRepo.getClientId().isBlank()) {
+                snackbarHostState.showSnackbar("Please enter a Strava Client ID first")
+                return@launch
+            }
+
+            // This triggers the browser launch logic we discussed earlier
+            // Note: stravaRepo.login() here should trigger the URL building
+            stravaRepo.launchAuthFlow()
+        }
+    }
+
+    fun onStravaClientIdChange(newId: String) {
+        _stravaClientId.value = newId
+        stravaRepo.saveClientId(newId)
+    }
+
+    fun onStravaClientSecretChange(newSecret: String) {
+        _stravaClientSecret.value = newSecret
+        stravaRepo.saveClientSecret(newSecret)
+    }
+
+    val stravaActivities = stravaRepo.activities
+
+    fun syncStravaActivities() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                stravaRepo.syncActivities()
+            } catch (e: Exception) {
+                Napier.e("Manual sync failed", e)
+                snackbarHostState.showSnackbar("Sync failed: ${e.message}")
+            }
+        }
+    }
+
+    fun clearStravaCache() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                stravaRepo.clearAllStravaData()
+            } catch (e: Exception) {
+                Napier.e("Clear strava data failed", e)
+                snackbarHostState.showSnackbar("Clear strava data failed: ${e.message}")
+            }
+        }
+    }
 
     fun onWebPortChange(newPort: Int) {
         viewModelScope.launch(Dispatchers.IO) {

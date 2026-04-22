@@ -48,6 +48,7 @@ import com.paul.infrastructure.repositories.ColourPaletteRepository
 import com.paul.infrastructure.repositories.ITileRepository
 import com.paul.infrastructure.repositories.ProfileRepo
 import com.paul.infrastructure.repositories.RouteRepository
+import com.paul.infrastructure.repositories.StravaRepository
 import com.paul.infrastructure.service.IClipboardHandler
 import com.paul.infrastructure.service.IFileHelper
 import com.paul.infrastructure.service.IGpxFileLoader
@@ -86,7 +87,7 @@ fun App(
     webServerController: WebServerController,
     intentHandler: IntentHandler,
     locationService: ILocationService,
-
+    stravaRepository: StravaRepository,
     ) {
     // Inside the App composable:
     var updateVersion by remember { mutableStateOf<String?>(null) }
@@ -139,7 +140,8 @@ fun App(
                         webServerController,
                         tileRepo,
                         RouteRepository(fileHelper, gpxFileLoader),
-                        colourPaletteRepo
+                        colourPaletteRepo,
+                        stravaRepository,
                     )
                 }
 
