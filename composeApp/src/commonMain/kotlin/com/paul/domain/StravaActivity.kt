@@ -8,12 +8,42 @@ import com.paul.protocol.todevice.Route
 import kotlinx.datetime.Instant
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
+
+@Serializable
+data class StravaStreamResponse(
+    val latlng: StravaLatLngStream? = null,
+    val altitude: StravaAltitudeStream? = null,
+)
+
+@Serializable
+data class StravaLatLngStream(
+    val data: List<List<Double>>,
+    val series_type: String
+)
+
+@Serializable
+data class StravaAltitudeStream(
+    val data: List<Float>,
+    val series_type: String
+)
 
 @Serializable
 data class StravaTokenResponse(
     @SerialName("access_token") val accessToken: String,
     @SerialName("refresh_token") val refreshToken: String
 )
+
+@Entity(tableName = "strava_streams")
+data class StravaStreamEntity(
+    @PrimaryKey
+    val activityId: Long,
+    val points: List<Point> // This still uses your TypeConverter
+) {
+    fun toRoute(name: String): Route {
+        return Route(name, points, emptyList())
+    }
+}
 
 @Serializable
 @Entity(tableName = "strava_activities")

@@ -38,6 +38,7 @@ class StravaActivitiesViewModel(
 
     val isSyncing = stravaRepo.isSyncing
     val loginStatus = stravaRepo.loginStatus
+    val syncErrorStatus = stravaRepo.syncErrorStatus
     val currentRange = stravaRepo.currentRange
     val totalActivityCount: Flow<Long> = stravaRepo.getTotalCountFlow()
 
@@ -69,7 +70,13 @@ class StravaActivitiesViewModel(
 
         viewModelScope.launch(Dispatchers.Default) {
             try {
-                mapViewModel.displayRoute(activity.toRoute())
+                val stream = stravaRepo.getStreamForActivity(activity.id)
+                if (stream == null) {
+                    snackbarHostState.showSnackbar("Failed to load activity steam, please do a full delete/resync")
+                    return@launch
+                }
+
+                mapViewModel.displayRoute(stream.toRoute(activity.name))
                 _navigationEvents.emit(StravaNavigationEvent.NavigateTo(Screen.Map.route))
             } catch (e: Exception) {
                 snackbarHostState.showSnackbar("Failed to parse map data")

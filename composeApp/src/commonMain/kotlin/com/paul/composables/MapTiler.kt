@@ -166,7 +166,8 @@ fun MapTilerComposable(
     // --- Fit to Route Effect ---
     LaunchedEffect(routeToDisplay, viewportSize) {
         // *** THE FIX IS HERE (Part 2): Add a condition to only center on a NEW route. ***
-        if (routeToDisplay != null && routeToDisplay != centeredRoute && viewportSize != IntSize.Zero) {
+        val hasPoints = !routeToDisplay?.route.isNullOrEmpty()
+        if (hasPoints && routeToDisplay != null && routeToDisplay != centeredRoute && viewportSize != IntSize.Zero) {
             var minLat = routeToDisplay.route.first().latitude.toDouble()
             var maxLat = minLat
             var minLon = routeToDisplay.route.first().longitude.toDouble()
@@ -221,7 +222,7 @@ fun MapTilerComposable(
             // *** THE FIX IS HERE (Part 3): Once we have centered, record the route. ***
             centeredRoute = routeToDisplay
 
-        } else if (routeToDisplay == null) {
+        } else if (routeToDisplay == null || !hasPoints) {
             // If the route is cleared, reset our tracker so a new route can be centered later.
             centeredRoute = null
         }

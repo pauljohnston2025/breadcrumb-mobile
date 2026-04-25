@@ -81,8 +81,6 @@ class Settings(
         stravaRepo.saveClientSecret(newSecret)
     }
 
-    val stravaActivities = stravaRepo.activities
-
     fun syncStravaActivities() {
         viewModelScope.launch(Dispatchers.IO) {
             try {

@@ -55,6 +55,7 @@ fun StravaActivitiesScreen(viewModel: StravaActivitiesViewModel) {
     val activities by viewModel.activities.collectAsState(emptyList())
     val isSyncing by viewModel.isSyncing.collectAsState()
     val status by viewModel.loginStatus.collectAsState()
+    val syncErrorStatus by viewModel.syncErrorStatus.collectAsState()
     val currentRange by viewModel.currentRange.collectAsState()
     val totalCount by viewModel.totalActivityCount.collectAsState(0)
     var showDatePicker by remember { mutableStateOf(false) }
@@ -86,6 +87,25 @@ fun StravaActivitiesScreen(viewModel: StravaActivitiesViewModel) {
                 } else {
                     Icon(Icons.Default.Refresh, contentDescription = "Sync")
                 }
+            }
+        }
+
+
+        if (!syncErrorStatus.isNullOrEmpty())
+        {
+            Row(
+                modifier = Modifier.padding(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (isSyncing) {
+                    LinearProgressIndicator(modifier = Modifier.width(40.dp))
+                    Spacer(Modifier.width(12.dp))
+                }
+                Text(
+                    text = syncErrorStatus ?: "Ready to sync",
+                    style = MaterialTheme.typography.body2,
+                    fontWeight = FontWeight.Medium
+                )
             }
         }
 

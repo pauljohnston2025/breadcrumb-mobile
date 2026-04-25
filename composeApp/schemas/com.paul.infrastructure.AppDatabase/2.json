@@ -1,7 +1,7 @@
 {
   "formatVersion": 1,
   "database": {
-    "version": 1,
+    "version": 2,
     "identityHash": "f9dbd594dff4b08a9837e2bcc87391c0",
     "entities": [
       {
@@ -36,6 +36,30 @@
           "autoGenerate": false,
           "columnNames": [
             "id"
+          ]
+        }
+      },
+      {
+        "tableName": "strava_streams",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`activityId` INTEGER NOT NULL, `points` TEXT NOT NULL, PRIMARY KEY(`activityId`))",
+        "fields": [
+          {
+            "fieldPath": "activityId",
+            "columnName": "activityId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "points",
+            "columnName": "points",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "activityId"
           ]
         }
       }

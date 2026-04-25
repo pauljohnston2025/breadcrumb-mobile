@@ -1,12 +1,13 @@
 package com.paul.infrastructure.repositories
 
-import com.paul.domain.RouteEntry
-import com.paul.domain.RouteType
 import com.paul.domain.StravaActivity
+import com.paul.domain.StravaStreamEntity
+import com.paul.domain.StravaStreamResponse
 import com.paul.domain.StravaTokenResponse
 import com.paul.infrastructure.dao.StravaDao
 import com.paul.infrastructure.service.IBrowserLauncher
 import com.paul.infrastructure.web.KtorClient
+import com.paul.protocol.todevice.Point
 import com.russhwolf.settings.Settings
 import com.russhwolf.settings.set
 import io.github.aakira.napier.Napier
@@ -52,17 +53,19 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
                     }
                 }
                 refreshTokens {
-                    val oldRefresh = settings.getStringOrNull(REFRESH_TOKEN_KEY) ?: return@refreshTokens null
+                    val oldRefresh =
+                        settings.getStringOrNull(REFRESH_TOKEN_KEY) ?: return@refreshTokens null
 
                     try {
-                        val response: StravaTokenResponse = KtorClient.client.post("https://www.strava.com/api/v3/oauth/token") {
-                            url {
-                                parameters.append("client_id", getClientId())
-                                parameters.append("client_secret", getClientSecret())
-                                parameters.append("grant_type", "refresh_token")
-                                parameters.append("refresh_token", oldRefresh)
-                            }
-                        }.body()
+                        val response: StravaTokenResponse =
+                            KtorClient.client.post("https://www.strava.com/api/v3/oauth/token") {
+                                url {
+                                    parameters.append("client_id", getClientId())
+                                    parameters.append("client_secret", getClientSecret())
+                                    parameters.append("grant_type", "refresh_token")
+                                    parameters.append("refresh_token", oldRefresh)
+                                }
+                            }.body()
 
                         // NO CURLY BRACES HERE
                         settings[ACCESS_TOKEN_KEY] = response.accessToken
@@ -87,6 +90,9 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
     // UI can observe this to show success/error messages
     private val _loginStatus = MutableStateFlow<String?>(null)
     val loginStatus: StateFlow<String?> = _loginStatus.asStateFlow()
+
+    private val _syncErrorStatus = MutableStateFlow<String?>(null)
+    val syncErrorStatus: StateFlow<String?> = _syncErrorStatus.asStateFlow()
 
     private val _isSyncing = MutableStateFlow(false)
     val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
@@ -137,15 +143,56 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
         private const val API_BASE_URL = "https://www.strava.com/api/v3"
     }
 
+    suspend fun getActivityStreams(activityId: Long): List<Point> {
+        return try {
+            // 1. Request the streams.
+            // We use .body<StravaStreamResponse>() directly to let Ktor/Serialization
+            // handle the mapping to your new data classes.
+            val response: StravaStreamResponse = stravaClient.get("activities/$activityId/streams") {
+                url {
+                    parameters.append("keys", "latlng,altitude")
+                    parameters.append("key_by_type", "true")
+                }
+            }.body()
+
+            // 2. Extract data safely.
+            // If latlng is missing, we can't draw a map, so we return empty.
+            val latLngData = response.latlng?.data ?: return emptyList()
+            val altitudeData = response.altitude?.data
+
+            // 3. Map to your internal Point objects
+            latLngData.mapIndexed { index, coords ->
+                // coords is a List<Double> containing [lat, lng]
+                val lat = coords.getOrNull(0)?.toFloat() ?: 0f
+                val lng = coords.getOrNull(1)?.toFloat() ?: 0f
+
+                // If altitudeData exists and has a value for this index, use it.
+                // Otherwise, default to 0f.
+                val alt = altitudeData?.getOrNull(index) ?: 0f
+
+                Point(
+                    latitude = lat,
+                    longitude = lng,
+                    altitude = alt
+                )
+            }
+        } catch (e: Exception) {
+            // Essential: Do not swallow CancellationExceptions or the sync loop will hang
+            if (e is kotlinx.coroutines.CancellationException) throw e
+
+            Napier.e("Failed to fetch/parse streams for $activityId", e)
+            _syncErrorStatus.value = "Failed to parse data for $activityId"
+            throw e
+        }
+    }
+
     suspend fun syncNewest() = sync(direction = "after")
     suspend fun syncOlder() = sync(direction = "before")
 
     private suspend fun sync(direction: String) {
         _isSyncing.value = true
-        // No need to manually check for token here, Auth plugin handles it
-
         var keepGoing = true
-        var totalSyncedInThisSession = 0
+        var totalDiscovered = 0
         var currentAnchor: Long? = if (direction == "after") {
             dao.getLatestTimestamp()?.epochSeconds
         } else {
@@ -154,11 +201,8 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
 
         try {
             while (keepGoing) {
-                _loginStatus.value =
-                    "Syncing Strava ($direction) ($totalSyncedInThisSession found)..."
+                _loginStatus.value = "Fetching next batch from Strava..."
 
-                // Use the specialized stravaClient
-                // Note: The URL is now relative because of DefaultRequest
                 val response: List<StravaActivity> = stravaClient.get("athlete/activities") {
                     url {
                         currentAnchor?.let { parameters.append(direction, it.toString()) }
@@ -169,22 +213,65 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
                 if (response.isEmpty()) {
                     keepGoing = false
                 } else {
-                    dao.insertActivities(response)
-                    totalSyncedInThisSession += response.size
+                    val batchSize = response.size
+                    totalDiscovered += batchSize
+
+                    // Process this batch immediately
+                    response.forEachIndexed { index, activity ->
+                        // This calculates global progress:
+                        // (Number of items from previous batches) + (current item index + 1)
+                        val globalIndex = (totalDiscovered - batchSize) + (index + 1)
+
+                        _loginStatus.value =
+                            "Processing $globalIndex of $totalDiscovered: ${activity.name}"
+
+                        // 1. Fetch and save heavy stream data
+                        val fullPoints = getActivityStreams(activity.id)
+                        dao.insertStream(StravaStreamEntity(activity.id, fullPoints))
+
+                        // 2. Save activity header
+                        dao.insertActivities(listOf(activity))
+                    }
+
+                    // Update anchor for next batch
                     currentAnchor = if (direction == "after") {
                         response.maxOf { it.startDate.epochSeconds }
                     } else {
                         response.minOf { it.startDate.epochSeconds }
                     }
 
-                    // If we got less than 100, we've reached the end of this direction
-                    if (response.size < 100) {
+                    // Stop if we reached the end of the available data
+                    if (batchSize < 100) {
                         keepGoing = false
                     }
                 }
             }
-            _loginStatus.value =
-                "Sync complete ($direction). Total added: $totalSyncedInThisSession"
+            _loginStatus.value = "Sync complete. Total processed: $totalDiscovered"
+        } catch (e: Exception) {
+            handleSyncError(e)
+        } finally {
+            _isSyncing.value = false
+        }
+    }
+
+    suspend fun syncMissingStreams() {
+        val missingIds = dao.getActivityIdsMissingStreams()
+        if (missingIds.isEmpty()) return
+
+        _isSyncing.value = true
+        val total = missingIds.size
+
+        try {
+            missingIds.forEachIndexed { index, id ->
+                val current = index + 1
+                _loginStatus.value = "Repairing streams: $current of $total"
+
+                val points = getActivityStreams(id)
+                if (points.isNotEmpty()) {
+                    dao.insertStream(StravaStreamEntity(id, points))
+                }
+            }
+            _loginStatus.value = "Stream repair complete."
         } catch (e: Exception) {
             handleSyncError(e)
         } finally {
@@ -194,28 +281,47 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
 
     suspend fun clearAllStravaData() {
         dao.clearAll()
+        dao.clearAllStreams()
         _loginStatus.value = "Local cache cleared."
     }
 
+    suspend fun getStreamForActivity(id: Long): StravaStreamEntity? {
+        return dao.getStreamForActivity(id)
+    }
+
     suspend fun syncActivities() {
+        _syncErrorStatus.value = null
+        syncMissingStreams()
+        if (_syncErrorStatus.value != null) {
+            return;
+        }
         syncNewest()
+        if (_syncErrorStatus.value != null) {
+            return;
+        }
         syncOlder()
+        if (_syncErrorStatus.value != null) {
+            return;
+        }
 
         _loginStatus.value = "Sync Complete"
     }
 
     private fun handleSyncError(e: Exception) {
+        // Essential: Do not swallow CancellationExceptions or the sync loop will hang
+        if (e is kotlinx.coroutines.CancellationException) throw e
+
         when (e) {
             is io.ktor.client.plugins.ClientRequestException -> {
                 if (e.response.status.value == 429) {
-                    _loginStatus.value = "Rate limit hit. Resuming in 15 mins..."
+                    _syncErrorStatus.value = "Rate limit hit. Try Again in 15 mins..."
                 } else {
-                    _loginStatus.value = "Strava error: ${e.response.status.value}"
+                    _syncErrorStatus.value = "Strava error: ${e.response.status.value}"
                 }
             }
 
             else -> {
-                _loginStatus.value = "Sync failed. Check connection."
+                _syncErrorStatus.value = "Sync failed. Check connection."
                 Napier.e("Sync Error", e)
             }
         }
@@ -264,14 +370,15 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
 
         try {
             // Use base client for initial login to avoid Auth plugin logic
-            val response: StravaTokenResponse = KtorClient.client.post("https://www.strava.com/api/v3/oauth/token") {
-                url {
-                    parameters.append("client_id", id)
-                    parameters.append("client_secret", secret)
-                    parameters.append("code", code)
-                    parameters.append("grant_type", "authorization_code")
-                }
-            }.body()
+            val response: StravaTokenResponse =
+                KtorClient.client.post("https://www.strava.com/api/v3/oauth/token") {
+                    url {
+                        parameters.append("client_id", id)
+                        parameters.append("client_secret", secret)
+                        parameters.append("code", code)
+                        parameters.append("grant_type", "authorization_code")
+                    }
+                }.body()
 
             settings[ACCESS_TOKEN_KEY] = response.accessToken
             settings[REFRESH_TOKEN_KEY] = response.refreshToken
@@ -287,13 +394,4 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
     fun saveClientId(id: String) = settings.putString(CLIENT_ID_KEY, id)
     fun getClientSecret() = settings.getString(CLIENT_SECRET_KEY, "")
     fun saveClientSecret(secret: String) = settings.putString(CLIENT_SECRET_KEY, secret)
-
-    private fun StravaActivity.toRouteEntry() = RouteEntry(
-        id = "strava_$id",
-        name = name,
-        type = RouteType.COORDINATES,
-        createdAt = startDate,
-        sizeBytes = 0,
-        hasDirectionInfo = false
-    )
 }

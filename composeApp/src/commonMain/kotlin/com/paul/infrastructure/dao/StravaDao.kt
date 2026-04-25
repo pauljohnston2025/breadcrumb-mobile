@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.paul.domain.StravaActivity
+import com.paul.domain.StravaStreamEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.datetime.Instant
 
@@ -20,6 +21,9 @@ interface StravaDao {
     @Query("DELETE FROM strava_activities")
     suspend fun clearAll()
 
+    @Query("DELETE FROM strava_streams")
+    suspend fun clearAllStreams()
+
     @Query("SELECT MAX(startDate) FROM strava_activities")
     suspend fun getLatestTimestamp(): Instant?
 
@@ -31,4 +35,17 @@ interface StravaDao {
 
     @Query("SELECT COUNT(*) FROM strava_activities")
     fun sizeFlow(): Flow<Long>
+
+    // Stream operations (HEAVY)
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertStream(stream: StravaStreamEntity)
+
+    @Query("SELECT * FROM strava_streams WHERE activityId = :activityId")
+    suspend fun getStreamForActivity(activityId: Long): StravaStreamEntity?
+
+    @Query("""
+        SELECT id FROM strava_activities 
+        WHERE id NOT IN (SELECT activityId FROM strava_streams)
+    """)
+    suspend fun getActivityIdsMissingStreams(): List<Long>
 }

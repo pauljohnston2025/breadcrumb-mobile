@@ -928,8 +928,9 @@ fun StravaSettings(viewModel: com.paul.viewmodels.Settings) {
     val stravaClientSecret by viewModel.stravaClientSecret.collectAsState()
 
     // Observed from the Repository via the ViewModel
-    val stravaActivities by viewModel.stravaActivities.collectAsState(emptyList())
+    val stravaActivitiesSize by viewModel.stravaRepo.getTotalCountFlow().collectAsState(0)
     val loginStatus by viewModel.stravaRepo.loginStatus.collectAsState()
+    val syncErrorStatus by viewModel.stravaRepo.syncErrorStatus.collectAsState()
     val isSyncing by viewModel.stravaRepo.isSyncing.collectAsState()
 
     Column(
@@ -1003,6 +1004,15 @@ fun StravaSettings(viewModel: com.paul.viewmodels.Settings) {
 
         // Status Feedback Area
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            syncErrorStatus?.let { status ->
+                Text(
+                    text = status,
+                    style = MaterialTheme.typography.caption,
+                    color = MaterialTheme.colors.error,
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                )
+            }
+
             loginStatus?.let { status ->
                 val isError = status.contains("Error", ignoreCase = true) ||
                         status.contains("Failed", ignoreCase = true)
@@ -1015,9 +1025,9 @@ fun StravaSettings(viewModel: com.paul.viewmodels.Settings) {
                 )
             }
 
-            if (stravaActivities.isNotEmpty()) {
+            if (stravaActivitiesSize > 0) {
                 Text(
-                    text = "Currently indexed: ${stravaActivities.size} activities",
+                    text = "Currently indexed: ${stravaActivitiesSize} activities",
                     style = MaterialTheme.typography.caption,
                     modifier = Modifier.padding(horizontal = 4.dp)
                 )
