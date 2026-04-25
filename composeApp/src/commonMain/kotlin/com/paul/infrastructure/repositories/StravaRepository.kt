@@ -4,6 +4,7 @@ import com.paul.domain.RouteEntry
 import com.paul.domain.RouteType
 import com.paul.domain.StravaActivity
 import com.paul.domain.StravaTokenResponse
+import com.paul.infrastructure.dao.StravaDao
 import com.paul.infrastructure.service.IBrowserLauncher
 import com.paul.infrastructure.web.KtorClient
 import com.russhwolf.settings.Settings
@@ -16,22 +17,19 @@ import io.ktor.client.request.post
 import io.ktor.http.HttpHeaders
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Instant
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
-class StravaRepository(private val browserLauncher: IBrowserLauncher) {
+class StravaRepository(private val browserLauncher: IBrowserLauncher, private val dao: StravaDao) {
     private val settings = Settings()
     private val client = KtorClient.client
-
-    // Internal cache of activities to avoid re-fetching
-    private val _activities = MutableStateFlow<List<RouteEntry>>(loadLocalActivities())
-    val activities: StateFlow<List<RouteEntry>> = _activities.asStateFlow()
 
     private val repoScope = CoroutineScope(Dispatchers.Default)
 
@@ -41,6 +39,18 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher) {
 
     private val _isSyncing = MutableStateFlow(false)
     val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
+
+    // UI updates this range; the Flow below automatically reacts
+    private val _currentRange = MutableStateFlow(Instant.DISTANT_PAST..Instant.DISTANT_FUTURE)
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val activities: Flow<List<StravaActivity>> = _currentRange.flatMapLatest { range ->
+        dao.getActivitiesByDateRange(range.start, range.endInclusive)
+    }
+
+    fun setDateRange(start: Instant, end: Instant) {
+        _currentRange.value = start..end
+    }
 
     companion object {
         private const val CLIENT_ID_KEY = "STRAVA_CLIENT_ID"
@@ -58,21 +68,23 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher) {
     suspend fun syncOlder() = sync(direction = "before")
 
     private suspend fun sync(direction: String) {
-        _isSyncing.value = true // Start Spinner
+        _isSyncing.value = true
         val token = settings.getStringOrNull(ACCESS_TOKEN_KEY) ?: return
-        var keepGoing = true
-        var totalSynced = 0
 
-        // Initial anchor
-        var currentAnchor = if (direction == "after") {
-            _activities.value.maxOfOrNull { it.createdAt.epochSeconds }
+        var keepGoing = true
+        var totalSyncedInThisSession = 0
+
+        // 1. Get initial anchor from Room instead of memory
+        var currentAnchor: Long? = if (direction == "after") {
+            dao.getLatestTimestamp()?.epochSeconds
         } else {
-            _activities.value.minOfOrNull { it.createdAt.epochSeconds }
+            dao.getOldestTimestamp()?.epochSeconds
         }
 
         try {
             while (keepGoing) {
-                _loginStatus.value = "Syncing Strava ($direction) ($totalSynced found)..."
+                _loginStatus.value =
+                    "Syncing Strava ($direction) ($totalSyncedInThisSession found)..."
 
                 val response: List<StravaActivity> =
                     client.get("$API_BASE_URL/athlete/activities") {
@@ -86,39 +98,35 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher) {
                 if (response.isEmpty()) {
                     keepGoing = false
                 } else {
-                    val newEntries = response.map { it.toRouteEntry() }
-                    totalSynced += newEntries.size
+                    // 2. Persist directly to Room (Low Memory)
+                    dao.insertActivities(response)
 
-                    val updatedList = if (direction == "after") {
-                        // Update anchor to the newest one received to keep moving forward
-                        currentAnchor = newEntries.maxOf { it.createdAt.epochSeconds }
-                        newEntries.reversed() + _activities.value
+                    totalSyncedInThisSession += response.size
+
+                    // 3. Update the anchor for the next page in the loop
+                    currentAnchor = if (direction == "after") {
+                        response.maxOf { it.startDate.epochSeconds }
                     } else {
-                        // Update anchor to the oldest one received to keep moving backward
-                        currentAnchor = newEntries.minOf { it.createdAt.epochSeconds }
-                        _activities.value + newEntries
+                        response.minOf { it.startDate.epochSeconds }
                     }
 
-                    _activities.value = updatedList.distinctBy { it.id }
-                    saveLocalActivities(_activities.value)
-
-                    // If we got less than 100, we've reached the end of what Strava has for this direction
+                    // If we got less than 100, we've reached the end of this direction
                     if (response.size < 100) {
                         keepGoing = false
                     }
                 }
             }
-            _loginStatus.value = "Sync complete ($direction). Total: ${_activities.value.size}"
+            _loginStatus.value =
+                "Sync complete ($direction). Total added: $totalSyncedInThisSession"
         } catch (e: Exception) {
             handleSyncError(e)
         } finally {
-            _isSyncing.value = false // Stop Spinner even if it fails
+            _isSyncing.value = false
         }
     }
 
-    fun clearAllStravaData() {
-        _activities.value = emptyList()
-        settings.remove(LOCAL_ACTIVITIES_KEY)
+    suspend fun clearAllStravaData() {
+        dao.clearAll()
         _loginStatus.value = "Local cache cleared."
     }
 
@@ -226,15 +234,11 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher) {
 
             _loginStatus.value = "Success! Fetching activities..."
             syncActivities()
-            _loginStatus.value = "Strava Connected: ${_activities.value.size} activities cached."
+            _loginStatus.value = "Strava Connected: ${dao.size()} activities cached."
         } catch (e: Exception) {
             Napier.e("Login failed", e)
             _loginStatus.value = "Login failed: ${e.message}"
         }
-    }
-
-    fun clearStatus() {
-        _loginStatus.value = null
     }
 
     fun getClientId() = settings.getString(CLIENT_ID_KEY, "")

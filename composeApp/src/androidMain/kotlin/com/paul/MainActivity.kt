@@ -1,7 +1,6 @@
 package com.paul
 
 import android.Manifest
-import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -12,9 +11,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.result.contract.ActivityResultContract
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.annotation.CallSuper
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -26,8 +23,12 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.content.ContextCompat
 import com.paul.infrastructure.connectiq.Connection
 import com.paul.infrastructure.connectiq.DeviceList
+import com.paul.infrastructure.getDatabaseBuilder
+import com.paul.infrastructure.getRoomDatabase
+import com.paul.infrastructure.initAndroidDatabase
 import com.paul.infrastructure.repositories.ColourPaletteRepository
 import com.paul.infrastructure.repositories.ITileRepository
+import com.paul.infrastructure.repositories.StravaRepository
 import com.paul.infrastructure.service.AndroidLocationService
 import com.paul.infrastructure.service.BrowserLauncher
 import com.paul.infrastructure.service.ClipboardHandler
@@ -38,7 +39,6 @@ import com.paul.infrastructure.service.IntentHandler
 import com.paul.ui.App
 import io.github.aakira.napier.DebugAntilog
 import io.github.aakira.napier.Napier
-import com.paul.infrastructure.repositories.StravaRepository
 
 
 class MainActivity : ComponentActivity() {
@@ -56,7 +56,20 @@ class MainActivity : ComponentActivity() {
     val tileRepo = ITileRepository(fileHelper)
     val locationService = AndroidLocationService(this)
     val colourPaletteRepo = ColourPaletteRepository(tileRepo)
-    val stravaRepository = StravaRepository(BrowserLauncher(this))
+    // 1. Define the database and repo lazily
+    // This way they aren't created until 'setContent' or 'handleIntent' calls them
+    private val database by lazy {
+        val builder = getDatabaseBuilder()
+        getRoomDatabase(builder)
+    }
+
+    private val stravaDao by lazy { database.stravaDao() }
+
+    // Use 'by lazy' so it doesn't crash on startup
+    // It will wait until initAndroidDatabase(this) has been called in onCreate
+    private val stravaRepository by lazy {
+        StravaRepository(BrowserLauncher(this), stravaDao)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -65,6 +78,7 @@ class MainActivity : ComponentActivity() {
 
         Napier.base(DebugAntilog())
         Napier.base(InMemoryDebugAntilog())
+        initAndroidDatabase(this)
 
         addOnNewIntentListener({
             handleIntent(it)

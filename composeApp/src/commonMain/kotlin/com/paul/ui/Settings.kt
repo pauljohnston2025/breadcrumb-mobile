@@ -928,7 +928,7 @@ fun StravaSettings(viewModel: com.paul.viewmodels.Settings) {
     val stravaClientSecret by viewModel.stravaClientSecret.collectAsState()
 
     // Observed from the Repository via the ViewModel
-    val stravaActivities by viewModel.stravaActivities.collectAsState()
+    val stravaActivities by viewModel.stravaActivities.collectAsState(emptyList())
     val loginStatus by viewModel.stravaRepo.loginStatus.collectAsState()
     val isSyncing by viewModel.stravaRepo.isSyncing.collectAsState()
 

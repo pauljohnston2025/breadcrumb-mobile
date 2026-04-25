@@ -9,6 +9,8 @@ plugins {
     alias(libs.plugins.jetbrainsCompose)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.serialization)
+    alias(libs.plugins.google.ksp)
+    alias(libs.plugins.androidx.room)
 }
 
 kotlin {
@@ -64,8 +66,19 @@ kotlin {
             implementation(libs.skiko.core)
             implementation(libs.play.services.location)
 //            implementation(libs.icons.extended)
+            implementation(libs.androidx.room.runtime)
+            implementation(libs.androidx.sqlite.bundled)
         }
     }
+}
+
+dependencies {
+    // For KSP in KMP, use the accessor for the compiler
+    add("kspCommonMainMetadata", libs.androidx.room.compiler)
+}
+
+room {
+    schemaDirectory("$projectDir/schemas")
 }
 
 fun executeCommand(command: String, workingDir: File = rootProject.projectDir, fallbackValue: String = ""): String {

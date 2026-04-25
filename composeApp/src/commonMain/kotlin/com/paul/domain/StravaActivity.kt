@@ -1,5 +1,8 @@
 package com.paul.domain
 
+import androidx.room.Embedded
+import androidx.room.Entity
+import androidx.room.PrimaryKey
 import com.paul.protocol.todevice.Point
 import kotlinx.datetime.Instant
 import kotlinx.serialization.SerialName
@@ -12,10 +15,14 @@ data class StravaTokenResponse(
 )
 
 @Serializable
+@Entity(tableName = "strava_activities")
 data class StravaActivity(
+    @PrimaryKey
     val id: Long,
     val name: String,
-    @SerialName("start_date") val startDate: Instant,
+    @SerialName("start_date")
+    val startDate: Instant,
+    @Embedded
     val map: StravaMap? = null
 )
 
