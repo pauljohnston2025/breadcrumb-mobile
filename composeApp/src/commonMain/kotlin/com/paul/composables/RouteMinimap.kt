@@ -1,36 +1,36 @@
+package com.paul.composables
+
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import com.paul.composables.byteArrayToImageBitmap
 import com.paul.infrastructure.repositories.ITileRepository
+import com.paul.infrastructure.service.GeoPosition
+import com.paul.infrastructure.service.geoToScreenPixel
 import com.paul.protocol.todevice.Route
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
 import kotlin.math.PI
 import kotlin.math.cos
-import kotlin.math.floor
 import kotlin.math.ln
 import kotlin.math.log2
 import kotlin.math.max
 import kotlin.math.pow
+import kotlin.math.roundToInt
 import kotlin.math.tan
 
 @Composable
@@ -40,85 +40,112 @@ fun RouteMiniMap(
     modifier: Modifier = Modifier,
     lineColor: Color = Color(0xFFFC4C02),
 ) {
-    val points = route?.route ?: emptyList()
-    var tileBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
+    // Local state to store bitmaps fetched from the repo
+    // This avoids using a global tileCache while allowing the Canvas to draw asynchronously loaded data
+    val localBitmaps = remember { mutableStateMapOf<String, ImageBitmap>() }
 
-    // 1. Calculate Bounds and Zoom level
-    val routeData = remember(points) {
-        if (points.isEmpty()) return@remember null
-        val minLat = points.minOf { it.latitude }
-        val maxLat = points.maxOf { it.latitude }
-        val minLng = points.minOf { it.longitude }
-        val maxLng = points.maxOf { it.longitude }
+    BoxWithConstraints(
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color.LightGray.copy(alpha = 0.1f))
+    ) {
+        val width = constraints.maxWidth
+        val height = constraints.maxHeight
+        if (width <= 0 || height <= 0 || route == null || route.route.isEmpty()) return@BoxWithConstraints
 
-        val dLat = (maxLat - minLat).toDouble().coerceAtLeast(0.0001)
-        val dLng = (maxLng - minLng).toDouble().coerceAtLeast(0.0001)
+        val viewportSize = IntSize(width, height)
 
-        // Pick zoom based on bounding box size
-        val maxDiff = max(dLat, dLng)
-        val zoom = floor(log2(360.0 / maxDiff)).toInt().coerceIn(10, 14)
+        // 1. Calculate Center and Zoom to fit the route bounds
+        val mapParams = remember(route, viewportSize) {
+            val lats = route.route.map { it.latitude.toDouble() }
+            val lons = route.route.map { it.longitude.toDouble() }
+            val minLat = lats.min(); val maxLat = lats.max()
+            val minLon = lons.min(); val maxLon = lons.max()
 
-        object {
-            val centerLat = (minLat + maxLat) / 2.0
-            val centerLng = (minLng + maxLng) / 2.0
-            val zoom = zoom
-            val minLat = minLat
-            val minLng = minLng
-            val rangeLat = dLat
-            val rangeLng = dLng
+            val center = GeoPosition((minLat + maxLat) / 2.0, (minLon + maxLon) / 2.0)
+
+            val tileSize = 256.0
+            val padding = 1.25
+
+            val latRadMin = minLat * PI / 180.0
+            val latRadMax = maxLat * PI / 180.0
+            val mapHeightFull = ln(tan(latRadMax) + 1.0 / cos(latRadMax)) - ln(tan(latRadMin) + 1.0 / cos(latRadMin))
+
+            val zoomV = log2(height / (max(0.00001, mapHeightFull) * tileSize / (2 * PI)))
+            val zoomH = log2(width / (max(0.00001, maxLon - minLon) * (tileSize / 360.0)))
+
+            val bestZoom = (minOf(zoomV, zoomH) - (padding - 1.0)).toFloat().coerceIn(2f, 18f)
+            val integerZoom = bestZoom.roundToInt().coerceIn(2, 18)
+
+            Triple(center, bestZoom, integerZoom)
         }
-    }
 
-    // 2. Fetch only the necessary tile directly from Repository
-    LaunchedEffect(routeData) {
-        routeData?.let { data ->
-            withContext(Dispatchers.IO) {
-                val n = 2.0.pow(data.zoom)
-                val xtile = ((data.centerLng + 180.0) / 360.0 * n).toInt()
-                val ytile = ((1.0 - ln(tan(Math.toRadians(data.centerLat)) + (1.0 / cos(Math.toRadians(data.centerLat)))) / PI) / 2.0 * n).toInt()
+        val centerGeo = mapParams.first
+        val localZoom = mapParams.second
+        val integerZoom = mapParams.third
 
-                val result = tileRepository.getTile(xtile, ytile, data.zoom)
-                result.second?.let { bytes ->
-                    tileBitmap = byteArrayToImageBitmap(bytes)
+        // 2. Determine visible tiles
+        val visibleTiles = remember(centerGeo, integerZoom, viewportSize) {
+            calculateVisibleTiles(centerGeo, integerZoom, viewportSize, "minimap")
+        }
+
+        // 3. Handle Suspend Loading: Fetch tiles from repo and update local state
+        LaunchedEffect(visibleTiles) {
+            visibleTiles.forEach { tileInfo ->
+                if (!localBitmaps.containsKey(tileInfo.id.toString())) {
+                    launch {
+                        val data = tileRepository.getTile(tileInfo.id.x, tileInfo.id.y, tileInfo.id.z)
+                        if (data.first == 200 && data.second != null) {
+                            byteArrayToImageBitmap(data.second!!)?.let { bitmap ->
+                                localBitmaps[tileInfo.id.toString()] = bitmap
+                            }
+                        }
+                    }
                 }
             }
         }
-    }
 
-    Box(modifier = modifier.clip(RoundedCornerShape(8.dp)).background(Color.LightGray.copy(alpha = 0.1f))) {
-        // Tile Layer
-        tileBitmap?.let {
-            Image(
-                bitmap = it,
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop
-            )
-        }
+        // 4. Draw Logic mirroring MapTilerComposable
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val scale = 2.0.pow((localZoom - integerZoom).toDouble()).toFloat()
 
-        // Polyline Layer
-        Canvas(modifier = Modifier.fillMaxSize().padding(8.dp)) {
-            routeData?.let { data ->
+            withTransform({
+                // Scaling around the center keeps the path and tiles locked together
+                scale(scale, scale, pivot = Offset(size.width / 2f, size.height / 2f))
+            }) {
+                // Draw Tiles from local state
+                visibleTiles.forEach { tileInfo ->
+                    localBitmaps[tileInfo.id.toString()]?.let { bitmap ->
+                        drawImage(
+                            image = bitmap,
+                            dstOffset = tileInfo.screenOffset,
+                            dstSize = tileInfo.size
+                        )
+                    }
+                }
+
+                // Draw Route Path (calculated at integerZoom to match tiles)
                 val path = Path()
-                val canvasRatio = size.width / size.height
-                val routeRatio = data.rangeLng / data.rangeLat
-
-                val scale = if (routeRatio > canvasRatio) {
-                    size.width / data.rangeLng.toFloat()
-                } else {
-                    size.height / data.rangeLat.toFloat()
+                route.route.forEachIndexed { index, point ->
+                    val pos = geoToScreenPixel(
+                        GeoPosition(point.latitude.toDouble(), point.longitude.toDouble()),
+                        centerGeo,
+                        integerZoom.toFloat(),
+                        viewportSize
+                    )
+                    if (index == 0) path.moveTo(pos.x.toFloat(), pos.y.toFloat())
+                    else path.lineTo(pos.x.toFloat(), pos.y.toFloat())
                 }
 
-                val offsetX = (size.width - (data.rangeLng.toFloat() * scale)) / 2f
-                val offsetY = (size.height - (data.rangeLat.toFloat() * scale)) / 2f
-
-                points.forEachIndexed { index, point ->
-                    val x = ((point.longitude - data.minLng).toFloat() * scale) + offsetX
-                    val y = size.height - (((point.latitude - data.minLat).toFloat() * scale) + offsetY)
-                    if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
-                }
-
-                drawPath(path = path, color = lineColor, style = Stroke(width = 3.dp.toPx()))
+                drawPath(
+                    path = path,
+                    color = lineColor,
+                    style = Stroke(
+                        width = 3.dp.toPx() / scale,
+                        cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                        join = androidx.compose.ui.graphics.StrokeJoin.Round
+                    )
+                )
             }
         }
     }

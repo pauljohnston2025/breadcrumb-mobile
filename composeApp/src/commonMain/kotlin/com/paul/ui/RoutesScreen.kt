@@ -1,6 +1,6 @@
 package com.paul.ui
 
-import RouteMiniMap
+import com.paul.composables.RouteMiniMap
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background

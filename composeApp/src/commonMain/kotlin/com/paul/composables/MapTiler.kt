@@ -616,7 +616,7 @@ private fun ZoomLevelIndicator(
     }
 }
 
-private fun calculateVisibleTiles(
+fun calculateVisibleTiles(
     mapCenterGeo: GeoPosition,
     zoom: Int,
     viewportSize: IntSize,
