@@ -1,45 +1,33 @@
 package com.paul.ui
 
 import RouteMiniMap
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.Card
-import androidx.compose.material.CircularProgressIndicator
-import androidx.compose.material.Icon
-import androidx.compose.material.IconButton
-import androidx.compose.material.LinearProgressIndicator
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.Text
+import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DateRangePicker
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.rememberDateRangePickerState
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -49,128 +37,185 @@ import com.paul.viewmodels.StravaActivitiesViewModel
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import androidx.compose.material3.MaterialTheme as M3Theme
 import androidx.compose.material3.Text as M3Text
 import androidx.compose.material3.TextButton as M3TextButton
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StravaActivitiesScreen(viewModel: StravaActivitiesViewModel, tileRepository: ITileRepository) {
-    val activities by viewModel.activities.collectAsState(emptyList())
+    val rawActivities by viewModel.activities.collectAsState(emptyList())
     val isSyncing by viewModel.isSyncing.collectAsState()
     val status by viewModel.loginStatus.collectAsState()
     val syncErrorStatus by viewModel.syncErrorStatus.collectAsState()
     val currentRange by viewModel.currentRange.collectAsState()
     val totalCount by viewModel.totalActivityCount.collectAsState(0)
+
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedType by remember { mutableStateOf("All") }
     var showDatePicker by remember { mutableStateOf(false) }
+
+    val sortOptions = listOf("Newest", "Oldest", "A-Z")
+    var sortOrder by remember { mutableStateOf("Newest") }
+
+    val filteredActivities = remember(rawActivities, searchQuery, selectedType, sortOrder) {
+        rawActivities
+            .filter { it.name.contains(searchQuery, ignoreCase = true) }
+            .filter {
+                if (selectedType == "All") {
+                    true
+                } else if (selectedType == "Unknown") {
+                    !StravaActivity.SUPPORTED_TYPES.contains(it.type)
+                } else {
+                    it.type == selectedType
+                }
+            }
+            .sortedWith { a, b ->
+                when (sortOrder) {
+                    "Newest" -> b.startDate.compareTo(a.startDate)
+                    "Oldest" -> a.startDate.compareTo(b.startDate)
+                    "A-Z" -> a.name.lowercase().compareTo(b.name.lowercase())
+                    else -> 0
+                }
+            }
+    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .background(MaterialTheme.colors.background)
     ) {
-        // --- Header ---
+
+        // 1. Filter Row: Date Range + Sync Button
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
-                Text("Strava Activities", style = MaterialTheme.typography.h5)
-                // Activity Count Summary
-                Text(
-                    text = "Showing ${activities.size} of $totalCount total activities",
-                    style = MaterialTheme.typography.caption,
-                    color = Color.Gray
-                )
+            Box(modifier = Modifier.weight(1f)) {
+                DateRangeCard(currentRange) { showDatePicker = true }
             }
 
-            IconButton(onClick = { viewModel.sync() }, enabled = !isSyncing) {
+            Spacer(Modifier.width(8.dp))
+
+            androidx.compose.material3.FilledIconButton(
+                onClick = { viewModel.sync() },
+                enabled = !isSyncing,
+                colors = androidx.compose.material3.IconButtonDefaults.filledIconButtonColors(
+                    containerColor = Color(0xFFFC4C02),
+                    contentColor = Color.White
+                ),
+                modifier = Modifier.size(48.dp)
+            ) {
                 if (isSyncing) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                    androidx.compose.material3.CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = Color.White
+                    )
                 } else {
-                    Icon(Icons.Default.Refresh, contentDescription = "Sync")
+                    Icon(Icons.Default.Sync, null, tint = Color.White)
                 }
             }
         }
 
-
-        if (!syncErrorStatus.isNullOrEmpty()) {
-            Row(
-                modifier = Modifier.padding(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (isSyncing) {
-                    LinearProgressIndicator(modifier = Modifier.width(40.dp))
-                    Spacer(Modifier.width(12.dp))
-                }
-                Text(
-                    text = syncErrorStatus ?: "Ready to sync",
-                    style = MaterialTheme.typography.body2,
-                    fontWeight = FontWeight.Medium
-                )
-            }
-        }
-
-        // --- Sync Status / Progress Overlay ---
-        if (isSyncing || status?.contains("Complete") == false) {
-            Card(
-                backgroundColor = MaterialTheme.colors.primary.copy(alpha = 0.1f),
-                elevation = 0.dp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp)
-            ) {
-                Row(
-                    modifier = Modifier.padding(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (isSyncing) {
-                        LinearProgressIndicator(modifier = Modifier.width(40.dp))
-                        Spacer(Modifier.width(12.dp))
-                    }
+        // 2. Status Banners (Restored)
+        if (!status.isNullOrEmpty() || !syncErrorStatus.isNullOrEmpty()) {
+            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                status?.let {
                     Text(
-                        text = status ?: "Ready to sync",
-                        style = MaterialTheme.typography.body2,
-                        fontWeight = FontWeight.Medium
+                        it,
+                        style = MaterialTheme.typography.caption,
+                        color = MaterialTheme.colors.primary,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                }
+                syncErrorStatus?.let {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.caption,
+                        color = MaterialTheme.colors.error,
+                        modifier = Modifier.padding(horizontal = 16.dp)
                     )
                 }
             }
         }
 
-        // --- Date Range Selector ---
-        Card(
-            elevation = 2.dp,
-            shape = RoundedCornerShape(8.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 8.dp)
-                .clickable { showDatePicker = true }
-        ) {
+        // 3. Search & Sort & Type Filters
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("Search activities...") },
+                leadingIcon = { Icon(Icons.Default.Search, null) },
+                shape = RoundedCornerShape(12.dp),
+                colors = TextFieldDefaults.outlinedTextFieldColors(
+                    focusedBorderColor = MaterialTheme.colors.primary,
+                    unfocusedBorderColor = Color.Gray.copy(0.3f)
+                )
+            )
+
             Row(
-                modifier = Modifier.padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(top = 8.dp)
             ) {
-                Icon(Icons.Default.DateRange, null, tint = MaterialTheme.colors.primary)
-                Spacer(Modifier.width(12.dp))
-                Column {
-                    val start =
-                        currentRange.start.toLocalDateTime(TimeZone.currentSystemDefault()).date
-                    val end =
-                        currentRange.endInclusive.toLocalDateTime(TimeZone.currentSystemDefault()).date
-                    Text("Filter Range", style = MaterialTheme.typography.caption)
-                    Text("$start to $end", style = MaterialTheme.typography.body1)
+                // Sort Toggle matching Routes logic
+                IconButton(onClick = {
+                    val nextIndex = (sortOptions.indexOf(sortOrder) + 1) % sortOptions.size
+                    sortOrder = sortOptions[nextIndex]
+                }) {
+                    Icon(Icons.Default.Sort, null, tint = MaterialTheme.colors.primary)
+                }
+                Text(
+                    sortOrder,
+                    style = MaterialTheme.typography.caption,
+                    modifier = Modifier.width(60.dp)
+                )
+
+                Spacer(Modifier.width(8.dp))
+
+                // Type Filters with Strava Icons
+                val types = StravaActivity.SUPPORTED_TYPES
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(types) { type ->
+                        // Determine icon for the chip
+                        val icon = StravaActivity.getActivityIcon(type)
+
+                        FilterChip(type, icon, selectedType == type) { selectedType = type }
+                    }
                 }
             }
         }
 
-        Spacer(Modifier.height(12.dp))
+        // 4. Results Count
+        Text(
+            text = "Showing ${filteredActivities.size} of $totalCount activities",
+            style = MaterialTheme.typography.caption,
+            color = Color.Gray,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
+        )
 
-        // --- List ---
-        LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
-            items(activities, key = { it.id }) { activity ->
-                StravaActivityItem(
-                    activity,
-                    tileRepository,
-                    { viewModel.previewActivity(activity) })
+        // 5. The List Card
+        Card(
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 16.dp),
+            elevation = 2.dp,
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            LazyColumn {
+                itemsIndexed(filteredActivities, key = { _, a -> a.id }) { index, activity ->
+                    StravaActivityListItem(activity, tileRepository) {
+                        viewModel.previewActivity(activity)
+                    }
+                    if (index < filteredActivities.lastIndex) {
+                        Divider(
+                            modifier = Modifier.padding(horizontal = 12.dp),
+                            color = Color.Gray.copy(0.2f)
+                        )
+                    }
+                }
             }
         }
     }
@@ -188,77 +233,139 @@ fun StravaActivitiesScreen(viewModel: StravaActivitiesViewModel, tileRepository:
 }
 
 @Composable
-fun StravaActivityItem(
+private fun StravaActivityListItem(
     activity: StravaActivity,
     tileRepository: ITileRepository,
-    onPreviewClick: () -> Unit
+    onClick: () -> Unit
 ) {
-    Card(
-        elevation = 2.dp,
-        shape = RoundedCornerShape(12.dp),
+    Row(
         modifier = Modifier
-            .fillMaxWidth() // THIS ensures it spans the screen
-            .padding(horizontal = 12.dp, vertical = 6.dp) // Outer margin
-            .clickable { onPreviewClick() }
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
+        // Thumbnail (Left)
+        Box(
             modifier = Modifier
-                .fillMaxWidth() // Spans the full width of the Card
-                .padding(12.dp), // Internal padding
-            verticalAlignment = Alignment.CenterVertically
+                .size(72.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color.Gray.copy(alpha = 0.1f))
         ) {
-            // 1. Mini Map (Shared Tiling)
             RouteMiniMap(
                 route = activity.toRoute(),
                 tileRepository = tileRepository,
-                modifier = Modifier
-                    .size(72.dp)
-                    .clip(RoundedCornerShape(8.dp))
+                modifier = Modifier.fillMaxSize()
             )
+        }
 
-            Spacer(Modifier.width(16.dp))
+        Spacer(Modifier.width(16.dp))
 
-            // 2. Details Column - Weight(1f) fills the middle
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = activity.getActivityIcon(),
-                        contentDescription = null,
-                        tint = Color(0xFFFC4C02), // Strava Orange
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = activity.name,
-                        style = MaterialTheme.typography.subtitle1,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-
-                val dateText = activity.startDate
-                    .toLocalDateTime(TimeZone.currentSystemDefault())
-                    .date.toString()
-
+        // Info (Middle)
+        Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // RESTORED: Using getActivityIcon() from StravaActivity.kt
+                Icon(
+                    imageVector = activity.getActivityIcon(),
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = Color(0xFFFC4C02)
+                )
+                Spacer(Modifier.width(4.dp))
                 Text(
-                    text = dateText,
-                    style = MaterialTheme.typography.caption,
-                    color = Color.Gray,
-                    modifier = Modifier.padding(start = 28.dp) // Align under the title text
+                    text = (activity.type ?: "Activity").uppercase(),
+                    style = MaterialTheme.typography.overline,
+                    color = Color(0xFFFC4C02),
+                    fontWeight = FontWeight.Bold
                 )
             }
+            Text(
+                text = activity.name,
+                style = MaterialTheme.typography.subtitle1,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = activity.startDate.toLocalDateTime(TimeZone.currentSystemDefault()).date.toString(),
+                style = MaterialTheme.typography.caption,
+                color = Color.Gray
+            )
+        }
 
-            // 3. Trailing indicator
+        // Actions (Right)
+        Icon(Icons.Default.LocationOn, null, tint = MaterialTheme.colors.primary.copy(0.6f))
+        Icon(Icons.Default.ChevronRight, null, tint = Color.LightGray)
+    }
+}
+
+@Composable
+private fun FilterChip(label: String, icon: ImageVector, isSelected: Boolean, onClick: () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        border = if (isSelected) null else BorderStroke(1.dp, Color.LightGray.copy(0.5f)),
+        color = if (isSelected) MaterialTheme.colors.primary else Color.Transparent,
+        modifier = Modifier.clickable { onClick() }
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Icon(
-                imageVector = Icons.Default.ChevronRight,
+                imageVector = icon,
                 contentDescription = null,
-                tint = Color.LightGray.copy(alpha = 0.5f)
+                modifier = Modifier.size(16.dp),
+                tint = if (isSelected) Color.White else MaterialTheme.colors.onSurface.copy(alpha = 0.6f)
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.caption,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                color = if (isSelected) Color.White else MaterialTheme.colors.onSurface
             )
         }
     }
 }
 
+@Composable
+fun DateRangeCard(currentRange: ClosedRange<Instant>, onClick: () -> Unit) {
+    androidx.compose.material3.Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = M3Theme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+        )
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                Icons.Default.DateRange,
+                contentDescription = null,
+                tint = Color(0xFFFC4C02),
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(Modifier.width(12.dp))
+            Column {
+                val start = currentRange.start.toLocalDateTime(TimeZone.currentSystemDefault()).date
+                val end =
+                    currentRange.endInclusive.toLocalDateTime(TimeZone.currentSystemDefault()).date
+                M3Text("Filter by Date", style = M3Theme.typography.labelSmall, color = Color.Gray)
+                M3Text(
+                    "$start — $end",
+                    style = M3Theme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Spacer(Modifier.weight(1f))
+            Icon(Icons.Default.ArrowDropDown, null, tint = Color.Gray)
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

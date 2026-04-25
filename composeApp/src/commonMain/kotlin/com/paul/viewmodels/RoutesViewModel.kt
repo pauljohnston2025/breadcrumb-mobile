@@ -34,7 +34,7 @@ class RoutesViewModel(
     private val deviceSelector: DeviceSelector,
     val routeRepo: RouteRepository,
     private val historyRepo: HistoryRepository,
-    private val snackbarHostState: SnackbarHostState
+    val snackbarHostState: SnackbarHostState
 ) : ViewModel() {
     // State for controlling the edit dialog
     private val _editingRoute = MutableStateFlow<RouteEntry?>(null)

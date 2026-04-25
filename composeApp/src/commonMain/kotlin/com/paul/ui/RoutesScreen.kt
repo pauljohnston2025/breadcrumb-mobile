@@ -1,5 +1,6 @@
 package com.paul.ui
 
+import RouteMiniMap
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -16,14 +17,19 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.paul.domain.RouteEntry
 import com.paul.domain.RouteType
+import com.paul.infrastructure.repositories.ITileRepository
+import com.paul.infrastructure.repositories.RouteRepository
 import com.paul.infrastructure.service.formatBytes
+import com.paul.protocol.todevice.Route
 import com.paul.viewmodels.RoutesViewModel
 import kotlinx.datetime.TimeZone.Companion.currentSystemDefault
 import kotlinx.datetime.toLocalDateTime
@@ -36,7 +42,7 @@ enum class RouteSortOrder(val label: String) {
 }
 
 @Composable
-fun RoutesScreen(viewModel: RoutesViewModel) {
+fun RoutesScreen(viewModel: RoutesViewModel, tileRepository: ITileRepository) {
     val scope = rememberCoroutineScope()
     val routes = viewModel.routeRepo.routes
     val routeBeingEdited by viewModel.editingRoute.collectAsState()
@@ -95,7 +101,10 @@ fun RoutesScreen(viewModel: RoutesViewModel) {
                 onEditClick = { viewModel.startEditing(it) },
                 onPreviewClick = { viewModel.previewRoute(it) },
                 onSendClick = { viewModel.sendRoute(it) },
-                onDeleteClick = { viewModel.requestDelete(it) }
+                onDeleteClick = { viewModel.requestDelete(it) },
+                tileRepository,
+                viewModel.routeRepo,
+                viewModel.snackbarHostState,
             )
         }
 
@@ -256,7 +265,10 @@ private fun RouteListSection(
     onEditClick: (RouteEntry) -> Unit,
     onPreviewClick: (RouteEntry) -> Unit,
     onSendClick: (RouteEntry) -> Unit,
-    onDeleteClick: (RouteEntry) -> Unit
+    onDeleteClick: (RouteEntry) -> Unit,
+    tileRepository: ITileRepository,
+    routeRepo: RouteRepository,
+    snackbarHostState: SnackbarHostState
 ) {
     if (routes.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -266,7 +278,16 @@ private fun RouteListSection(
         Card(elevation = 2.dp, shape = RoundedCornerShape(8.dp)) {
             LazyColumn {
                 items(routes, key = { it.id }) { route ->
-                    RouteListItem(route, onEditClick, onPreviewClick, onSendClick, onDeleteClick)
+                    RouteListItem(
+                        route,
+                        onEditClick,
+                        onPreviewClick,
+                        onSendClick,
+                        onDeleteClick,
+                        tileRepository,
+                        routeRepo,
+                        snackbarHostState
+                    )
                     Divider(color = Color.LightGray.copy(alpha = 0.2f))
                 }
             }
@@ -280,72 +301,114 @@ private fun RouteListItem(
     onEditClick: (RouteEntry) -> Unit,
     onPreviewClick: (RouteEntry) -> Unit,
     onSendClick: (RouteEntry) -> Unit,
-    onDeleteClick: (RouteEntry) -> Unit
+    onDeleteClick: (RouteEntry) -> Unit,
+    tileRepository: ITileRepository,
+    routeRepo: RouteRepository,
+    snackbarHostState: SnackbarHostState,
 ) {
-    Column(modifier = Modifier.padding(12.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            if (route.hasDirectionInfo) {
-                Icon(
-                    Icons.Default.Directions,
-                    null,
-                    Modifier.size(16.dp),
-                    tint = MaterialTheme.colors.primary
+    // 1. Handle the suspend call to get the Route object
+    // produceState starts a coroutine that handles the async fetching
+    val routeDetail by produceState<Route?>(initialValue = null, route.id) {
+        // This runs in a background scope
+        val entity = routeRepo.getRouteI(route.id)
+        if (entity == null) {
+            value = null
+            return@produceState
+        }
+        value = entity.toRoute(snackbarHostState)
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // 2. Display the MiniMap (or a placeholder while loading)
+        Box(
+            modifier = Modifier
+                .size(72.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color.Gray.copy(alpha = 0.1f)),
+            contentAlignment = Alignment.Center
+        ) {
+            routeDetail?.let { activeRoute ->
+                RouteMiniMap(
+                    route = activeRoute,
+                    tileRepository = tileRepository,
+                    modifier = Modifier.fillMaxSize()
                 )
-                Spacer(Modifier.width(4.dp))
+            } ?: run {
+                // Optional: Show a small loader or icon while fetching coordinates
+                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
             }
+        }
+
+        Spacer(Modifier.width(12.dp))
+
+        // 3. Information Column
+        Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (route.hasDirectionInfo) {
+                    Icon(
+                        Icons.Default.Directions,
+                        null,
+                        Modifier.size(16.dp),
+                        tint = MaterialTheme.colors.primary
+                    )
+                    Spacer(Modifier.width(4.dp))
+                }
+                Text(
+                    route.name.ifBlank { "<No Name>" },
+                    style = MaterialTheme.typography.subtitle1,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(route.type.name, style = MaterialTheme.typography.overline, color = Color.Gray)
+            }
+
             Text(
-                route.name.ifBlank { "<No Name>" },
-                style = MaterialTheme.typography.subtitle1,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
+                text = route.createdAt.toLocalDateTime(currentSystemDefault()).toString()
+                    .replace("T", " ").substring(0, 16),
+                style = MaterialTheme.typography.caption,
+                color = Color.Gray
             )
-            Text(route.type.name, style = MaterialTheme.typography.overline, color = Color.Gray)
-        }
 
-        Text(
-            text = route.createdAt.toLocalDateTime(currentSystemDefault()).toString()
-                .replace("T", " ").substring(0, 16),
-            style = MaterialTheme.typography.caption,
-            color = Color.Gray
-        )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(top = 4.dp)
+            ) {
+                Text(
+                    "Size: ${formatBytes(route.sizeBytes)}",
+                    style = MaterialTheme.typography.caption
+                )
+                Spacer(Modifier.weight(1f))
 
-        Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.padding(top = 4.dp)) {
-            Text("Size: ${formatBytes(route.sizeBytes)}", style = MaterialTheme.typography.caption)
-            Spacer(Modifier.weight(1f))
-            IconButton(onClick = { onEditClick(route) }, modifier = Modifier.size(24.dp)) {
-                Icon(
-                    Icons.Default.Edit,
-                    null,
-                    Modifier.size(18.dp)
-                )
-            }
-            Spacer(Modifier.width(8.dp))
-            IconButton(onClick = { onPreviewClick(route) }, modifier = Modifier.size(24.dp)) {
-                Icon(
-                    Icons.Default.LocationOn,
-                    null,
-                    Modifier.size(18.dp)
-                )
-            }
-            Spacer(Modifier.width(8.dp))
-            IconButton(onClick = { onSendClick(route) }, modifier = Modifier.size(24.dp)) {
-                Icon(
+                // Action Buttons
+                ActionButton(Icons.Default.Edit, onClick = { onEditClick(route) })
+                ActionButton(Icons.Default.LocationOn, onClick = { onPreviewClick(route) })
+                ActionButton(
                     Icons.Default.PlayArrow,
-                    null,
-                    tint = Color(0xFF4CAF50)
-                )
-            }
-            Spacer(Modifier.width(8.dp))
-            IconButton(onClick = { onDeleteClick(route) }, modifier = Modifier.size(24.dp)) {
-                Icon(
+                    tint = Color(0xFF4CAF50),
+                    onClick = { onSendClick(route) })
+                ActionButton(
                     Icons.Default.Delete,
-                    null,
                     tint = MaterialTheme.colors.error,
-                    modifier = Modifier.size(18.dp)
-                )
+                    onClick = { onDeleteClick(route) })
             }
         }
+    }
+}
+
+@Composable
+private fun ActionButton(
+    icon: ImageVector,
+    tint: Color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f),
+    onClick: () -> Unit
+) {
+    IconButton(onClick = onClick, modifier = Modifier.size(32.dp)) {
+        androidx.compose.material3.Icon(icon, null, Modifier.size(18.dp), tint = tint)
     }
 }
 

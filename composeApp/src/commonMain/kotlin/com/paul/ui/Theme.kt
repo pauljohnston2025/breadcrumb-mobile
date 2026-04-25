@@ -94,25 +94,47 @@ fun AppTheme(
 
 @Composable
 fun M3ThemeWrapper(content: @Composable () -> Unit) {
-    // Check if your current M2 theme is light or dark
     val isDark = !MaterialTheme.colors.isLight
+    val m2Colors = MaterialTheme.colors
 
     val colorScheme = if (isDark) {
         darkColorScheme(
-            primary = MaterialTheme.colors.primary,
-            onPrimary = MaterialTheme.colors.onPrimary,
-            surface = MaterialTheme.colors.surface,
-            onSurface = MaterialTheme.colors.onSurface,
-            // Add specific overrides here if needed
+            primary = m2Colors.primary,
+            onPrimary = m2Colors.onPrimary,
+            secondary = m2Colors.secondary,
+            onSecondary = m2Colors.onSecondary,
+            background = m2Colors.background,
+            onBackground = m2Colors.onBackground,
+            surface = m2Colors.surface,
+            onSurface = m2Colors.onSurface,
+            error = m2Colors.error,
+            onError = m2Colors.onError,
+            // DatePicker uses surfaceVariant for the track/header and outline for borders
+            surfaceVariant = m2Colors.surface.copy(alpha = 0.8f),
+            onSurfaceVariant = m2Colors.onSurface.copy(alpha = 0.7f),
+            outline = m2Colors.onSurface.copy(alpha = 0.12f)
         )
     } else {
         lightColorScheme(
-            primary = MaterialTheme.colors.primary,
-            onPrimary = MaterialTheme.colors.onPrimary,
-            surface = MaterialTheme.colors.surface,
-            onSurface = MaterialTheme.colors.onSurface,
+            primary = m2Colors.primary,
+            onPrimary = m2Colors.onPrimary,
+            secondary = m2Colors.secondary,
+            onSecondary = m2Colors.onSecondary,
+            background = m2Colors.background,
+            onBackground = m2Colors.onBackground,
+            surface = m2Colors.surface,
+            onSurface = m2Colors.onSurface,
+            error = m2Colors.error,
+            onError = m2Colors.onError,
+            surfaceVariant = Color(0xFFE1E2E8), // Subtle light gray for light mode
+            onSurfaceVariant = Color(0xFF44474E),
+            outline = Color(0xFF74777F)
         )
     }
 
-    M3Theme(colorScheme = colorScheme, content = content)
+    M3Theme(
+        colorScheme = colorScheme,
+        // Optional: inherit shapes from your AppShapes
+        content = content
+    )
 }

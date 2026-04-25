@@ -36,7 +36,7 @@ import kotlin.math.tan
 @Composable
 fun RouteMiniMap(
     route: Route?,
-    tileRepository: ITileRepository, // Passed in from the screen
+    tileRepository: ITileRepository,
     modifier: Modifier = Modifier,
     lineColor: Color = Color(0xFFFC4C02),
 ) {

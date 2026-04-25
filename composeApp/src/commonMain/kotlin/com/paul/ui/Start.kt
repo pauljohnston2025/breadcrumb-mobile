@@ -1,8 +1,10 @@
 package com.paul.ui
 
+import RouteMiniMap
 import android.widget.TextView
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +20,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.AlertDialog
 import androidx.compose.material.Button
@@ -29,6 +32,7 @@ import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.OutlinedButton
+import androidx.compose.material.SnackbarHostState
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -44,11 +48,15 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -56,13 +64,17 @@ import androidx.core.text.HtmlCompat
 import com.paul.composables.LoadingOverlay
 import com.paul.domain.HistoryItem
 import com.paul.domain.RouteEntry
+import com.paul.infrastructure.repositories.ITileRepository
+import com.paul.infrastructure.repositories.RouteRepository
+import com.paul.protocol.todevice.Route
 import com.paul.viewmodels.StartViewModel
 import kotlinx.datetime.TimeZone.Companion.currentSystemDefault
 import kotlinx.datetime.toLocalDateTime
 
 @Composable
 fun Start(
-    viewModel: StartViewModel
+    viewModel: StartViewModel,
+    tileRepository: ITileRepository,
 ) {
     BackHandler(enabled = viewModel.sendingFile.value != "" || viewModel.deviceSelector.settingsLoading.value) {
         // prevent back handler when we are trying to do things, todo cancel the job we are trying to do
@@ -174,7 +186,10 @@ fun Start(
                 onPreviewClick = { viewModel.previewRoute(it) },
                 onSendClick = { viewModel.loadFileFromHistory(it) },
                 onDeleteClick = { viewModel.requestDelete(it) },
-                onClearHistoryClick = { showClearHistoryDialog = true }
+                onClearHistoryClick = { showClearHistoryDialog = true },
+                tileRepository,
+                viewModel.routeRepo,
+                viewModel.snackbarHostState,
             )
 
         } // End Main Column
@@ -268,7 +283,10 @@ private fun HistoryListSection(
     onPreviewClick: (RouteEntry) -> Unit,
     onSendClick: (HistoryItem) -> Unit,
     onDeleteClick: (HistoryItem) -> Unit,
-    onClearHistoryClick: () -> Unit
+    onClearHistoryClick: () -> Unit,
+    tileRepository: ITileRepository,
+    routeRepo: RouteRepository,
+    snackbarHostState: SnackbarHostState,
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -316,7 +334,10 @@ private fun HistoryListSection(
                             onEditClick = { onEditClick(it) },
                             onPreviewClick = { onPreviewClick(it) },
                             onSendClick = { onSendClick(item) },
-                            onDeleteClick = { onDeleteClick(item) }
+                            onDeleteClick = { onDeleteClick(item) },
+                            tileRepository,
+                            routeRepo,
+                            snackbarHostState,
                         )
                         Divider()
                     }
@@ -326,7 +347,6 @@ private fun HistoryListSection(
     }
 }
 
-@OptIn(ExperimentalMaterialApi::class) // For ListItem onClick
 @Composable
 private fun HistoryListItem(
     routes: SnapshotStateList<RouteEntry>,
@@ -334,79 +354,83 @@ private fun HistoryListItem(
     onEditClick: (RouteEntry) -> Unit,
     onPreviewClick: (RouteEntry) -> Unit,
     onSendClick: () -> Unit,
-    onDeleteClick: () -> Unit
+    onDeleteClick: () -> Unit,
+    tileRepository: ITileRepository,
+    routeRepo: RouteRepository,
+    snackbarHostState: SnackbarHostState,
 ) {
     val route = routes.find { it.id == item.routeId }
-    var name = if (route == null || route.name.isEmpty()) "<unknown>" else route.name
+    val name = if (route == null || route.name.isEmpty()) "<unknown>" else route.name
 
-    Row(
-        Modifier
-            .padding(start = 8.dp)
-            .fillMaxWidth()
-    ) {
-        if (route != null && route.hasDirectionInfo) {
-            Icon(
-                imageVector = Icons.Default.Directions,
-                contentDescription = "Contains direction info",
-                modifier = Modifier.size(18.dp), // Adjust size as needed
-                tint = MaterialTheme.colors.primary
-            )
-            Spacer(Modifier.width(6.dp)) // Space between icon and text
+    val routeDetail by produceState<Route?>(initialValue = null, route?.id) {
+        if (route != null) {
+            val entity = routeRepo.getRouteI(route.id)
+            value = entity?.toRoute(snackbarHostState)
         }
-        Text(
-            text = name,
-            style = MaterialTheme.typography.subtitle1,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
     }
 
     Row(
-        Modifier
-            .padding(start = 8.dp)
-            .fillMaxWidth()
-    ) {
-        Text(
-            text = "Created At: " + item.timestamp.toLocalDateTime(currentSystemDefault())
-                .toString(),
-            style = MaterialTheme.typography.caption,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-    }
-
-    // Action Buttons Section
-    Row(
-        verticalAlignment = Alignment.Top,
-        // Add some space between info and buttons if needed
         modifier = Modifier
-            .padding(start = 8.dp)
             .fillMaxWidth()
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Spacer(Modifier.weight(1f))
-        Row(
-            verticalAlignment = Alignment.CenterVertically, // Center buttons vertically within this row
-            horizontalArrangement = Arrangement.End // Arrange buttons closely together at the end
+        // 1. Map Thumbnail (Left)
+        Box(
+            modifier = Modifier
+                .size(72.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colors.onSurface.copy(alpha = 0.05f)),
+            contentAlignment = Alignment.Center
         ) {
+            routeDetail?.let { activeRoute ->
+                RouteMiniMap(
+                    route = activeRoute,
+                    tileRepository = tileRepository,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } ?: run {
+                androidx.compose.material.CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    strokeWidth = 2.dp
+                )
+            }
+        }
+
+        Spacer(Modifier.width(16.dp))
+
+        // 2. Info Column (Middle)
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = name,
+                style = MaterialTheme.typography.subtitle1,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = item.timestamp.toLocalDateTime(currentSystemDefault()).date.toString(),
+                style = MaterialTheme.typography.caption,
+                color = Color.Gray
+            )
+        }
+
+        // 3. Action Group (Right) - Matching Routes Page
+        Row(verticalAlignment = Alignment.CenterVertically) {
             if (route != null) {
-                IconButton(onClick = { onEditClick(route) }) {
-                    Icon(Icons.Default.Edit, contentDescription = "Edit Route")
+                IconButton(onClick = { onEditClick(route) }, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Default.Edit, null, Modifier.size(18.dp), tint = Color.Gray)
+                }
+                // THE MISSING PREVIEW ICON
+                IconButton(onClick = { onPreviewClick(route) }, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Default.LocationOn, null, Modifier.size(18.dp), tint = MaterialTheme.colors.primary)
                 }
             }
-            if (route != null) {
-                IconButton(onClick = { onPreviewClick(route) }) {
-                    Icon(Icons.Default.LocationOn, contentDescription = "Preview Route")
-                }
+            IconButton(onClick = onSendClick, modifier = Modifier.size(32.dp)) {
+                Icon(Icons.Default.PlayArrow, null, Modifier.size(22.dp), tint = Color(0xFF4CAF50))
             }
-            IconButton(onClick = onSendClick) {
-                Icon(Icons.Default.PlayArrow, contentDescription = "Send Route To Watch")
-            }
-            IconButton(onClick = onDeleteClick) {
-                Icon(
-                    Icons.Default.Delete,
-                    contentDescription = "Delete Route",
-                    tint = MaterialTheme.colors.error
-                ) // Indicate destructive action
+            IconButton(onClick = onDeleteClick, modifier = Modifier.size(32.dp)) {
+                Icon(Icons.Default.Delete, null, Modifier.size(18.dp), tint = MaterialTheme.colors.error.copy(alpha = 0.6f))
             }
         }
     }

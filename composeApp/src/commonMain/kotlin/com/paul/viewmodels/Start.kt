@@ -51,7 +51,7 @@ class StartViewModel(
     public val deviceSelector: DeviceSelector,
     private val gpxFileLoader: IGpxFileLoader,
     private val fileHelper: IFileHelper,
-    private val snackbarHostState: SnackbarHostState,
+    val snackbarHostState: SnackbarHostState,
     private val mapViewModel: MapViewModel,
     val routeRepo: RouteRepository
 ) : ViewModel() {

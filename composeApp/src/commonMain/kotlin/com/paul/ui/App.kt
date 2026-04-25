@@ -313,6 +313,7 @@ fun App(
                                 composable(Screen.Start.route) {
                                     Start(
                                         viewModel = startViewModel,
+                                        tileRepository = tileRepo,
                                     )
                                 }
 
@@ -341,6 +342,7 @@ fun App(
 
                                     RoutesScreen(
                                         viewModel = routesViewModel,
+                                        tileRepository = tileRepo,
                                     )
                                 }
 
