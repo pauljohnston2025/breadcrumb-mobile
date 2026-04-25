@@ -28,9 +28,10 @@ fun getRoomDatabase(builder: RoomDatabase.Builder<AppDatabase>): AppDatabase {
 
 @Database(
     entities = [StravaActivity::class, StravaStreamEntity::class],
-    version = 2,
+    version = 3,
     autoMigrations = [
-        AutoMigration(from = 1, to = 2)
+        AutoMigration(from = 1, to = 2),
+        AutoMigration(from = 2, to = 3),
     ]
 )
 @TypeConverters(TimestampConverter::class, PointListConverter::class)

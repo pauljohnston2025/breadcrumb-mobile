@@ -1,5 +1,13 @@
 package com.paul.domain
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DirectionsBike
+import androidx.compose.material.icons.filled.DirectionsRun
+import androidx.compose.material.icons.filled.DirectionsWalk
+import androidx.compose.material.icons.filled.Hiking
+import androidx.compose.material.icons.filled.Pool
+import androidx.compose.material.icons.filled.QuestionMark
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.PrimaryKey
@@ -54,10 +62,22 @@ data class StravaActivity(
     @SerialName("start_date")
     val startDate: Instant,
     @Embedded
-    val map: StravaMap? = null
+    val map: StravaMap? = null,
+    val type: String? = null,
 ) {
     fun toRoute(): Route {
         return Route(name, map?.decodePolyline() ?: emptyList(), emptyList())
+    }
+
+    fun getActivityIcon(): ImageVector {
+        return when (type) {
+            "Ride", "VirtualRide", "EBikeRide" -> Icons.Default.DirectionsBike
+            "Run", "VirtualRun" -> Icons.Default.DirectionsRun
+            "Walk" -> Icons.Default.DirectionsWalk
+            "Hike" -> Icons.Default.Hiking
+            "Swim" -> Icons.Default.Pool
+            else -> Icons.Default.QuestionMark
+        }
     }
 }
 

@@ -1,12 +1,12 @@
 {
   "formatVersion": 1,
   "database": {
-    "version": 2,
+    "version": 3,
     "identityHash": "475996b03ff79c71c9ac96680d7524df",
     "entities": [
       {
         "tableName": "strava_activities",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `name` TEXT NOT NULL, `startDate` INTEGER NOT NULL, `summaryPolyline` TEXT, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `name` TEXT NOT NULL, `startDate` INTEGER NOT NULL, `type` TEXT, `summaryPolyline` TEXT, PRIMARY KEY(`id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -25,6 +25,11 @@
             "columnName": "startDate",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "map.summaryPolyline",

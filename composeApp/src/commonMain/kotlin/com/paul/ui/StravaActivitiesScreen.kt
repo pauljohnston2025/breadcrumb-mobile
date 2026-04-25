@@ -1,5 +1,6 @@
 package com.paul.ui
 
+import RouteMiniMap
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -38,6 +39,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -91,8 +93,7 @@ fun StravaActivitiesScreen(viewModel: StravaActivitiesViewModel) {
         }
 
 
-        if (!syncErrorStatus.isNullOrEmpty())
-        {
+        if (!syncErrorStatus.isNullOrEmpty()) {
             Row(
                 modifier = Modifier.padding(8.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -190,68 +191,69 @@ fun StravaActivityItem(activity: StravaActivity, onPreviewClick: () -> Unit) {
         shape = RoundedCornerShape(8.dp),
         modifier = Modifier
             .fillMaxWidth()
+            // Vertical spacing between items, no horizontal padding here
+            // so it controls its own width relative to the LazyColumn
             .padding(vertical = 4.dp)
             .clickable { onPreviewClick() }
     ) {
         Row(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp), // Comfortable internal padding
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // 1. Mini Map on the left
+            RouteMiniMap(
+                route = activity.toRoute(),
+                modifier = Modifier
+                    .size(64.dp)
+                    .clip(RoundedCornerShape(6.dp))
+            )
 
-            Row(
-                modifier = Modifier.padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                val stravaOrange = Color(0xFFFC4C02)
+            Spacer(Modifier.width(16.dp))
 
-                Icon(
-                    imageVector = Icons.Default.DirectionsBike,
-                    contentDescription = null,
-                    tint = stravaOrange
-                )
-
-                Spacer(Modifier.width(12.dp))
-
-                Column(modifier = Modifier.weight(1f)) {
+            // 2. Activity Details - Takes up all remaining space
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    val stravaOrange = Color(0xFFFC4C02)
+                    Icon(
+                        imageVector = activity.getActivityIcon(),
+                        contentDescription = null,
+                        tint = stravaOrange,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
                     Text(
                         text = activity.name,
+                        style = MaterialTheme.typography.subtitle1,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-
-                    val dateText = activity.startDate
-                        .toLocalDateTime(TimeZone.currentSystemDefault())
-                        .date.toString()
-
-                    Text(
-                        text = dateText,
-                        style = MaterialTheme.typography.caption,
-                        color = Color.Gray
-                    )
                 }
 
-                if (activity.map?.summaryPolyline != null) {
-                    Icon(
-                        imageVector = Icons.Default.Map,
-                        contentDescription = "Has Map Data",
-                        modifier = Modifier.size(16.dp),
-                        tint = Color.Gray
-                    )
-                }
+                val dateText = activity.startDate
+                    .toLocalDateTime(TimeZone.currentSystemDefault())
+                    .date.toString()
+
+                Text(
+                    text = dateText,
+                    style = MaterialTheme.typography.caption,
+                    color = Color.Gray,
+                    modifier = Modifier.padding(start = 26.dp) // Aligns text under the title, past the icon
+                )
             }
 
-            Spacer(Modifier.width(12.dp))
-
-            // Map Preview Button
+            // 3. Optional Map Action Icon on the far right
             if (activity.map?.summaryPolyline != null) {
-                IconButton(onClick = onPreviewClick) {
-                    Icon(
-                        imageVector = Icons.Default.Map,
-                        contentDescription = "View on Map",
-                        tint = MaterialTheme.colors.primary
-                    )
-                }
+                Icon(
+                    imageVector = Icons.Default.Map,
+                    contentDescription = "View on Map",
+                    tint = MaterialTheme.colors.primary.copy(alpha = 0.7f),
+                    modifier = Modifier
+                        .padding(start = 8.dp)
+                        .size(24.dp)
+                )
             }
         }
     }
