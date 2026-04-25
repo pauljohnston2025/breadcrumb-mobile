@@ -20,10 +20,10 @@ interface StravaDao {
     @Query("DELETE FROM strava_activities")
     suspend fun clearAll()
 
-    @Query("SELECT MAX(created_at) FROM strava_activities")
+    @Query("SELECT MAX(startDate) FROM strava_activities")
     suspend fun getLatestTimestamp(): Instant?
 
-    @Query("SELECT MIN(created_at) FROM strava_activities")
+    @Query("SELECT MIN(startDate) FROM strava_activities")
     suspend fun getOldestTimestamp(): Instant?
 
     @Query("SELECT COUNT(*) FROM strava_activities")

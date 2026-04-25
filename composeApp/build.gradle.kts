@@ -29,6 +29,7 @@ kotlin {
             implementation(libs.garmin.ciq.sdk)
             implementation(libs.ktor.client.cio.jvm)
             implementation(libs.ktor.client.okhttp)
+            implementation(libs.ktor.client.auth)
             implementation(libs.androidx.fragment)
 //            implementation(libs.skiko.android)
         }
@@ -73,8 +74,9 @@ kotlin {
 }
 
 dependencies {
-    // For KSP in KMP, use the accessor for the compiler
     add("kspCommonMainMetadata", libs.androidx.room.compiler)
+    add("kspAndroid", libs.androidx.room.compiler)
+    ksp(libs.androidx.room.compiler)
 }
 
 room {

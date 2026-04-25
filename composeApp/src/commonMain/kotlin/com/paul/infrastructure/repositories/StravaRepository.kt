@@ -11,10 +11,12 @@ import com.russhwolf.settings.Settings
 import com.russhwolf.settings.set
 import io.github.aakira.napier.Napier
 import io.ktor.client.call.body
+import io.ktor.client.plugins.DefaultRequest
+import io.ktor.client.plugins.auth.Auth
+import io.ktor.client.plugins.auth.providers.BearerTokens
+import io.ktor.client.plugins.auth.providers.bearer
 import io.ktor.client.request.get
-import io.ktor.client.request.header
 import io.ktor.client.request.post
-import io.ktor.http.HttpHeaders
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -29,7 +31,51 @@ import kotlinx.serialization.json.Json
 
 class StravaRepository(private val browserLauncher: IBrowserLauncher, private val dao: StravaDao) {
     private val settings = Settings()
-    private val client = KtorClient.client
+    private val stravaClient = KtorClient.client.config {
+        // 1. Ensure Auth is installed correctly
+        install(Auth) {
+            // 2. This must be 'bearer', which takes a config block
+            bearer {
+                // 3. This block has its own specific scope
+                loadTokens {
+                    val access = settings.getStringOrNull(ACCESS_TOKEN_KEY)
+                    val refresh = settings.getStringOrNull(REFRESH_TOKEN_KEY)
+                    if (access != null && refresh != null) {
+                        BearerTokens(access, refresh)
+                    } else {
+                        null
+                    }
+                }
+                refreshTokens {
+                    val oldRefresh = settings.getStringOrNull(REFRESH_TOKEN_KEY) ?: return@refreshTokens null
+
+                    try {
+                        val response: StravaTokenResponse = KtorClient.client.post("https://www.strava.com/api/v3/oauth/token") {
+                            url {
+                                parameters.append("client_id", getClientId())
+                                parameters.append("client_secret", getClientSecret())
+                                parameters.append("grant_type", "refresh_token")
+                                parameters.append("refresh_token", oldRefresh)
+                            }
+                        }.body()
+
+                        // NO CURLY BRACES HERE
+                        settings[ACCESS_TOKEN_KEY] = response.accessToken
+                        settings[REFRESH_TOKEN_KEY] = response.refreshToken
+
+                        BearerTokens(response.accessToken, response.refreshToken)
+                    } catch (e: Exception) {
+                        Napier.e("Token refresh failed", e)
+                        null
+                    }
+                }
+            }
+        }
+
+        install(DefaultRequest) {
+            url("https://www.strava.com/api/v3/")
+        }
+    }
 
     private val repoScope = CoroutineScope(Dispatchers.Default)
 
@@ -69,12 +115,10 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
 
     private suspend fun sync(direction: String) {
         _isSyncing.value = true
-        val token = settings.getStringOrNull(ACCESS_TOKEN_KEY) ?: return
+        // No need to manually check for token here, Auth plugin handles it
 
         var keepGoing = true
         var totalSyncedInThisSession = 0
-
-        // 1. Get initial anchor from Room instead of memory
         var currentAnchor: Long? = if (direction == "after") {
             dao.getLatestTimestamp()?.epochSeconds
         } else {
@@ -86,24 +130,20 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
                 _loginStatus.value =
                     "Syncing Strava ($direction) ($totalSyncedInThisSession found)..."
 
-                val response: List<StravaActivity> =
-                    client.get("$API_BASE_URL/athlete/activities") {
-                        header(HttpHeaders.Authorization, "Bearer $token")
-                        url {
-                            currentAnchor?.let { parameters.append(direction, it.toString()) }
-                            parameters.append("per_page", "100")
-                        }
-                    }.body()
+                // Use the specialized stravaClient
+                // Note: The URL is now relative because of DefaultRequest
+                val response: List<StravaActivity> = stravaClient.get("athlete/activities") {
+                    url {
+                        currentAnchor?.let { parameters.append(direction, it.toString()) }
+                        parameters.append("per_page", "100")
+                    }
+                }.body()
 
                 if (response.isEmpty()) {
                     keepGoing = false
                 } else {
-                    // 2. Persist directly to Room (Low Memory)
                     dao.insertActivities(response)
-
                     totalSyncedInThisSession += response.size
-
-                    // 3. Update the anchor for the next page in the loop
                     currentAnchor = if (direction == "after") {
                         response.maxOf { it.startDate.epochSeconds }
                     } else {
@@ -212,31 +252,25 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
     suspend fun login(code: String) {
         val id = getClientId()
         val secret = getClientSecret()
-
-        if (id.isBlank() || secret.isBlank()) {
-            _loginStatus.value = "Error: Missing Client ID or Secret"
-            return
-        }
+        if (id.isBlank() || secret.isBlank()) return
 
         try {
-            val response: StravaTokenResponse =
-                client.post("https://www.strava.com/api/v3/oauth/token") {
-                    url {
-                        parameters.append("client_id", id)
-                        parameters.append("client_secret", secret)
-                        parameters.append("code", code)
-                        parameters.append("grant_type", "authorization_code")
-                    }
-                }.body()
+            // Use base client for initial login to avoid Auth plugin logic
+            val response: StravaTokenResponse = KtorClient.client.post("https://www.strava.com/api/v3/oauth/token") {
+                url {
+                    parameters.append("client_id", id)
+                    parameters.append("client_secret", secret)
+                    parameters.append("code", code)
+                    parameters.append("grant_type", "authorization_code")
+                }
+            }.body()
 
             settings[ACCESS_TOKEN_KEY] = response.accessToken
             settings[REFRESH_TOKEN_KEY] = response.refreshToken
 
             _loginStatus.value = "Success! Fetching activities..."
             syncActivities()
-            _loginStatus.value = "Strava Connected: ${dao.size()} activities cached."
         } catch (e: Exception) {
-            Napier.e("Login failed", e)
             _loginStatus.value = "Login failed: ${e.message}"
         }
     }
