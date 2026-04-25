@@ -59,9 +59,11 @@ fun StravaActivitiesScreen(viewModel: StravaActivitiesViewModel) {
     val totalCount by viewModel.totalActivityCount.collectAsState(0)
     var showDatePicker by remember { mutableStateOf(false) }
 
-    Column(modifier = Modifier
-        .fillMaxSize()
-        .padding(16.dp)) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
         // --- Header ---
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -144,7 +146,7 @@ fun StravaActivitiesScreen(viewModel: StravaActivitiesViewModel) {
         // --- List ---
         LazyColumn(modifier = Modifier.weight(1f)) {
             items(activities, key = { it.id }) { activity ->
-                StravaActivityItem(activity)
+                StravaActivityItem(activity, { viewModel.previewActivity(activity) })
             }
         }
     }
@@ -162,56 +164,74 @@ fun StravaActivitiesScreen(viewModel: StravaActivitiesViewModel) {
 }
 
 @Composable
-fun StravaActivityItem(activity: StravaActivity) {
-    // Look-up logic is no longer needed because we have the object!
-
+fun StravaActivityItem(activity: StravaActivity, onPreviewClick: () -> Unit) {
     Card(
         elevation = 2.dp,
         shape = RoundedCornerShape(8.dp),
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
+            .clickable { onPreviewClick() }
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            val stravaOrange = Color(0xFFFC4C02)
 
-            Icon(
-                imageVector = Icons.Default.DirectionsBike,
-                contentDescription = null,
-                tint = stravaOrange
-            )
+            Row(
+                modifier = Modifier.padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val stravaOrange = Color(0xFFFC4C02)
+
+                Icon(
+                    imageVector = Icons.Default.DirectionsBike,
+                    contentDescription = null,
+                    tint = stravaOrange
+                )
+
+                Spacer(Modifier.width(12.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = activity.name,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    val dateText = activity.startDate
+                        .toLocalDateTime(TimeZone.currentSystemDefault())
+                        .date.toString()
+
+                    Text(
+                        text = dateText,
+                        style = MaterialTheme.typography.caption,
+                        color = Color.Gray
+                    )
+                }
+
+                if (activity.map?.summaryPolyline != null) {
+                    Icon(
+                        imageVector = Icons.Default.Map,
+                        contentDescription = "Has Map Data",
+                        modifier = Modifier.size(16.dp),
+                        tint = Color.Gray
+                    )
+                }
+            }
 
             Spacer(Modifier.width(12.dp))
 
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = activity.name,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                val dateText = activity.startDate
-                    .toLocalDateTime(TimeZone.currentSystemDefault())
-                    .date.toString()
-
-                Text(
-                    text = dateText,
-                    style = MaterialTheme.typography.caption,
-                    color = Color.Gray
-                )
-            }
-
+            // Map Preview Button
             if (activity.map?.summaryPolyline != null) {
-                Icon(
-                    imageVector = Icons.Default.Map,
-                    contentDescription = "Has Map Data",
-                    modifier = Modifier.size(16.dp),
-                    tint = Color.Gray
-                )
+                IconButton(onClick = onPreviewClick) {
+                    Icon(
+                        imageVector = Icons.Default.Map,
+                        contentDescription = "View on Map",
+                        tint = MaterialTheme.colors.primary
+                    )
+                }
             }
         }
     }

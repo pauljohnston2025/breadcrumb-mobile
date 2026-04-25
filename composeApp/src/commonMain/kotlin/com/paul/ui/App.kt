@@ -69,6 +69,7 @@ import com.paul.viewmodels.StartNavigationEvent
 import com.paul.viewmodels.StartViewModel
 import com.paul.viewmodels.StorageViewModel
 import com.paul.viewmodels.StravaActivitiesViewModel
+import com.paul.viewmodels.StravaNavigationEvent
 import io.github.aakira.napier.Napier
 import io.ktor.client.request.head
 import kotlinx.coroutines.launch
@@ -347,8 +348,20 @@ fun App(
                                     val stravaActivitiesViewModel = viewModel {
                                         StravaActivitiesViewModel(
                                             stravaRepository,
+                                            mapViewModel,
                                             scaffoldState.snackbarHostState,
                                         )
+                                    }
+
+                                    LaunchedEffect(key1 = Unit) {
+                                        stravaActivitiesViewModel.navigationEvents.collect { event ->
+                                            // Use a 'when' statement to handle all possible navigation events
+                                            when (event) {
+                                                is StravaNavigationEvent.NavigateTo -> {
+                                                    navController.navigate(event.route)
+                                                }
+                                            }
+                                        }
                                     }
 
                                     StravaActivitiesScreen(

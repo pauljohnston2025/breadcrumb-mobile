@@ -4,6 +4,7 @@ import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import com.paul.protocol.todevice.Point
+import com.paul.protocol.todevice.Route
 import kotlinx.datetime.Instant
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -24,7 +25,11 @@ data class StravaActivity(
     val startDate: Instant,
     @Embedded
     val map: StravaMap? = null
-)
+) {
+    fun toRoute(): Route {
+        return Route(name, map?.decodePolyline() ?: emptyList(), emptyList())
+    }
+}
 
 @Serializable
 data class StravaMap(
