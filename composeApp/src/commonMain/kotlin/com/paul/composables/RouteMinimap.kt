@@ -1,48 +1,51 @@
-// ui/components/RouteMiniMap.kt
-
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.isEmpty
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.unit.coerceAtLeast
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
+import com.paul.composables.byteArrayToImageBitmap
+import com.paul.infrastructure.repositories.ITileRepository
 import com.paul.protocol.todevice.Route
-import com.paul.protocol.todevice.Point
-import kotlin.text.forEachIndexed
-import kotlin.text.maxOf
-import kotlin.text.minOf
-import kotlin.text.toDouble
-import kotlin.text.toFloat
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.floor
+import kotlin.math.ln
+import kotlin.math.log2
+import kotlin.math.max
+import kotlin.math.pow
+import kotlin.math.tan
 
 @Composable
 fun RouteMiniMap(
     route: Route?,
+    tileRepository: ITileRepository, // Passed in from the screen
     modifier: Modifier = Modifier,
-    lineColor: Color = MaterialTheme.colorScheme.primary,
-    strokeWidth: Float = 6f
+    lineColor: Color = Color(0xFFFC4C02),
 ) {
-    // The property in your generated protocol is 'point', not 'points'
     val points = route?.route ?: emptyList()
+    var tileBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
 
-    if (points.isEmpty()) {
-        Box(
-            modifier = modifier
-                .clip(RoundedCornerShape(8.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
-        )
-        return
-    }
-
-    val bounds = remember(points) {
+    // 1. Calculate Bounds and Zoom level
+    val routeData = remember(points) {
+        if (points.isEmpty()) return@remember null
         val minLat = points.minOf { it.latitude }
         val maxLat = points.maxOf { it.latitude }
         val minLng = points.minOf { it.longitude }
@@ -51,53 +54,72 @@ fun RouteMiniMap(
         val dLat = (maxLat - minLat).toDouble().coerceAtLeast(0.0001)
         val dLng = (maxLng - minLng).toDouble().coerceAtLeast(0.0001)
 
+        // Pick zoom based on bounding box size
+        val maxDiff = max(dLat, dLng)
+        val zoom = floor(log2(360.0 / maxDiff)).toInt().coerceIn(10, 14)
+
         object {
+            val centerLat = (minLat + maxLat) / 2.0
+            val centerLng = (minLng + maxLng) / 2.0
+            val zoom = zoom
             val minLat = minLat
             val minLng = minLng
             val rangeLat = dLat
             val rangeLng = dLng
-            val aspectRatio = dLng / dLat
         }
     }
 
-    Canvas(
-        modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
-            .padding(6.dp)
-    ) {
-        val path = Path()
+    // 2. Fetch only the necessary tile directly from Repository
+    LaunchedEffect(routeData) {
+        routeData?.let { data ->
+            withContext(Dispatchers.IO) {
+                val n = 2.0.pow(data.zoom)
+                val xtile = ((data.centerLng + 180.0) / 360.0 * n).toInt()
+                val ytile = ((1.0 - ln(tan(Math.toRadians(data.centerLat)) + (1.0 / cos(Math.toRadians(data.centerLat)))) / PI) / 2.0 * n).toInt()
 
-        // Calculate scaling to maintain aspect ratio within the canvas
-        val canvasRatio = size.width / size.height
-        val scale: Float
-        val offsetX: Float
-        val offsetY: Float
+                val result = tileRepository.getTile(xtile, ytile, data.zoom)
+                result.second?.let { bytes ->
+                    tileBitmap = byteArrayToImageBitmap(bytes)
+                }
+            }
+        }
+    }
 
-        if (bounds.aspectRatio > canvasRatio) {
-            // Wide route: fill width, center vertically
-            scale = size.width / bounds.rangeLng.toFloat()
-            offsetX = 0f
-            offsetY = (size.height - (bounds.rangeLat.toFloat() * scale)) / 2f
-        } else {
-            // Tall route: fill height, center horizontally
-            scale = size.height / bounds.rangeLat.toFloat()
-            offsetY = 0f
-            offsetX = (size.width - (bounds.rangeLng.toFloat() * scale)) / 2f
+    Box(modifier = modifier.clip(RoundedCornerShape(8.dp)).background(Color.LightGray.copy(alpha = 0.1f))) {
+        // Tile Layer
+        tileBitmap?.let {
+            Image(
+                bitmap = it,
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
         }
 
-        points.forEachIndexed { index, point ->
-            val x = ((point.longitude - bounds.minLng).toFloat() * scale) + offsetX
-            // Latitude is inverted in UI coordinates (Y increases downwards)
-            val y = size.height - (((point.latitude - bounds.minLat).toFloat() * scale) + offsetY)
+        // Polyline Layer
+        Canvas(modifier = Modifier.fillMaxSize().padding(8.dp)) {
+            routeData?.let { data ->
+                val path = Path()
+                val canvasRatio = size.width / size.height
+                val routeRatio = data.rangeLng / data.rangeLat
 
-            if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                val scale = if (routeRatio > canvasRatio) {
+                    size.width / data.rangeLng.toFloat()
+                } else {
+                    size.height / data.rangeLat.toFloat()
+                }
+
+                val offsetX = (size.width - (data.rangeLng.toFloat() * scale)) / 2f
+                val offsetY = (size.height - (data.rangeLat.toFloat() * scale)) / 2f
+
+                points.forEachIndexed { index, point ->
+                    val x = ((point.longitude - data.minLng).toFloat() * scale) + offsetX
+                    val y = size.height - (((point.latitude - data.minLat).toFloat() * scale) + offsetY)
+                    if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                }
+
+                drawPath(path = path, color = lineColor, style = Stroke(width = 3.dp.toPx()))
+            }
         }
-
-        drawPath(
-            path = path,
-            color = lineColor,
-            style = Stroke(width = strokeWidth)
-        )
     }
 }

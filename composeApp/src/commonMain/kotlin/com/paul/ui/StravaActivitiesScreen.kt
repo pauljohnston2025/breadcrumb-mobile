@@ -23,9 +23,8 @@ import androidx.compose.material.LinearProgressIndicator
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.DirectionsBike
-import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DateRangePicker
@@ -45,6 +44,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.paul.domain.StravaActivity
+import com.paul.infrastructure.repositories.ITileRepository
 import com.paul.viewmodels.StravaActivitiesViewModel
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
@@ -53,7 +53,7 @@ import androidx.compose.material3.Text as M3Text
 import androidx.compose.material3.TextButton as M3TextButton
 
 @Composable
-fun StravaActivitiesScreen(viewModel: StravaActivitiesViewModel) {
+fun StravaActivitiesScreen(viewModel: StravaActivitiesViewModel, tileRepository: ITileRepository) {
     val activities by viewModel.activities.collectAsState(emptyList())
     val isSyncing by viewModel.isSyncing.collectAsState()
     val status by viewModel.loginStatus.collectAsState()
@@ -165,9 +165,12 @@ fun StravaActivitiesScreen(viewModel: StravaActivitiesViewModel) {
         Spacer(Modifier.height(12.dp))
 
         // --- List ---
-        LazyColumn(modifier = Modifier.weight(1f)) {
+        LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
             items(activities, key = { it.id }) { activity ->
-                StravaActivityItem(activity, { viewModel.previewActivity(activity) })
+                StravaActivityItem(
+                    activity,
+                    tileRepository,
+                    { viewModel.previewActivity(activity) })
             }
         }
     }
@@ -185,42 +188,44 @@ fun StravaActivitiesScreen(viewModel: StravaActivitiesViewModel) {
 }
 
 @Composable
-fun StravaActivityItem(activity: StravaActivity, onPreviewClick: () -> Unit) {
+fun StravaActivityItem(
+    activity: StravaActivity,
+    tileRepository: ITileRepository,
+    onPreviewClick: () -> Unit
+) {
     Card(
         elevation = 2.dp,
-        shape = RoundedCornerShape(8.dp),
+        shape = RoundedCornerShape(12.dp),
         modifier = Modifier
-            .fillMaxWidth()
-            // Vertical spacing between items, no horizontal padding here
-            // so it controls its own width relative to the LazyColumn
-            .padding(vertical = 4.dp)
+            .fillMaxWidth() // THIS ensures it spans the screen
+            .padding(horizontal = 12.dp, vertical = 6.dp) // Outer margin
             .clickable { onPreviewClick() }
     ) {
         Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp), // Comfortable internal padding
+                .fillMaxWidth() // Spans the full width of the Card
+                .padding(12.dp), // Internal padding
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 1. Mini Map on the left
+            // 1. Mini Map (Shared Tiling)
             RouteMiniMap(
                 route = activity.toRoute(),
+                tileRepository = tileRepository,
                 modifier = Modifier
-                    .size(64.dp)
-                    .clip(RoundedCornerShape(6.dp))
+                    .size(72.dp)
+                    .clip(RoundedCornerShape(8.dp))
             )
 
             Spacer(Modifier.width(16.dp))
 
-            // 2. Activity Details - Takes up all remaining space
+            // 2. Details Column - Weight(1f) fills the middle
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    val stravaOrange = Color(0xFFFC4C02)
                     Icon(
                         imageVector = activity.getActivityIcon(),
                         contentDescription = null,
-                        tint = stravaOrange,
-                        modifier = Modifier.size(18.dp)
+                        tint = Color(0xFFFC4C02), // Strava Orange
+                        modifier = Modifier.size(20.dp)
                     )
                     Spacer(Modifier.width(8.dp))
                     Text(
@@ -240,24 +245,20 @@ fun StravaActivityItem(activity: StravaActivity, onPreviewClick: () -> Unit) {
                     text = dateText,
                     style = MaterialTheme.typography.caption,
                     color = Color.Gray,
-                    modifier = Modifier.padding(start = 26.dp) // Aligns text under the title, past the icon
+                    modifier = Modifier.padding(start = 28.dp) // Align under the title text
                 )
             }
 
-            // 3. Optional Map Action Icon on the far right
-            if (activity.map?.summaryPolyline != null) {
-                Icon(
-                    imageVector = Icons.Default.Map,
-                    contentDescription = "View on Map",
-                    tint = MaterialTheme.colors.primary.copy(alpha = 0.7f),
-                    modifier = Modifier
-                        .padding(start = 8.dp)
-                        .size(24.dp)
-                )
-            }
+            // 3. Trailing indicator
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = null,
+                tint = Color.LightGray.copy(alpha = 0.5f)
+            )
         }
     }
 }
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -266,32 +267,34 @@ fun StravaDateRangePicker(
     onDismiss: () -> Unit,
     onDateRangeSelected: (Instant, Instant) -> Unit
 ) {
-    val dateRangePickerState = rememberDateRangePickerState(
-        initialSelectedStartDateMillis = initialRange.start.toEpochMilliseconds(),
-        initialSelectedEndDateMillis = initialRange.endInclusive.toEpochMilliseconds()
-    )
-
-    DatePickerDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {
-            M3TextButton(onClick = {
-                val start = dateRangePickerState.selectedStartDateMillis
-                val end = dateRangePickerState.selectedEndDateMillis
-                if (start != null && end != null) {
-                    onDateRangeSelected(
-                        Instant.fromEpochMilliseconds(start),
-                        Instant.fromEpochMilliseconds(end)
-                    )
-                }
-            }) { M3Text("Confirm") }
-        },
-        dismissButton = {
-            M3TextButton(onClick = onDismiss) { M3Text("Cancel") }
-        }
-    ) {
-        DateRangePicker(
-            state = dateRangePickerState,
-            modifier = Modifier.height(400.dp)
+    M3ThemeWrapper {
+        val dateRangePickerState = rememberDateRangePickerState(
+            initialSelectedStartDateMillis = initialRange.start.toEpochMilliseconds(),
+            initialSelectedEndDateMillis = initialRange.endInclusive.toEpochMilliseconds()
         )
+
+        DatePickerDialog(
+            onDismissRequest = onDismiss,
+            confirmButton = {
+                M3TextButton(onClick = {
+                    val start = dateRangePickerState.selectedStartDateMillis
+                    val end = dateRangePickerState.selectedEndDateMillis
+                    if (start != null && end != null) {
+                        onDateRangeSelected(
+                            Instant.fromEpochMilliseconds(start),
+                            Instant.fromEpochMilliseconds(end)
+                        )
+                    }
+                }) { M3Text("Confirm") }
+            },
+            dismissButton = {
+                M3TextButton(onClick = onDismiss) { M3Text("Cancel") }
+            }
+        ) {
+            DateRangePicker(
+                state = dateRangePickerState,
+                modifier = Modifier.height(400.dp)
+            )
+        }
     }
 }

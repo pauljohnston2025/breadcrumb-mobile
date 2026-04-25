@@ -10,6 +10,9 @@ import androidx.compose.material.lightColors
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.material3.MaterialTheme as M3Theme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 
 val SlateGray = Color(0xFF546E7A)
 val DarkSlate = Color(0xFF37474F)
@@ -87,4 +90,29 @@ fun AppTheme(
         shapes = AppShapes,
         content = content
     )
+}
+
+@Composable
+fun M3ThemeWrapper(content: @Composable () -> Unit) {
+    // Check if your current M2 theme is light or dark
+    val isDark = !MaterialTheme.colors.isLight
+
+    val colorScheme = if (isDark) {
+        darkColorScheme(
+            primary = MaterialTheme.colors.primary,
+            onPrimary = MaterialTheme.colors.onPrimary,
+            surface = MaterialTheme.colors.surface,
+            onSurface = MaterialTheme.colors.onSurface,
+            // Add specific overrides here if needed
+        )
+    } else {
+        lightColorScheme(
+            primary = MaterialTheme.colors.primary,
+            onPrimary = MaterialTheme.colors.onPrimary,
+            surface = MaterialTheme.colors.surface,
+            onSurface = MaterialTheme.colors.onSurface,
+        )
+    }
+
+    M3Theme(colorScheme = colorScheme, content = content)
 }

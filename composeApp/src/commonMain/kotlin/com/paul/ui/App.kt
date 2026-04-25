@@ -366,6 +366,7 @@ fun App(
 
                                     StravaActivitiesScreen(
                                         viewModel = stravaActivitiesViewModel,
+                                        tileRepository = tileRepo,
                                     )
                                 }
 
