@@ -17,10 +17,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DateRangePicker
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.rememberDateRangePickerState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -31,6 +27,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.paul.domain.StravaActivity
 import com.paul.infrastructure.repositories.ITileRepository
 import com.paul.viewmodels.StravaActivitiesViewModel
@@ -103,8 +100,8 @@ fun StravaActivitiesScreen(viewModel: StravaActivitiesViewModel, tileRepository:
                 onClick = { viewModel.sync() },
                 enabled = !isSyncing,
                 colors = androidx.compose.material3.IconButtonDefaults.filledIconButtonColors(
-                    containerColor = Color(0xFFFC4C02),
-                    contentColor = Color.White
+                    containerColor = MaterialTheme.colors.primaryVariant,
+                    contentColor = MaterialTheme.colors.primary
                 ),
                 modifier = Modifier.size(48.dp)
             ) {
@@ -146,13 +143,10 @@ fun StravaActivitiesScreen(viewModel: StravaActivitiesViewModel, tileRepository:
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Search activities...") },
+                placeholder = { Text("Search activities...", fontSize = 14.sp) },
                 leadingIcon = { Icon(Icons.Default.Search, null) },
+                singleLine = true,
                 shape = RoundedCornerShape(12.dp),
-                colors = TextFieldDefaults.outlinedTextFieldColors(
-                    focusedBorderColor = MaterialTheme.colors.primary,
-                    unfocusedBorderColor = Color.Gray.copy(0.3f)
-                )
             )
 
             Row(
@@ -263,31 +257,30 @@ private fun StravaActivityListItem(
 
         // Info (Middle)
         Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = activity.name,
+                style = MaterialTheme.typography.subtitle1,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 // RESTORED: Using getActivityIcon() from StravaActivity.kt
                 Icon(
                     imageVector = activity.getActivityIcon(),
                     contentDescription = null,
                     modifier = Modifier.size(14.dp),
-                    tint = Color(0xFFFC4C02)
+                    tint = Color.Gray
                 )
                 Spacer(Modifier.width(4.dp))
                 Text(
                     text = (activity.type ?: "Activity").uppercase(),
                     style = MaterialTheme.typography.overline,
-                    color = Color(0xFFFC4C02),
+                    color = Color.Gray,
                     fontWeight = FontWeight.Bold
                 )
             }
             Text(
-                text = activity.name,
-                style = MaterialTheme.typography.subtitle1,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = activity.startDate.toLocalDateTime(TimeZone.currentSystemDefault()).date.toString(),
+                text = activity.startDate.toLocalDateTime(TimeZone.currentSystemDefault()).toString(),
                 style = MaterialTheme.typography.caption,
                 color = Color.Gray
             )
@@ -295,7 +288,6 @@ private fun StravaActivityListItem(
 
         // Actions (Right)
         Icon(Icons.Default.LocationOn, null, tint = MaterialTheme.colors.primary.copy(0.6f))
-        Icon(Icons.Default.ChevronRight, null, tint = Color.LightGray)
     }
 }
 
@@ -330,14 +322,11 @@ private fun FilterChip(label: String, icon: ImageVector, isSelected: Boolean, on
 
 @Composable
 fun DateRangeCard(currentRange: ClosedRange<Instant>, onClick: () -> Unit) {
-    androidx.compose.material3.Card(
+    Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() },
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = M3Theme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-        )
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
@@ -346,19 +335,22 @@ fun DateRangeCard(currentRange: ClosedRange<Instant>, onClick: () -> Unit) {
             Icon(
                 Icons.Default.DateRange,
                 contentDescription = null,
-                tint = Color(0xFFFC4C02),
+                tint = Color.Gray,
                 modifier = Modifier.size(20.dp)
             )
             Spacer(Modifier.width(12.dp))
             Column {
-                val start = currentRange.start.toLocalDateTime(TimeZone.currentSystemDefault()).date
+                val start =
+                    currentRange.start.toLocalDateTime(TimeZone.currentSystemDefault()).date
                 val end =
                     currentRange.endInclusive.toLocalDateTime(TimeZone.currentSystemDefault()).date
-                M3Text("Filter by Date", style = M3Theme.typography.labelSmall, color = Color.Gray)
-                M3Text(
+                Text(
+                    "Filter by Date",
+                    color = Color.Gray
+                )
+                Text(
                     "$start — $end",
-                    style = M3Theme.typography.bodyMedium,
-                    fontWeight = FontWeight.Bold
+                    color = Color.Gray
                 )
             }
             Spacer(Modifier.weight(1f))

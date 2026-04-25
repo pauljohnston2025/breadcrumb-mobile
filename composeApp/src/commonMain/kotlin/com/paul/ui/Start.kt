@@ -401,36 +401,56 @@ private fun HistoryListItem(
 
         // 2. Info Column (Middle)
         Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = name,
+                    style = MaterialTheme.typography.subtitle1,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
             Text(
-                text = name,
-                style = MaterialTheme.typography.subtitle1,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = item.timestamp.toLocalDateTime(currentSystemDefault()).date.toString(),
+                text = item.timestamp.toLocalDateTime(currentSystemDefault()).toString(),
                 style = MaterialTheme.typography.caption,
                 color = Color.Gray
             )
-        }
 
-        // 3. Action Group (Right) - Matching Routes Page
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            if (route != null) {
-                IconButton(onClick = { onEditClick(route) }, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Default.Edit, null, Modifier.size(18.dp), tint = Color.Gray)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Spacer(Modifier.weight(1f))
+                if (route != null) {
+                    IconButton(onClick = { onEditClick(route) }, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Default.Edit, null, Modifier.size(18.dp), tint = Color.Gray)
+                    }
+                    // THE MISSING PREVIEW ICON
+                    IconButton(
+                        onClick = { onPreviewClick(route) },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.LocationOn,
+                            null,
+                            Modifier.size(18.dp),
+                            tint = MaterialTheme.colors.primary
+                        )
+                    }
                 }
-                // THE MISSING PREVIEW ICON
-                IconButton(onClick = { onPreviewClick(route) }, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Default.LocationOn, null, Modifier.size(18.dp), tint = MaterialTheme.colors.primary)
+                IconButton(onClick = onSendClick, modifier = Modifier.size(32.dp)) {
+                    Icon(
+                        Icons.Default.PlayArrow,
+                        null,
+                        Modifier.size(22.dp),
+                        tint = Color(0xFF4CAF50)
+                    )
                 }
-            }
-            IconButton(onClick = onSendClick, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Default.PlayArrow, null, Modifier.size(22.dp), tint = Color(0xFF4CAF50))
-            }
-            IconButton(onClick = onDeleteClick, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Default.Delete, null, Modifier.size(18.dp), tint = MaterialTheme.colors.error.copy(alpha = 0.6f))
+                IconButton(onClick = onDeleteClick, modifier = Modifier.size(32.dp)) {
+                    Icon(
+                        Icons.Default.Delete,
+                        null,
+                        Modifier.size(18.dp),
+                        tint = MaterialTheme.colors.error.copy(alpha = 0.6f)
+                    )
+                }
             }
         }
     }

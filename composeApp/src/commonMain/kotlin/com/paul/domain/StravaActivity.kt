@@ -5,9 +5,11 @@ import androidx.compose.material.icons.filled.DirectionsBike
 import androidx.compose.material.icons.filled.DirectionsRun
 import androidx.compose.material.icons.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.Hiking
+import androidx.compose.material.icons.filled.Kayaking
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Pool
 import androidx.compose.material.icons.filled.QuestionMark
+import androidx.compose.material.icons.filled.Water
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.room.Embedded
 import androidx.room.Entity
@@ -67,16 +69,18 @@ data class StravaActivity(
     val type: String? = null,
 ) {
     companion object {
-        val SUPPORTED_TYPES = listOf("All", "Run", "Ride", "Hike", "Walk", "Unknown")
+        val SUPPORTED_TYPES = listOf("All", "Run", "Ride", "Hike", "Walk", "Swim", "WaterSport", "Kayaking", "Unknown")
 
         fun getActivityIcon(type: String?): ImageVector {
             return when (type) {
                 "All" -> Icons.Default.Layers
-                "Ride", "VirtualRide", "EBikeRide" -> Icons.Default.DirectionsBike
                 "Run", "VirtualRun" -> Icons.Default.DirectionsRun
-                "Walk" -> Icons.Default.DirectionsWalk
+                "Ride", "VirtualRide", "EBikeRide" -> Icons.Default.DirectionsBike
                 "Hike" -> Icons.Default.Hiking
+                "Walk" -> Icons.Default.DirectionsWalk
                 "Swim" -> Icons.Default.Pool
+                "WaterSport" -> Icons.Default.Water
+                "Kayaking" -> Icons.Default.Kayaking
                 else -> Icons.Default.QuestionMark
             }
         }

@@ -361,7 +361,7 @@ private fun RouteListItem(
                 Text(
                     route.name.ifBlank { "<No Name>" },
                     style = MaterialTheme.typography.subtitle1,
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
