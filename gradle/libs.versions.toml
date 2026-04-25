@@ -14,7 +14,7 @@ androidx-test-junit = "1.2.1"
 compose-plugin = "1.6.11"
 junit = "4.13.2"
 kotlin = "2.0.0"
-ksp = "2.0.0-1.0.21"
+ksp = "2.0.0-1.0.24"
 #ktor = "3.3.0" had some issues in the android emulator with this version, hold off for now
 ktor = "3.1.1"
 logbackClassic = "1.2.11"
@@ -25,9 +25,9 @@ napier = "2.7.1"
 androidxFragment = "1.7.1"
 garmin-ciq-sdk = "2.3.0"
 reorderable = "2.4.1"
-room = "2.7.0"
+room = "2.7.2"
 sqliteBundled = "2.6.2"
-serialization ="1.6.3"
+serialization ="1.7.1"
 
 [libraries]
 androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
