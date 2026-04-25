@@ -5,6 +5,7 @@ import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.DeviceHub
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.PedalBike
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Route
@@ -14,6 +15,7 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.SwitchAccount
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.TextSnippet
+import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.ui.graphics.vector.ImageVector
 
@@ -34,12 +36,14 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     object Debug : Screen("debug", "Debug Info", Icons.Default.Terminal)
     object Routes : Screen("routes", "Routes", Icons.Default.Route)
     object Profiles : Screen("profiles", "Profiles", Icons.Default.Tune)
+    object Strava : Screen("strava", "Strava", Icons.Default.PedalBike)
 }
 
 // List of items specifically for the drawer menu
 val drawerScreens = listOf(
     Screen.Start,
     Screen.Routes,
+    Screen.Strava,
     Screen.Settings,
     Screen.Profiles,
     Screen.Devices,

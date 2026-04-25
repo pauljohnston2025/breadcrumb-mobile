@@ -26,8 +26,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
+import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toInstant
+import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.json.Json
+import kotlin.time.Duration.Companion.days
 
 class StravaRepository(private val browserLauncher: IBrowserLauncher, private val dao: StravaDao) {
     private val settings = Settings()
@@ -87,7 +92,10 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
     val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
 
     // UI updates this range; the Flow below automatically reacts
-    private val _currentRange = MutableStateFlow(Instant.DISTANT_PAST..Instant.DISTANT_FUTURE)
+    private val _currentRange = MutableStateFlow(getInitialRange())
+    val currentRange: StateFlow<ClosedRange<Instant>> = _currentRange.asStateFlow()
+
+    fun getTotalCountFlow() = dao.sizeFlow()
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val activities: Flow<List<StravaActivity>> = _currentRange.flatMapLatest { range ->
@@ -95,7 +103,24 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
     }
 
     fun setDateRange(start: Instant, end: Instant) {
+        settings.putLong(START_DATE_KEY, start.epochSeconds)
+        settings.putLong(END_DATE_KEY, end.epochSeconds)
         _currentRange.value = start..end
+    }
+
+    private fun getInitialRange(): ClosedRange<Instant> {
+        val now = Clock.System.now()
+        val oneMonthAgo = now.toLocalDateTime(TimeZone.currentSystemDefault())
+            .toInstant(TimeZone.currentSystemDefault())
+            .minus(30.days)
+
+        val startEpoch = settings.getLongOrNull(START_DATE_KEY)
+        val endEpoch = settings.getLongOrNull(END_DATE_KEY)
+
+        val start = if (startEpoch != null) Instant.fromEpochSeconds(startEpoch) else oneMonthAgo
+        val end = if (endEpoch != null) Instant.fromEpochSeconds(endEpoch) else now
+
+        return start..end
     }
 
     companion object {
@@ -104,6 +129,8 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
         private const val ACCESS_TOKEN_KEY = "STRAVA_ACCESS_TOKEN"
         private const val REFRESH_TOKEN_KEY = "STRAVA_REFRESH_TOKEN"
         private const val LOCAL_ACTIVITIES_KEY = "STRAVA_LOCAL_CACHE"
+        private const val START_DATE_KEY = "FILTER_START_DATE"
+        private const val END_DATE_KEY = "FILTER_END_DATE"
 
         private const val REDIRECT_URI = "paulapp://localhost"
         private const val AUTH_URL = "https://www.strava.com/oauth/mobile/authorize"
@@ -194,25 +221,6 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
         }
     }
 
-    // --- Persistence Logic ---
-
-    private fun saveLocalActivities(list: List<RouteEntry>) {
-        val json = Json.encodeToString(list)
-        settings.putString(LOCAL_ACTIVITIES_KEY, json)
-    }
-
-    private fun loadLocalActivities(): List<RouteEntry> {
-        val json = settings.getStringOrNull(LOCAL_ACTIVITIES_KEY) ?: return emptyList()
-        return try {
-            Json.decodeFromString(json)
-        } catch (e: Exception) {
-            emptyList()
-        }
-    }
-
-    // --- OAuth & Helpers ---
-
-    // StravaRepository.kt (Common)
     fun launchAuthFlow() {
         val clientId = getClientId().trim()
         if (clientId.isBlank()) return

@@ -68,6 +68,7 @@ import com.paul.viewmodels.RoutesViewModel
 import com.paul.viewmodels.StartNavigationEvent
 import com.paul.viewmodels.StartViewModel
 import com.paul.viewmodels.StorageViewModel
+import com.paul.viewmodels.StravaActivitiesViewModel
 import io.github.aakira.napier.Napier
 import io.ktor.client.request.head
 import kotlinx.coroutines.launch
@@ -339,6 +340,19 @@ fun App(
 
                                     RoutesScreen(
                                         viewModel = routesViewModel,
+                                    )
+                                }
+
+                                composable(Screen.Strava.route) {
+                                    val stravaActivitiesViewModel = viewModel {
+                                        StravaActivitiesViewModel(
+                                            stravaRepository,
+                                            scaffoldState.snackbarHostState,
+                                        )
+                                    }
+
+                                    StravaActivitiesScreen(
+                                        viewModel = stravaActivitiesViewModel,
                                     )
                                 }
 
