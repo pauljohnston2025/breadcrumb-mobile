@@ -359,7 +359,7 @@ private fun HistoryListItem(
     routeRepo: RouteRepository,
     snackbarHostState: SnackbarHostState,
 ) {
-    val route = routes.find { it.id == item.routeId }
+    val route = remember(item.routeId, routes) { routes.find { it.id == item.routeId } }
     val name = if (route == null || route.name.isEmpty()) "<unknown>" else route.name
 
     val routeDetail by produceState<Route?>(initialValue = null, route?.id) {

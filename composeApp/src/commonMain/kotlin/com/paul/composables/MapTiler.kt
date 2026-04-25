@@ -76,10 +76,16 @@ import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import android.graphics.Paint
 import android.graphics.Rect
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.material.icons.filled.Colorize
+import androidx.compose.material.icons.filled.Directions
+import androidx.compose.material.icons.filled.DirectionsRun
+import androidx.compose.material3.IconButton
+import androidx.compose.ui.graphics.StrokeJoin
 import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
+import kotlin.text.toDouble
 
 private const val OVERZOOM_LEVELS = 3f
 
@@ -95,6 +101,9 @@ fun MapTilerComposable(
     fitToBoundsPaddingPercent: Float = 0.1f,
     isWatchFeatureDisabled: Boolean
 ) {
+    val isStravaEnabled by viewModel.isStravaEnabled.collectAsState()
+    val stravaRoutes by viewModel.stravaRoutes.collectAsState()
+
     // Create and remember Paint objects for drawing the angle text
     val textPaint = remember {
         Paint().apply {
@@ -129,8 +138,7 @@ fun MapTilerComposable(
     var localCenterGeo by remember {
         mutableStateOf(
             GeoPosition(
-                vmMapCenter.latitude.toDouble(),
-                vmMapCenter.longitude.toDouble()
+                vmMapCenter.latitude.toDouble(), vmMapCenter.longitude.toDouble()
             )
         )
     }
@@ -189,16 +197,10 @@ fun MapTilerComposable(
             var targetZoom = maxZoom
             while (targetZoom > minZoom) {
                 val topLeftScreen = geoToScreenPixel(
-                    GeoPosition(maxLat, minLon),
-                    targetCenterGeo,
-                    targetZoom,
-                    viewportSize
+                    GeoPosition(maxLat, minLon), targetCenterGeo, targetZoom, viewportSize
                 )
                 val bottomRightScreen = geoToScreenPixel(
-                    GeoPosition(minLat, maxLon),
-                    targetCenterGeo,
-                    targetZoom,
-                    viewportSize
+                    GeoPosition(minLat, maxLon), targetCenterGeo, targetZoom, viewportSize
                 )
                 val routePixelWidth = abs(bottomRightScreen.x - topLeftScreen.x)
                 val routePixelHeight = abs(bottomRightScreen.y - topLeftScreen.y)
@@ -212,9 +214,7 @@ fun MapTilerComposable(
             launch(Dispatchers.Main.immediate) {
                 viewModel.centerMapOn(
                     Point(
-                        targetCenterGeo.latitude.toFloat(),
-                        targetCenterGeo.longitude.toFloat(),
-                        0f
+                        targetCenterGeo.latitude.toFloat(), targetCenterGeo.longitude.toFloat(), 0f
                     )
                 )
                 viewModel.setMapZoom(targetZoom.coerceIn(minZoom, maxZoom + OVERZOOM_LEVELS))
@@ -233,47 +233,86 @@ fun MapTilerComposable(
             .onSizeChanged { onViewportSizeChange(it) }
             .background(Color.LightGray)
             .pointerInput(Unit) {
+                detectTapGestures { offset ->
+                    // Check the state inside the callback instead of using it as a key
+                    if (isStravaEnabled) {
+                        val tappedGeo = screenPixelToGeo(
+                            IntOffset(
+                                offset.x.roundToInt(),
+                                offset.y.roundToInt()
+                            ),
+                            localCenterGeo,
+                            localZoom, // Use localZoom for better accuracy than integerZoom
+                            size
+                        )
+                        viewModel.findNearbyActivities(tappedGeo)
+                    }
+                }
+            }
+            .pointerInput(Unit) {
                 awaitEachGesture {
-                    awaitFirstDown(requireUnconsumed = false)
+                    val down = awaitFirstDown(requireUnconsumed = false)
                     do {
+                        // 1. Get the event ONCE per loop
                         val event = awaitPointerEvent()
+
+                        val pan = event.calculatePan()
+                        val zoom = event.calculateZoom()
+                        val centroid = event.calculateCentroid()
+
+                        // 2. Only consume/calculate if actual movement occurred
+                        val isMoving = pan != Offset.Zero || zoom != 1f
+
                         if (event.changes.any { it.pressed }) {
-                            val pan = event.calculatePan()
-                            val zoom = event.calculateZoom()
-                            val centroid = event.calculateCentroid()
+                            // Calculate new zoom level
                             val newZoom = (localZoom + (ln(zoom) / ln(2.0f))).coerceIn(
-                                minZoom,
-                                maxZoom + OVERZOOM_LEVELS
+                                minZoom, maxZoom + OVERZOOM_LEVELS
                             )
+
+                            // Calculate where the center is now after the pan
                             val pannedCenterScreenPixel =
                                 Offset(size.width / 2f, size.height / 2f) - pan
+
                             val pannedCenterGeo = screenPixelToGeo(
                                 screenPixel = IntOffset(
                                     pannedCenterScreenPixel.x.roundToInt(),
                                     pannedCenterScreenPixel.y.roundToInt()
                                 ),
-                                mapCenterGeo = localCenterGeo, zoom = localZoom, viewportSize = size
+                                mapCenterGeo = localCenterGeo,
+                                zoom = localZoom,
+                                viewportSize = size
                             )
+
+                            // Handle zooming relative to the fingers (centroid)
                             val geoUnderCentroid = screenPixelToGeo(
                                 screenPixel = IntOffset(
-                                    centroid.x.roundToInt(),
-                                    centroid.y.roundToInt()
+                                    centroid.x.roundToInt(), centroid.y.roundToInt()
                                 ),
                                 mapCenterGeo = pannedCenterGeo,
                                 zoom = localZoom,
                                 viewportSize = size
                             )
+
                             val finalNewCenterGeo = calculateNewCenter(
                                 targetGeo = geoUnderCentroid,
                                 targetScreenPx = centroid,
                                 newZoom = newZoom,
                                 viewportSize = size
                             )
+
+                            // Update local state for smooth drawing
                             localZoom = newZoom
                             localCenterGeo = finalNewCenterGeo
+
+                            // 3. ONLY consume if we actually moved.
+                            // This allows the Tap detector in the other block to work.
+                            if (isMoving) {
+                                event.changes.forEach { it.consume() }
+                            }
                         }
-                        event.changes.forEach { it.consume() }
                     } while (event.changes.any { it.pressed })
+
+                    // Sync the ViewModel once the user lifts their fingers
                     viewModel.setMapZoom(localZoom)
                     viewModel.centerMapOn(
                         Point(
@@ -283,8 +322,7 @@ fun MapTilerComposable(
                         )
                     )
                 }
-            }
-    ) {
+            }) {
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
@@ -303,14 +341,10 @@ fun MapTilerComposable(
                         )
                     } ?: run {
                         drawRect(
-                            color = Color.DarkGray.copy(alpha = 0.5f),
-                            topLeft = Offset(
-                                tileInfo.screenOffset.x.toFloat(),
-                                tileInfo.screenOffset.y.toFloat()
-                            ),
-                            size = androidx.compose.ui.geometry.Size(
-                                tileInfo.size.width.toFloat(),
-                                tileInfo.size.height.toFloat()
+                            color = Color.DarkGray.copy(alpha = 0.5f), topLeft = Offset(
+                                tileInfo.screenOffset.x.toFloat(), tileInfo.screenOffset.y.toFloat()
+                            ), size = androidx.compose.ui.geometry.Size(
+                                tileInfo.size.width.toFloat(), tileInfo.size.height.toFloat()
                             )
                         )
                     }
@@ -328,8 +362,7 @@ fun MapTilerComposable(
                         route.route.drop(1).forEach { point ->
                             val screenPoint = geoToScreenPixel(
                                 GeoPosition(
-                                    point.latitude.toDouble(),
-                                    point.longitude.toDouble()
+                                    point.latitude.toDouble(), point.longitude.toDouble()
                                 ), localCenterGeo, integerZoom.toFloat(), viewportSize
                             )
                             path.lineTo(screenPoint.x.toFloat(), screenPoint.y.toFloat())
@@ -354,16 +387,14 @@ fun MapTilerComposable(
                                         GeoPosition(
                                             turnPointGeo.latitude.toDouble(),
                                             turnPointGeo.longitude.toDouble()
-                                        ),
-                                        localCenterGeo, integerZoom.toFloat(), viewportSize
+                                        ), localCenterGeo, integerZoom.toFloat(), viewportSize
                                     ).let { Offset(it.x.toFloat(), it.y.toFloat()) }
 
                                     val prevScreenPoint = geoToScreenPixel(
                                         GeoPosition(
                                             prevPointGeo.latitude.toDouble(),
                                             prevPointGeo.longitude.toDouble()
-                                        ),
-                                        localCenterGeo, integerZoom.toFloat(), viewportSize
+                                        ), localCenterGeo, integerZoom.toFloat(), viewportSize
                                     ).let { Offset(it.x.toFloat(), it.y.toFloat()) }
 
                                     val dx = turnScreenPoint.x - prevScreenPoint.x
@@ -397,11 +428,8 @@ fun MapTilerComposable(
                                         rotate(degrees = finalAngleDeg, pivot = Offset.Zero)
                                     }) {
                                         drawPath(
-                                            path = arrowPath,
-                                            color = Color.Red,
-                                            style = Stroke(
-                                                width = 7f / scale,
-                                                cap = StrokeCap.Round
+                                            path = arrowPath, color = Color.Red, style = Stroke(
+                                                width = 7f / scale, cap = StrokeCap.Round
                                             )
                                         )
                                     }
@@ -506,13 +534,52 @@ fun MapTilerComposable(
                     style = Stroke(width = 3f)
                 )
             }
+
+            if (isStravaEnabled) {
+                stravaRoutes.values.forEach { route ->
+                    val path = Path()
+                    route.route.forEachIndexed { index, pt ->
+                        val geo = GeoPosition(pt.latitude.toDouble(), pt.longitude.toDouble())
+                        val pos = geoToScreenPixel(geo, localCenterGeo, localZoom, viewportSize)
+
+                        if (index == 0) path.moveTo(pos.x.toFloat(), pos.y.toFloat())
+                        else path.lineTo(pos.x.toFloat(), pos.y.toFloat())
+                    }
+
+                    drawPath(
+                        path = path, color = Color(0xFFFC4C02).copy(alpha = 0.8f), // Strava Orange
+                        style = Stroke(
+                            width = 6f, cap = StrokeCap.Round, join = StrokeJoin.Round
+                        )
+                    )
+                }
+            }
         }
-        ZoomLevelIndicator(
-            zoom = localZoom,
+        Column(
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(8.dp)
-        )
+                .padding(8.dp),
+            horizontalAlignment = Alignment.End,
+            verticalArrangement = Arrangement.spacedBy(8.dp) // Adds a gap between the two
+        ) {
+            ZoomLevelIndicator(zoom = localZoom)
+
+            IconButton(
+                onClick = { viewModel.toggleStrava(!isStravaEnabled) },
+                modifier = Modifier
+                    .background(
+                        color = if (isStravaEnabled) Color(0xFFFC4C02) else Color.White,
+                        shape = RoundedCornerShape(4.dp) // Optional: matched indicator style
+                    )
+                    .size(40.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Directions,
+                    contentDescription = "Toggle Strava",
+                    tint = if (isStravaEnabled) Color.White else Color.Black
+                )
+            }
+        }
         Column(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -529,8 +596,7 @@ fun MapTilerComposable(
                     } else {
                         Napier.d("Viewport size not available yet.")
                     }
-                }
-            ) {
+                }) {
                 Icon(Icons.Default.Colorize, contentDescription = "Create Palette from Map")
             }
 
@@ -539,10 +605,7 @@ fun MapTilerComposable(
                     onClick = {
                         if (viewportSize != IntSize.Zero) {
                             val topLeftGeo = screenPixelToGeo(
-                                IntOffset(0, 0),
-                                localCenterGeo,
-                                localZoom,
-                                viewportSize
+                                IntOffset(0, 0), localCenterGeo, localZoom, viewportSize
                             )
                             val bottomRightGeo = screenPixelToGeo(
                                 IntOffset(viewportSize.width, viewportSize.height),
@@ -558,8 +621,7 @@ fun MapTilerComposable(
                         } else {
                             Napier.d("Viewport size not available yet.")
                         }
-                    }
-                ) {
+                    }) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy((-2).dp)
@@ -582,8 +644,7 @@ fun MapTilerComposable(
                     val newZoom = (localZoom + 1f).coerceIn(minZoom, maxZoom + OVERZOOM_LEVELS)
                     localZoom = newZoom
                     viewModel.setMapZoom(newZoom)
-                },
-                enabled = localZoom < maxZoom + OVERZOOM_LEVELS
+                }, enabled = localZoom < maxZoom + OVERZOOM_LEVELS
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Zoom In")
             }
@@ -592,8 +653,7 @@ fun MapTilerComposable(
                     val newZoom = (localZoom - 1f).coerceIn(minZoom, maxZoom + OVERZOOM_LEVELS)
                     localZoom = newZoom
                     viewModel.setMapZoom(newZoom)
-                },
-                enabled = localZoom > minZoom
+                }, enabled = localZoom > minZoom
             ) {
                 Icon(Icons.Default.Remove, contentDescription = "Zoom Out")
             }
@@ -603,8 +663,7 @@ fun MapTilerComposable(
 
 @Composable
 private fun ZoomLevelIndicator(
-    zoom: Float,
-    modifier: Modifier = Modifier
+    zoom: Float, modifier: Modifier = Modifier
 ) {
     Box(
         modifier = modifier
@@ -617,26 +676,18 @@ private fun ZoomLevelIndicator(
 }
 
 fun calculateVisibleTiles(
-    mapCenterGeo: GeoPosition,
-    zoom: Int,
-    viewportSize: IntSize,
-    serverId: String
+    mapCenterGeo: GeoPosition, zoom: Int, viewportSize: IntSize, serverId: String
 ): List<TileInfo> {
     if (viewportSize == IntSize.Zero) return emptyList()
     val zoomF = zoom.toFloat()
     val tiles = mutableListOf<TileInfo>()
     val topLeftGeo = screenPixelToGeo(IntOffset(0, 0), mapCenterGeo, zoomF, viewportSize)
     val bottomRightGeo = screenPixelToGeo(
-        IntOffset(viewportSize.width, viewportSize.height),
-        mapCenterGeo,
-        zoomF,
-        viewportSize
+        IntOffset(viewportSize.width, viewportSize.height), mapCenterGeo, zoomF, viewportSize
     )
     val (minTileX, minTileY) = latLonToTileXY(topLeftGeo.latitude, topLeftGeo.longitude, zoom)
     val (maxTileX, maxTileY) = latLonToTileXY(
-        bottomRightGeo.latitude,
-        bottomRightGeo.longitude,
-        zoom
+        bottomRightGeo.latitude, bottomRightGeo.longitude, zoom
     )
     val n = 1 shl zoom
     val buffer = 1
@@ -648,8 +699,7 @@ fun calculateVisibleTiles(
         for (y in startY..endY) {
             val tileId = TileId(x, y, zoom, serverId)
             val tileTopLeftGeo = worldPixelToGeo(x.toDouble() / n, y.toDouble() / n)
-            val screenOffset =
-                geoToScreenPixel(tileTopLeftGeo, mapCenterGeo, zoomF, viewportSize)
+            val screenOffset = geoToScreenPixel(tileTopLeftGeo, mapCenterGeo, zoomF, viewportSize)
             tiles.add(TileInfo(id = tileId, screenOffset = screenOffset))
         }
     }

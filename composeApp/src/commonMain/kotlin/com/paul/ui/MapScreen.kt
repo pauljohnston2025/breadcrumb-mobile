@@ -1,8 +1,12 @@
 package com.paul.ui
 
+import androidx.compose.material.Surface
+import androidx.compose.material.IconButton
+import androidx.compose.material.Divider
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,8 +16,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.material.AlertDialog
 import androidx.compose.material.Button
@@ -25,6 +33,7 @@ import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Directions
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Downloading
 import androidx.compose.material.icons.filled.MyLocation
@@ -65,6 +74,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.navigation.NavController
 import com.paul.composables.MapTilerComposable
 import com.paul.domain.ServerType
@@ -116,6 +126,8 @@ fun MapScreen(viewModel: MapViewModel) {
         // prevent back handler when we are trying to do things, todo cancel the job we are trying to do
     }
 
+    val isStravaEnabled by viewModel.isStravaEnabled.collectAsState()
+    val nearbyActivities by viewModel.nearbyActivities.collectAsState()
     val currentRoute by viewModel.currentRoute.collectAsState()
     val isSeeding by viewModel.isSeeding.collectAsState()
     val seedingProgress by viewModel.seedingProgress.collectAsState()
@@ -186,6 +198,45 @@ fun MapScreen(viewModel: MapViewModel) {
                     routeToDisplay = currentRoute,
                     isWatchFeatureDisabled = isWatchFeatureDisabled
                 )
+
+                if (nearbyActivities.isNotEmpty()) {
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.Center) // Change from Alignment.BottomCenter
+                            .padding(24.dp)
+                            .fillMaxWidth(0.85f)    // Don't take the full width so it looks like a dialog
+                            .zIndex(100f),
+                        shape = RoundedCornerShape(12.dp),
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    "Nearby Activities",
+                                    style = MaterialTheme.typography.h6,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                IconButton(onClick = { viewModel.clearNearbyActivities() }) {
+                                    Icon(Icons.Default.Close, contentDescription = "Close")
+                                }
+                            }
+                            LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) { // Slightly taller for center view
+                                items(nearbyActivities) { activity ->
+                                    Text(
+                                        text = activity.name,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                // Optional: clear list on selection to focus on the map
+                                                // viewModel.clearNearbyActivities()
+                                            }
+                                            .padding(vertical = 12.dp)
+                                    )
+                                    Divider()
+                                }
+                            }
+                        }
+                    }
+                }
 
                 val tilServer =
                     viewModel.tileServerRepository.currentServerFlow().collectAsState()

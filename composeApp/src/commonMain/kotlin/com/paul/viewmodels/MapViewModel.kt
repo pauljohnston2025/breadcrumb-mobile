@@ -1,22 +1,23 @@
 package com.paul.viewmodels
 
-import androidx.compose.ui.graphics.Paint
 import androidx.compose.material.SnackbarHostState
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.ui.graphics.Canvas
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Canvas
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.unit.IntSize
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.benasher44.uuid.uuid4
 import com.paul.composables.byteArrayToImageBitmap
 import com.paul.domain.ColourPalette
-import com.paul.domain.RGBColor
+import com.paul.domain.StravaActivity
 import com.paul.domain.TileServerInfo
 import com.paul.infrastructure.connectiq.IConnection
 import com.paul.infrastructure.repositories.ITileRepository
+import com.paul.infrastructure.repositories.StravaRepository
 import com.paul.infrastructure.repositories.TileServerRepo
 import com.paul.infrastructure.service.ColourPaletteConverter
 import com.paul.infrastructure.service.GeoPosition
@@ -37,17 +38,21 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.pow
 
 sealed class MapViewNavigationEvent {
     // Represents a command to navigate to a specific route
@@ -60,7 +65,8 @@ class MapViewModel(
     private val tileRepository: ITileRepository,
     val tileServerRepository: TileServerRepo,
     private val snackbarHostState: SnackbarHostState,
-    private val locationService: ILocationService
+    private val locationService: ILocationService,
+    private val stravaRepo: StravaRepository,
 ) : ViewModel() {
 
     private var seedingJob: Job? = null
@@ -130,6 +136,67 @@ class MapViewModel(
 
     private val _watchSendStarted = MutableStateFlow<RequestLocationLoad?>(null)
     val watchSendStarted: StateFlow<RequestLocationLoad?> = _watchSendStarted.asStateFlow()
+
+    // Toggle for the Strava Layer
+    private val _isStravaEnabled = MutableStateFlow(false)
+    val isStravaEnabled = _isStravaEnabled.asStateFlow()
+
+    // Results of the 20m tap-check
+    private val _nearbyActivities = MutableStateFlow<List<StravaActivity>>(emptyList())
+    val nearbyActivities = _nearbyActivities.asStateFlow()
+
+    // High-fidelity routes derived from the repo's filtered activities
+    // When the repo's date range changes, 'activities' emits, and this transforms them
+    val stravaRoutes: StateFlow<Map<StravaActivity, Route>> = stravaRepo.activities
+        .map { activities ->
+            activities.associateWith { activity ->
+                // Pulling from comprehensive stream as requested
+                val stream = stravaRepo.getStreamForActivity(activity.id)
+                stream?.toRoute(activity.name) ?: Route(activity.name, emptyList(), emptyList())
+            }
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyMap()
+        )
+
+    fun toggleStrava(enabled: Boolean) {
+        _isStravaEnabled.value = enabled
+    }
+
+    fun clearNearbyActivities() {
+        _nearbyActivities.value = emptyList()
+    }
+
+    // Proximity logic for the 20m tap requirement
+    fun findNearbyActivities(tappedGeo: GeoPosition) {
+        if (!_isStravaEnabled.value) return
+
+        val nearby = stravaRoutes.value.filter { (_, route) ->
+            route.route.any { pt ->
+                calculateDistance(pt, Point(tappedGeo.latitude.toFloat(), tappedGeo.longitude.toFloat(), 0f)) <= 20.0
+            }
+        }.keys.toList()
+
+        _nearbyActivities.value = nearby
+    }
+
+    private fun calculateDistance(p1: Point, p2: Point): Double {
+        val pt1 = p1.convert2XY()
+        val pt2 = p2.convert2XY()
+
+        if (pt1 == null || pt2 == null) {
+            return Double.MAX_VALUE
+        }
+
+        // Standard Euclidean distance in the converted coordinate space (meters)
+        return kotlin.math.sqrt(
+            (pt1.x - pt2.x).toDouble().pow(2.0) +
+                    (pt1.y - pt2.y).toDouble().pow(2.0)
+        )
+    }
+
 
     /**
      * Resets the newly created palette state, called after navigation has been handled.

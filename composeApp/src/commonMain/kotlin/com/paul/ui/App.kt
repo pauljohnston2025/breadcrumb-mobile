@@ -155,6 +155,7 @@ fun App(
                         tileServerRepository = settingsViewModel.tileServerRepo,
                         snackbarHostState = scaffoldState.snackbarHostState,
                         locationService = locationService,
+                        stravaRepo = stravaRepository,
                     )
                 }
 
