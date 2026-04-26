@@ -4,6 +4,7 @@ import androidx.compose.material.Surface
 import androidx.compose.material.IconButton
 import androidx.compose.material.Divider
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -32,10 +34,14 @@ import androidx.compose.material.LocalContentColor
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Directions
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Downloading
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Terrain
@@ -48,6 +54,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -64,6 +71,7 @@ import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -72,6 +80,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.coerceAtLeast
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
@@ -93,6 +102,9 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 import com.paul.infrastructure.connectiq.IConnection.Companion.LIGHT_WEIGHT_BREADCRUMB_DATAFIELD_ID
 import com.paul.infrastructure.connectiq.IConnection.Companion.ULTRA_LIGHT_BREADCRUMB_DATAFIELD_ID
+import kotlinx.datetime.Instant
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 
 @Composable
 private fun WatchSendDialog(
@@ -159,6 +171,7 @@ fun MapScreen(viewModel: MapViewModel) {
         }
 
         Column(modifier = Modifier.fillMaxSize()) {
+            StravaMapFilterSection(viewModel)
 
             if (currentRoute != null) {
                 Text(
@@ -927,4 +940,135 @@ fun KmpMapAttributionDisplay(
                 }
         }
     )
+}
+
+@Composable
+fun CompactDateRangeCard(currentRange: ClosedRange<Instant>, onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        shape = RoundedCornerShape(8.dp),
+        border = BorderStroke(1.dp, Color.LightGray.copy(0.5f)),
+        color = MaterialTheme.colors.primary
+    ) {
+        Row(
+            modifier = Modifier.padding(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Default.DateRange, null, tint = MaterialTheme.colors.primary, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(8.dp))
+            val start = currentRange.start.toLocalDateTime(TimeZone.currentSystemDefault()).date
+            val end = currentRange.endInclusive.toLocalDateTime(TimeZone.currentSystemDefault()).date
+            Text(
+                "$start — $end",
+                // style = MaterialTheme.typography.caption,
+                modifier = Modifier.weight(1f)
+            )
+            Icon(Icons.Default.Edit, null, tint = Color.Gray, modifier = Modifier.size(14.dp))
+        }
+    }
+}
+
+@Composable
+fun StravaMapFilterSection(viewModel: MapViewModel) {
+    val stravaRepo = viewModel.stravaRepo
+    val isStravaEnabled by viewModel.isStravaEnabled.collectAsState()
+
+    val currentPage by stravaRepo.currentPage.collectAsState(0L)
+    val maxPages by stravaRepo.maxPages.collectAsState(1L) // Collect max pages
+    val currentRange by stravaRepo.currentRange.collectAsState()
+    val totalFiltered by stravaRepo.activitiesByDateRangeAndPage.collectAsState(emptyList())
+
+    var showDatePicker by remember { mutableStateOf(false) }
+
+    if (isStravaEnabled) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 4.dp), // Slightly more padding
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = "Strava: ",
+                style = MaterialTheme.typography.caption.copy(fontSize = 12.sp, fontWeight = FontWeight.Medium),
+                maxLines = 1
+            )
+
+            // 1. Compact Date Clickable
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(MaterialTheme.colors.primary.copy(alpha = 0.05f)) // Subtle hint
+                    .clickable { showDatePicker = true }
+                    .padding(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Default.DateRange,
+                    null,
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colors.primary
+                )
+                Spacer(Modifier.width(6.dp))
+                val start = currentRange.start.toLocalDateTime(TimeZone.currentSystemDefault()).date
+                val end = currentRange.endInclusive.toLocalDateTime(TimeZone.currentSystemDefault()).date
+                Text(
+                    text = "${start.monthNumber}/${start.dayOfMonth} - ${end.monthNumber}/${end.dayOfMonth}",
+                    style = MaterialTheme.typography.caption.copy(fontSize = 12.sp, fontWeight = FontWeight.Medium),
+                    maxLines = 1
+                )
+            }
+
+            // 2. Pagination Controls
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Show current page / total pages
+                Text(
+                    text = "Pg ${currentPage + 1}/${maxPages.coerceAtLeast(1)} (${totalFiltered.size})",
+                    style = MaterialTheme.typography.caption.copy(fontSize = 12.sp),
+                    color = Color.Gray
+                )
+
+                IconButton(
+                    onClick = { stravaRepo.setPage(currentPage - 1) },
+                    enabled = currentPage > 0,
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(
+                        Icons.Default.ChevronLeft,
+                        null,
+                        modifier = Modifier.size(20.dp),
+                        tint = if(currentPage > 0) MaterialTheme.colors.primary else Color.Gray
+                    )
+                }
+
+                IconButton(
+                    onClick = { stravaRepo.setPage(currentPage + 1) },
+                    // CAP: Disable if we are on the last page
+                    enabled = (currentPage + 1) < maxPages,
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(
+                        Icons.Default.ChevronRight,
+                        null,
+                        modifier = Modifier.size(20.dp),
+                        tint = if((currentPage + 1) < maxPages) MaterialTheme.colors.primary else Color.Gray
+                    )
+                }
+            }
+        }
+    }
+
+    if (showDatePicker) {
+        StravaDateRangePicker(
+            initialRange = currentRange,
+            onDismiss = { showDatePicker = false },
+            onDateRangeSelected = { start, end ->
+                stravaRepo.setDateRange(start, end)
+                showDatePicker = false
+            }
+        )
+    }
 }

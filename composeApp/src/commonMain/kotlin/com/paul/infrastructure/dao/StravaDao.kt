@@ -18,6 +18,9 @@ interface StravaDao {
     @Query("SELECT * FROM strava_activities WHERE startDate >= :start AND startDate <= :end ORDER BY startDate DESC")
     fun getActivitiesByDateRange(start: Instant, end: Instant): Flow<List<StravaActivity>>
 
+    @Query("SELECT COUNT(*) FROM strava_activities WHERE startDate >= :start AND startDate <= :end")
+    fun getTotalActivityCount(start: Instant, end: Instant): Flow<Long>
+
     @Query("DELETE FROM strava_activities")
     suspend fun clearAll()
 
@@ -42,6 +45,22 @@ interface StravaDao {
 
     @Query("SELECT * FROM strava_streams WHERE activityId = :activityId")
     suspend fun getStreamForActivity(activityId: Long): StravaStreamEntity?
+
+    @Query("SELECT * FROM strava_streams WHERE activityId IN (:ids)")
+    suspend fun getStreamsForActivityIds(ids: List<Long>): List<StravaStreamEntity>
+
+    @Query("""
+        SELECT * FROM strava_activities 
+        WHERE startDate >= :start AND startDate <= :end 
+        ORDER BY startDate DESC 
+        LIMIT :pageSize OFFSET :page * :pageSize
+    """)
+    fun getActivitiesByDateRangeAndPage(
+        start: Instant,
+        end: Instant,
+        page: Long,
+        pageSize: Long
+    ): Flow<List<StravaActivity>>
 
     @Query("""
         SELECT id FROM strava_activities 

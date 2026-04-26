@@ -29,7 +29,7 @@ class StravaActivitiesViewModel(
 ) : ViewModel() {
 
     // Use stateIn to convert the Flow from the repo into a StateFlow
-    val activities: StateFlow<List<StravaActivity>> = stravaRepo.activities
+    val activities: StateFlow<List<StravaActivity>> = stravaRepo.activitiesByDateRange
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),

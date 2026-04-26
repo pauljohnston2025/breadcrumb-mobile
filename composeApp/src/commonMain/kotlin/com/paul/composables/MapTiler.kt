@@ -1,25 +1,36 @@
 package com.paul.composables
 
+import android.graphics.Paint
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Button
+import androidx.compose.material.ButtonDefaults
 import androidx.compose.material.Icon
+import androidx.compose.material.IconButton
+import androidx.compose.material.LocalContentColor
+import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Colorize
+import androidx.compose.material.icons.filled.Directions
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.RemoveRedEye
 import androidx.compose.material.icons.filled.Watch
@@ -39,20 +50,21 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
-import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import breadcrumb.composeapp.generated.resources.Res
+import breadcrumb.composeapp.generated.resources.strava
 import com.paul.infrastructure.service.GeoPosition
 import com.paul.infrastructure.service.TileId
 import com.paul.infrastructure.service.TileInfo
-import com.paul.infrastructure.service.UserLocation
 import com.paul.infrastructure.service.calculateNewCenter
 import com.paul.infrastructure.service.geoToScreenPixel
 import com.paul.infrastructure.service.latLonToTileXY
@@ -64,6 +76,7 @@ import com.paul.viewmodels.MapViewModel
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.painterResource
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.ln
@@ -72,20 +85,6 @@ import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sin
-import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
-import androidx.compose.ui.graphics.nativeCanvas
-import android.graphics.Paint
-import android.graphics.Rect
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.material.icons.filled.Colorize
-import androidx.compose.material.icons.filled.Directions
-import androidx.compose.material.icons.filled.DirectionsRun
-import androidx.compose.material3.IconButton
-import androidx.compose.ui.graphics.StrokeJoin
-import kotlin.math.cos
-import kotlin.math.roundToInt
-import kotlin.math.sin
-import kotlin.text.toDouble
 
 private const val OVERZOOM_LEVELS = 3f
 
@@ -564,20 +563,24 @@ fun MapTilerComposable(
         ) {
             ZoomLevelIndicator(zoom = localZoom)
 
-            IconButton(
-                onClick = { viewModel.toggleStrava(!isStravaEnabled) },
-                modifier = Modifier
-                    .background(
-                        color = if (isStravaEnabled) Color(0xFFFC4C02) else Color.White,
-                        shape = RoundedCornerShape(4.dp) // Optional: matched indicator style
+            Row {
+                Button(
+                    onClick = { viewModel.toggleStrava(!isStravaEnabled) },
+                    colors = ButtonDefaults.buttonColors(
+                        // Match the background of your other buttons
+                        backgroundColor = if (isStravaEnabled) MaterialTheme.colors.primary else MaterialTheme.colors.primary.copy(alpha = 0.8f),
+                        contentColor = Color.Unspecified // Prevents automatic tinting
+                    ),
+                ) {
+                    Image(
+                        painter = painterResource(Res.drawable.strava),
+                        contentDescription = "Toggle Strava",
+                        modifier = Modifier
+                            .size(ButtonDefaults.IconSize)
+                            .clip(CircleShape), // Makes the orange PNG round
+                        contentScale = ContentScale.Fit,
                     )
-                    .size(40.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Directions,
-                    contentDescription = "Toggle Strava",
-                    tint = if (isStravaEnabled) Color.White else Color.Black
-                )
+                }
             }
         }
         Column(

@@ -1,5 +1,7 @@
 package com.paul.infrastructure.repositories
 
+import androidx.lifecycle.distinctUntilChanged
+import androidx.lifecycle.map
 import com.paul.domain.StravaActivity
 import com.paul.domain.StravaStreamEntity
 import com.paul.domain.StravaStreamResponse
@@ -25,14 +27,19 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toInstant
 import kotlinx.datetime.toLocalDateTime
-import kotlinx.serialization.json.Json
+import kotlin.math.ceil
+import kotlin.text.toDouble
+import kotlin.text.toLong
 import kotlin.time.Duration.Companion.days
 
 class StravaRepository(private val browserLauncher: IBrowserLauncher, private val dao: StravaDao) {
@@ -101,17 +108,63 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
     private val _currentRange = MutableStateFlow(getInitialRange())
     val currentRange: StateFlow<ClosedRange<Instant>> = _currentRange.asStateFlow()
 
+    private val _currentPage = MutableStateFlow(getInitialPage())
+    val currentPage: StateFlow<Long> = _currentPage.asStateFlow()
+
+    private val _currentPageSize = MutableStateFlow(getInitialPageSize())
+    val currentPageSize: StateFlow<Long> = _currentPageSize.asStateFlow()
+
     fun getTotalCountFlow() = dao.sizeFlow()
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    val activities: Flow<List<StravaActivity>> = _currentRange.flatMapLatest { range ->
+    val activitiesByDateRange: Flow<List<StravaActivity>> = _currentRange.flatMapLatest { range ->
         dao.getActivitiesByDateRange(range.start, range.endInclusive)
     }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val maxPages: Flow<Long> = combine(_currentRange, _currentPageSize) { range, size ->
+        range to size
+    }.flatMapLatest { (range, size) ->
+        dao.getTotalActivityCount(range.start, range.endInclusive).map { count ->
+            if (size <= 0) 1L else ceil(count.toDouble() / size).toLong()
+        }
+    }.distinctUntilChanged()
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val activitiesByDateRangeAndPage: Flow<List<StravaActivity>> = combine(
+        _currentRange,
+        _currentPage,
+        _currentPageSize
+    ) { range, page, pageSize ->
+        Triple(range, page, pageSize)
+    }.distinctUntilChanged() // Prevents redundant DB hits if state emits same values
+        .flatMapLatest { (range, page, pageSize) ->
+            dao.getActivitiesByDateRangeAndPage(
+                start = range.start,
+                end = range.endInclusive,
+                page = page,
+                pageSize = pageSize
+            )
+        }
 
     fun setDateRange(start: Instant, end: Instant) {
         settings.putLong(START_DATE_KEY, start.epochSeconds)
         settings.putLong(END_DATE_KEY, end.epochSeconds)
         _currentRange.value = start..end
+        // Reset to page 0 when date range changes to avoid empty views
+        setPage(0)
+    }
+
+    fun setPage(page: Long) {
+        settings.putLong(PAGE_KEY, page)
+        _currentPage.value = page
+    }
+
+    fun setPageSize(pageSize: Long) {
+        settings.putLong(PAGE_SIZE_KEY, pageSize)
+        _currentPageSize.value = pageSize
+        // Reset to page 0 when page size changes to maintain consistency
+        setPage(0)
     }
 
     private fun getInitialRange(): ClosedRange<Instant> {
@@ -129,6 +182,14 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
         return start..end
     }
 
+    private fun getInitialPage(): Long {
+        return settings.getLongOrNull(PAGE_KEY) ?: 0L
+    }
+
+    private fun getInitialPageSize(): Long {
+        return settings.getLongOrNull(PAGE_SIZE_KEY) ?: 20L
+    }
+
     companion object {
         private const val CLIENT_ID_KEY = "STRAVA_CLIENT_ID"
         private const val CLIENT_SECRET_KEY = "STRAVA_CLIENT_SECRET"
@@ -137,6 +198,8 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
         private const val LOCAL_ACTIVITIES_KEY = "STRAVA_LOCAL_CACHE"
         private const val START_DATE_KEY = "FILTER_START_DATE"
         private const val END_DATE_KEY = "FILTER_END_DATE"
+        private const val PAGE_KEY = "FILTER_PAGE"
+        private const val PAGE_SIZE_KEY = "FILTER_PAGE_SIZE"
 
         private const val REDIRECT_URI = "paulapp://localhost"
         private const val AUTH_URL = "https://www.strava.com/oauth/mobile/authorize"
@@ -148,12 +211,13 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
             // 1. Request the streams.
             // We use .body<StravaStreamResponse>() directly to let Ktor/Serialization
             // handle the mapping to your new data classes.
-            val response: StravaStreamResponse = stravaClient.get("activities/$activityId/streams") {
-                url {
-                    parameters.append("keys", "latlng,altitude")
-                    parameters.append("key_by_type", "true")
-                }
-            }.body()
+            val response: StravaStreamResponse =
+                stravaClient.get("activities/$activityId/streams") {
+                    url {
+                        parameters.append("keys", "latlng,altitude")
+                        parameters.append("key_by_type", "true")
+                    }
+                }.body()
 
             // 2. Extract data safely.
             // If latlng is missing, we can't draw a map, so we return empty.
@@ -287,6 +351,10 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
 
     suspend fun getStreamForActivity(id: Long): StravaStreamEntity? {
         return dao.getStreamForActivity(id)
+    }
+
+    suspend fun getStreamsForActivityIds(ids: List<Long>): Map<Long, StravaStreamEntity> {
+        return dao.getStreamsForActivityIds(ids).associateBy { it.activityId }
     }
 
     suspend fun syncActivities() {

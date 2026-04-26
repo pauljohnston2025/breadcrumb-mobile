@@ -364,7 +364,11 @@ fun processDirectionInfo(
 class Route(val name: String, var route: List<Point>, directionsIn: List<DirectionInfo>) :
     Protocol {
     private val routeSettings = RouteRepository.getSettings()
-    public var directions = processDirectionInfo(routeSettings, route, directionsIn)
+    var directions = processDirectionInfo(routeSettings, route, directionsIn)
+    // cached values for rectangular points
+    val projectedPoints: List<RectPoint> by lazy {
+        route.mapNotNull { it.convert2XY() }
+    }
 
     init {
         // hack for perf/memory testing, every point is a direction

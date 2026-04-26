@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.Water
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.room.Embedded
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.paul.protocol.todevice.Point
 import com.paul.protocol.todevice.Route
@@ -45,7 +46,10 @@ data class StravaTokenResponse(
     @SerialName("refresh_token") val refreshToken: String
 )
 
-@Entity(tableName = "strava_streams")
+@Entity(
+    tableName = "strava_streams",
+    indices = [Index(value = ["activityId"])],
+)
 data class StravaStreamEntity(
     @PrimaryKey
     val activityId: Long,

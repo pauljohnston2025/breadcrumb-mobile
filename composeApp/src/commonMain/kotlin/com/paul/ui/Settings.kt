@@ -41,6 +41,8 @@ import androidx.compose.material.Text
 import androidx.compose.material.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -72,6 +74,7 @@ import com.paul.infrastructure.repositories.TileServerRepo.Companion.defaultWebP
 import com.paul.infrastructure.web.TileType
 import java.util.UUID
 import kotlin.math.roundToInt
+import kotlin.text.toLongOrNull
 import com.paul.viewmodels.Settings as SettingsViewModel
 
 // Function to validate template (basic example)
@@ -932,6 +935,8 @@ fun StravaSettings(viewModel: com.paul.viewmodels.Settings) {
     val loginStatus by viewModel.stravaRepo.loginStatus.collectAsState()
     val syncErrorStatus by viewModel.stravaRepo.syncErrorStatus.collectAsState()
     val isSyncing by viewModel.stravaRepo.isSyncing.collectAsState()
+    val currentPage by viewModel.stravaRepo.currentPage.collectAsState(0L)
+    val currentPageSize by viewModel.stravaRepo.currentPageSize.collectAsState(20L)
 
     Column(
         modifier = Modifier
@@ -957,6 +962,37 @@ fun StravaSettings(viewModel: com.paul.viewmodels.Settings) {
             visualTransformation = PasswordVisualTransformation(),
             singleLine = true
         )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedTextField(
+                value = currentPageSize.toString(),
+                onValueChange = {
+                    it.toLongOrNull()?.let { size -> viewModel.stravaRepo.setPageSize(size) }
+                },
+                label = { Text("Page Size") },
+                modifier = Modifier.weight(1f),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true
+            )
+
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                IconButton(onClick = { if (currentPage > 0) viewModel.stravaRepo.setPage(currentPage - 1) }) {
+                    Icon(Icons.Default.ArrowBack, contentDescription = "Prev Page")
+                }
+                Text("Page ${currentPage + 1}", style = MaterialTheme.typography.body1)
+                IconButton(onClick = { viewModel.stravaRepo.setPage(currentPage + 1) }) {
+                    Icon(Icons.Default.ArrowForward, contentDescription = "Next Page")
+                }
+            }
+        }
 
         Row(
             modifier = Modifier.fillMaxWidth(),

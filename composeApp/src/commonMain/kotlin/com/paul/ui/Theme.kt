@@ -138,3 +138,12 @@ fun M3ThemeWrapper(content: @Composable () -> Unit) {
         content = content
     )
 }
+
+@Composable
+fun MainAppTheme(content: @Composable () -> Unit) {
+    M3ThemeWrapper {
+        AppTheme {
+            content()
+        }
+    }
+}

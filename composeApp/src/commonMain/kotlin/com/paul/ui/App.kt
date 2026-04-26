@@ -114,8 +114,8 @@ fun App(
         }
     }
 
-    AppTheme {
-// Wrap everything in a Surface to provide theme background
+    MainAppTheme {
+        // Wrap everything in a Surface to provide theme background
         // and handle safe drawing (camera cutout/status bar)
         androidx.compose.material.Surface(
             modifier = Modifier

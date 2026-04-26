@@ -27,6 +27,7 @@ import com.paul.infrastructure.service.TileId
 import com.paul.infrastructure.service.UserLocation
 import com.paul.protocol.todevice.CacheCurrentArea
 import com.paul.protocol.todevice.Point
+import com.paul.protocol.todevice.RectPoint
 import com.paul.protocol.todevice.RequestLocationLoad
 import com.paul.protocol.todevice.ReturnToUser
 import com.paul.protocol.todevice.Route
@@ -34,6 +35,8 @@ import com.paul.ui.Screen
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -43,16 +46,20 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.datetime.Instant
+import kotlin.collections.toMap
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
+import kotlin.ranges.coerceIn
 
 sealed class MapViewNavigationEvent {
     // Represents a command to navigate to a specific route
@@ -66,7 +73,7 @@ class MapViewModel(
     val tileServerRepository: TileServerRepo,
     private val snackbarHostState: SnackbarHostState,
     private val locationService: ILocationService,
-    private val stravaRepo: StravaRepository,
+    val stravaRepo: StravaRepository,
 ) : ViewModel() {
 
     private var seedingJob: Job? = null
@@ -145,16 +152,34 @@ class MapViewModel(
     private val _nearbyActivities = MutableStateFlow<List<StravaActivity>>(emptyList())
     val nearbyActivities = _nearbyActivities.asStateFlow()
 
+    fun setDateRange(start: Instant, end: Instant) {
+        stravaRepo.setDateRange(start, end)
+    }
+
     // High-fidelity routes derived from the repo's filtered activities
     // When the repo's date range changes, 'activities' emits, and this transforms them
-    val stravaRoutes: StateFlow<Map<StravaActivity, Route>> = stravaRepo.activities
+    val stravaRoutes: StateFlow<Map<StravaActivity, Route>> = stravaRepo.activitiesByDateRangeAndPage
         .map { activities ->
-            activities.associateWith { activity ->
-                // Pulling from comprehensive stream as requested
-                val stream = stravaRepo.getStreamForActivity(activity.id)
-                stream?.toRoute(activity.name) ?: Route(activity.name, emptyList(), emptyList())
+            val ids = activities.map { it.id }
+
+            val streamsMap = stravaRepo.getStreamsForActivityIds(ids)
+
+            kotlinx.coroutines.coroutineScope {
+                activities.map { activity ->
+                    async(Dispatchers.Default) {
+                        val stream = streamsMap[activity.id]
+                        val route = stream?.toRoute(activity.name) ?: Route(activity.name, emptyList(), emptyList())
+
+                        // Accessing projectedPoints here triggers the lazy
+                        // calculation in the background.
+                        val _trigger = route.projectedPoints
+
+                        activity to route
+                    }
+                }.awaitAll().toMap()
             }
         }
+        .flowOn(Dispatchers.Default)
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -170,30 +195,69 @@ class MapViewModel(
     }
 
     // Proximity logic for the 20m tap requirement
+    // Proximity logic for the 20m tap requirement using segment math
+    // 2. Faster Proximity Logic using Cached Projections
     fun findNearbyActivities(tappedGeo: GeoPosition) {
         if (!_isStravaEnabled.value) return
 
-        val nearby = stravaRoutes.value.filter { (_, route) ->
-            route.route.any { pt ->
-                calculateDistance(pt, Point(tappedGeo.latitude.toFloat(), tappedGeo.longitude.toFloat(), 0f)) <= 20.0
-            }
-        }.keys.toList()
+        val tappedPoint = Point(tappedGeo.latitude.toFloat(), tappedGeo.longitude.toFloat(), 0f)
+        val tappedXY = tappedPoint.convert2XY() ?: return
 
-        _nearbyActivities.value = nearby
+        viewModelScope.launch(Dispatchers.Default) {
+            val nearby = stravaRoutes.value.filter { (_, route) ->
+                // Use the cached projectedPoints instead of calling convert2XY()
+                val pts = route.projectedPoints
+                if (pts.isEmpty()) return@filter false
+
+                val NEARBY_DISTANCE_METERS = 20.0
+
+                for (i in 0 until pts.size - 1) {
+                    val p1 = pts[i]
+                    val p2 = pts[i + 1]
+
+                    // Basic Bounding Box AABB check for speed (Optional optimization)
+                    val minX = min(p1.x, p2.x) - NEARBY_DISTANCE_METERS
+                    val maxX = max(p1.x, p2.x) + NEARBY_DISTANCE_METERS
+                    val minY = min(p1.y, p2.y) - NEARBY_DISTANCE_METERS
+                    val maxY = max(p1.y, p2.y) + NEARBY_DISTANCE_METERS
+
+                    if (tappedXY.x in minX..maxX && tappedXY.y in minY..maxY) {
+                        if (distToSegment(tappedXY, p1, p2) <= NEARBY_DISTANCE_METERS) return@filter true
+                    }
+                }
+                false
+            }.keys.toList()
+
+            _nearbyActivities.value = nearby
+        }
     }
 
-    private fun calculateDistance(p1: Point, p2: Point): Double {
-        val pt1 = p1.convert2XY()
-        val pt2 = p2.convert2XY()
+    /**
+     * Calculates the shortest distance from point P to the line segment AB.
+     */
+    private fun distToSegment(p: RectPoint, a: RectPoint, b: RectPoint): Double {
+        val dx = b.x - a.x
+        val dy = b.y - a.y
 
-        if (pt1 == null || pt2 == null) {
-            return Double.MAX_VALUE
-        }
+        if (dx == 0f && dy == 0f) return distanceBetween(p, a)
 
-        // Standard Euclidean distance in the converted coordinate space (meters)
+        // Calculate projection of P onto the line segment (clamped between 0 and 1)
+        val t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy)
+        val clampedT = t.coerceIn(0f, 1f)
+
+        val closestX = a.x + clampedT * dx
+        val closestY = a.y + clampedT * dy
+
         return kotlin.math.sqrt(
-            (pt1.x - pt2.x).toDouble().pow(2.0) +
-                    (pt1.y - pt2.y).toDouble().pow(2.0)
+            (p.x - closestX).toDouble().pow(2.0) +
+                    (p.y - closestY).toDouble().pow(2.0)
+        )
+    }
+
+    private fun distanceBetween(p1: RectPoint, p2: RectPoint): Double {
+        return kotlin.math.sqrt(
+            (p1.x - p2.x).toDouble().pow(2.0) +
+                    (p1.y - p2.y).toDouble().pow(2.0)
         )
     }
 
