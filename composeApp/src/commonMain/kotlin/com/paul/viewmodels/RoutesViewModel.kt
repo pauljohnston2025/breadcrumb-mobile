@@ -92,7 +92,7 @@ class RoutesViewModel(
                 snackbarHostState.showSnackbar("Bad coordinates")
                 return@launch
             }
-            mapViewModel.displayRoute(coords)
+            mapViewModel.displayRoute(coords, iRoute)
             // Navigate if necessary
             _navigationEvents.emit(RoutesNavigationEvent.NavigateTo(Screen.Map.route))
         }

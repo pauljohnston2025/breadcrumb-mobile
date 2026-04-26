@@ -13,6 +13,7 @@ import androidx.lifecycle.viewModelScope
 import com.benasher44.uuid.uuid4
 import com.paul.composables.byteArrayToImageBitmap
 import com.paul.domain.ColourPalette
+import com.paul.domain.GpxRoute
 import com.paul.domain.IRoute
 import com.paul.domain.StaveIRoute
 import com.paul.domain.StravaActivity
@@ -110,6 +111,9 @@ class MapViewModel(
     // --- Route State ---
     private val _currentRoute = MutableStateFlow<Route?>(null)
     val currentRoute: StateFlow<Route?> = _currentRoute
+
+    private val _currentRouteI = MutableStateFlow<IRoute?>(null)
+    val currentRouteI: StateFlow<IRoute?> = _currentRouteI
 
     // --- Elevation Profile State ---
     private val _isElevationProfileVisible = MutableStateFlow(false) // Initially hidden
@@ -424,7 +428,8 @@ class MapViewModel(
         }
     }
 
-    fun displayRoute(route: Route) {
+    fun displayRoute(route: Route, gpxRoute: IRoute) {
+        _currentRouteI.value = gpxRoute // Set the route for sending to devices
         _currentRoute.value = route // Set the route
         _isElevationProfileVisible.value = false
 
@@ -475,6 +480,7 @@ class MapViewModel(
 
     fun clearRoute() {
         _currentRoute.value = null
+        _currentRouteI.value = null
         _isElevationProfileVisible.value = false // Hide profile when route is cleared
     }
 
@@ -855,7 +861,7 @@ class MapViewModel(
                     snackbarHostState.showSnackbar("Failed to load activity stream, please do a full delete/resync")
                     return@launch
                 }
-                displayRoute(stream.toRouteForDevice(activity.name))
+                displayRoute(stream.toRouteForDevice(activity.name), StaveIRoute(activity, stream))
 
             } catch (t: Throwable) {
                 snackbarHostState.showSnackbar("Failed to load activity preview")
@@ -875,8 +881,20 @@ class MapViewModel(
                 sendRoute(StaveIRoute(activity, stream))
 
             } catch (t: Throwable) {
-                snackbarHostState.showSnackbar("Failed to load activity preview")
-                Napier.e("Preview failed", t)
+                snackbarHostState.showSnackbar("Failed to send activity route")
+                Napier.e("Send route failed", t)
+            }
+        }
+    }
+
+    fun sendRouteSync(gpxRoute: IRoute) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                sendRoute(gpxRoute)
+
+            } catch (t: Throwable) {
+                snackbarHostState.showSnackbar("Failed to send route")
+                Napier.e("Send route failed", t)
             }
         }
     }

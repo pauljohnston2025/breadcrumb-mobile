@@ -163,7 +163,7 @@ class StartViewModel(
                 snackbarHostState.showSnackbar("Bad coordinates")
                 return@launch
             }
-            mapViewModel.displayRoute(coords)
+            mapViewModel.displayRoute(coords, iRoute)
             _navigationEvents.emit(StartNavigationEvent.NavigateTo(Screen.Map.route))
         }
     }
@@ -375,7 +375,7 @@ class StartViewModel(
                     return@launch
                 }
 
-                mapViewModel.displayRoute(stream.toRoute(activity.name))
+                mapViewModel.displayRoute(stream.toRouteForDevice(activity.name), StaveIRoute(activity, stream))
                 _navigationEvents.emit(StartNavigationEvent.NavigateTo(Screen.Map.route))
             } catch (e: Exception) {
                 snackbarHostState.showSnackbar("Failed to parse map data")

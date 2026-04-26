@@ -151,6 +151,7 @@ fun MapScreen(viewModel: MapViewModel) {
     val isStravaEnabled by viewModel.isStravaEnabled.collectAsState()
     val nearbyActivities by viewModel.nearbyActivities.collectAsState()
     val currentRoute by viewModel.currentRoute.collectAsState()
+    val currentRouteI by viewModel.currentRouteI.collectAsState()
     val isSeeding by viewModel.isSeeding.collectAsState()
     val seedingProgress by viewModel.seedingProgress.collectAsState()
     val zSeedingProgress by viewModel.zSeedingProgress.collectAsState()
@@ -372,6 +373,19 @@ fun MapScreen(viewModel: MapViewModel) {
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     if (currentRoute != null) {
+                        if (currentRouteI != null) {
+                            Button(
+                                modifier = mapButtonStyle,
+                                onClick = { currentRouteI?.let { viewModel.sendRouteSync(it) } }
+                            ) {
+                                Icon(
+                                    Icons.Default.PlayArrow,
+                                    contentDescription = "Send route to device",
+                                    modifier = Modifier.size(ButtonDefaults.IconSize),
+                                    tint = Color(0xFF4CAF50) // Matching the green used in the list item
+                                )
+                            }
+                        }
                         Button(modifier = mapButtonStyle, onClick = { viewModel.clearRoute() }) {
                             Icon(
                                 Icons.Default.Close,
