@@ -87,6 +87,7 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 
 private const val OVERZOOM_LEVELS = 3f
+val mapButtonStyle = Modifier.size(width = 60.dp, height = 35.dp)
 
 @Composable
 fun MapTilerComposable(
@@ -559,12 +560,13 @@ fun MapTilerComposable(
                 .align(Alignment.TopEnd)
                 .padding(8.dp),
             horizontalAlignment = Alignment.End,
-            verticalArrangement = Arrangement.spacedBy(8.dp) // Adds a gap between the two
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             ZoomLevelIndicator(zoom = localZoom)
 
             Row {
                 Button(
+                    modifier = mapButtonStyle,
                     onClick = { viewModel.toggleStrava(!isStravaEnabled) },
                     colors = ButtonDefaults.buttonColors(
                         // Match the background of your other buttons
@@ -576,7 +578,6 @@ fun MapTilerComposable(
                         painter = painterResource(Res.drawable.strava),
                         contentDescription = "Toggle Strava",
                         modifier = Modifier
-                            .size(ButtonDefaults.IconSize)
                             .clip(CircleShape), // Makes the orange PNG round
                         contentScale = ContentScale.Fit,
                     )
@@ -586,9 +587,11 @@ fun MapTilerComposable(
         Column(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(8.dp)
+                .padding(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Button(
+                modifier = mapButtonStyle,
                 onClick = {
                     if (viewportSize != IntSize.Zero) {
                         viewModel.createPaletteFromViewport(
@@ -605,6 +608,7 @@ fun MapTilerComposable(
 
             if (!isWatchFeatureDisabled) {
                 Button(
+                    modifier = mapButtonStyle,
                     onClick = {
                         if (viewportSize != IntSize.Zero) {
                             val topLeftGeo = screenPixelToGeo(
@@ -643,6 +647,7 @@ fun MapTilerComposable(
                 }
             }
             Button(
+                modifier = mapButtonStyle,
                 onClick = {
                     val newZoom = (localZoom + 1f).coerceIn(minZoom, maxZoom + OVERZOOM_LEVELS)
                     localZoom = newZoom
@@ -652,6 +657,7 @@ fun MapTilerComposable(
                 Icon(Icons.Default.Add, contentDescription = "Zoom In")
             }
             Button(
+                modifier = mapButtonStyle,
                 onClick = {
                     val newZoom = (localZoom - 1f).coerceIn(minZoom, maxZoom + OVERZOOM_LEVELS)
                     localZoom = newZoom

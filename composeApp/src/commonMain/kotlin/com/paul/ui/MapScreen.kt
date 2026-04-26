@@ -86,6 +86,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.navigation.NavController
 import com.paul.composables.MapTilerComposable
+import com.paul.composables.mapButtonStyle
 import com.paul.domain.ServerType
 import com.paul.infrastructure.service.GeoPosition
 import com.paul.infrastructure.service.screenPixelToGeo
@@ -266,10 +267,11 @@ fun MapScreen(viewModel: MapViewModel) {
                 Column(
                     modifier = Modifier
                         .align(Alignment.BottomStart)
-                        .padding(8.dp)
+                        .padding(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     if (currentRoute != null) {
-                        Button(onClick = { viewModel.clearRoute() }) {
+                        Button(modifier = mapButtonStyle, onClick = { viewModel.clearRoute() }) {
                             Icon(
                                 Icons.Default.Close,
                                 contentDescription = "Clear route",
@@ -277,7 +279,8 @@ fun MapScreen(viewModel: MapViewModel) {
                             )
                         }
                         Button(
-                            onClick = { viewModel.toggleElevationProfileVisibility() }
+                            modifier = mapButtonStyle,
+                            onClick = { viewModel.toggleElevationProfileVisibility() },
                         ) {
                             Icon(
                                 Icons.Default.Terrain,
@@ -291,6 +294,7 @@ fun MapScreen(viewModel: MapViewModel) {
                     }
                     if (!isWatchFeatureDisabled) {
                         Button(
+                            modifier = mapButtonStyle,
                             onClick = {
                                 viewModel.returnWatchToUsersLocation()
                             },
@@ -317,19 +321,16 @@ fun MapScreen(viewModel: MapViewModel) {
                     }
 
                     Button(
+                        modifier = mapButtonStyle,
                         onClick = {
                             viewModel.returnToUsersLocation()
                         },
                         enabled = true
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Icon(
-                                Icons.Default.MyLocation,
-                                contentDescription = "Return To Users Location",
-                            )
-                        }
+                        Icon(
+                            Icons.Default.MyLocation,
+                            contentDescription = "Return To Users Location",
+                        )
                     }
                 }
             } // --- End of Map Box ---
@@ -956,10 +957,16 @@ fun CompactDateRangeCard(currentRange: ClosedRange<Instant>, onClick: () -> Unit
             modifier = Modifier.padding(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(Icons.Default.DateRange, null, tint = MaterialTheme.colors.primary, modifier = Modifier.size(16.dp))
+            Icon(
+                Icons.Default.DateRange,
+                null,
+                tint = MaterialTheme.colors.primary,
+                modifier = Modifier.size(16.dp)
+            )
             Spacer(Modifier.width(8.dp))
             val start = currentRange.start.toLocalDateTime(TimeZone.currentSystemDefault()).date
-            val end = currentRange.endInclusive.toLocalDateTime(TimeZone.currentSystemDefault()).date
+            val end =
+                currentRange.endInclusive.toLocalDateTime(TimeZone.currentSystemDefault()).date
             Text(
                 "$start — $end",
                 // style = MaterialTheme.typography.caption,
@@ -992,7 +999,10 @@ fun StravaMapFilterSection(viewModel: MapViewModel) {
         ) {
             Text(
                 text = "Strava: ",
-                style = MaterialTheme.typography.caption.copy(fontSize = 12.sp, fontWeight = FontWeight.Medium),
+                style = MaterialTheme.typography.caption.copy(
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
+                ),
                 maxLines = 1
             )
 
@@ -1014,10 +1024,14 @@ fun StravaMapFilterSection(viewModel: MapViewModel) {
                 )
                 Spacer(Modifier.width(6.dp))
                 val start = currentRange.start.toLocalDateTime(TimeZone.currentSystemDefault()).date
-                val end = currentRange.endInclusive.toLocalDateTime(TimeZone.currentSystemDefault()).date
+                val end =
+                    currentRange.endInclusive.toLocalDateTime(TimeZone.currentSystemDefault()).date
                 Text(
                     text = "${start.monthNumber}/${start.dayOfMonth} - ${end.monthNumber}/${end.dayOfMonth}",
-                    style = MaterialTheme.typography.caption.copy(fontSize = 12.sp, fontWeight = FontWeight.Medium),
+                    style = MaterialTheme.typography.caption.copy(
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
+                    ),
                     maxLines = 1
                 )
             }
@@ -1040,7 +1054,7 @@ fun StravaMapFilterSection(viewModel: MapViewModel) {
                         Icons.Default.ChevronLeft,
                         null,
                         modifier = Modifier.size(20.dp),
-                        tint = if(currentPage > 0) MaterialTheme.colors.primary else Color.Gray
+                        tint = if (currentPage > 0) MaterialTheme.colors.primary else Color.Gray
                     )
                 }
 
@@ -1054,7 +1068,7 @@ fun StravaMapFilterSection(viewModel: MapViewModel) {
                         Icons.Default.ChevronRight,
                         null,
                         modifier = Modifier.size(20.dp),
-                        tint = if((currentPage + 1) < maxPages) MaterialTheme.colors.primary else Color.Gray
+                        tint = if ((currentPage + 1) < maxPages) MaterialTheme.colors.primary else Color.Gray
                     )
                 }
             }

@@ -162,13 +162,13 @@ class MapViewModel(
         .map { activities ->
             val ids = activities.map { it.id }
 
-            val streamsMap = stravaRepo.getStreamsForActivityIds(ids)
+//            val streamsMap = stravaRepo.getStreamsForActivityIds(ids)
 
             kotlinx.coroutines.coroutineScope {
                 activities.map { activity ->
                     async(Dispatchers.Default) {
-                        val stream = streamsMap[activity.id]
-                        val route = stream?.toRoute(activity.name) ?: Route(activity.name, emptyList(), emptyList())
+//                        val stream = streamsMap[activity.id]
+                        val route = activity.toRoute()
 
                         // Accessing projectedPoints here triggers the lazy
                         // calculation in the background.
