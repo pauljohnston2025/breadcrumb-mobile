@@ -25,7 +25,7 @@ data class RouteSettings(
 
 @Serializable
 abstract class IRoute(var id: String = uuid4().toString()) {
-    abstract suspend fun toRoute(snackbarHostState: SnackbarHostState): Route?
+    abstract suspend fun toRouteForDevice(snackbarHostState: SnackbarHostState): Route?
     abstract suspend fun toSummary(snackbarHostState: SnackbarHostState): List<Point>
     abstract fun name(): String
     abstract fun rawBytes(): ByteArray
@@ -51,8 +51,8 @@ data class CoordinatesRoute(
         }
     }
 
-    override suspend fun toRoute(snackbarHostState: SnackbarHostState): Route? {
-        return Route(_name, _coordinates, _directions)
+    override suspend fun toRouteForDevice(snackbarHostState: SnackbarHostState): Route? {
+        return Route.prepareForDevice(_name, _coordinates, _directions)
     }
 
     override suspend fun toSummary(snackbarHostState: SnackbarHostState): List<Point> {

@@ -65,7 +65,7 @@ data class GpxFile(
         }.toMutableList()
     }
 
-    override suspend fun toRoute(snackbarHostState: SnackbarHostState): Route? {
+    override suspend fun toRouteForDevice(snackbarHostState: SnackbarHostState): Route? {
         val finalPoints = getPoints(snackbarHostState)?.toMutableList()
         if (finalPoints == null) {
             return null
@@ -140,7 +140,7 @@ data class GpxFile(
             }
         }
 
-        return Route(
+        return Route.prepareForDevice(
             name(),
             finalPoints,
             directionsIn.distinct()

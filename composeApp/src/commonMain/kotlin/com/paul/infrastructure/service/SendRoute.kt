@@ -46,7 +46,7 @@ class SendRoute {
                         Clock.System.now()
                     )
                     historyRepo.add(historyItem)
-                    route = gpxRoute.toRoute(snackbarHostState)
+                    route = gpxRoute.toRouteForDevice(snackbarHostState)
                 } catch (e: Exception) {
                     Napier.d("Failed to parse route: ${e.message}")
                 }

@@ -87,7 +87,7 @@ class RoutesViewModel(
                 snackbarHostState.showSnackbar("Unknown route")
                 return@launch
             }
-            var coords = iRoute.toRoute(snackbarHostState)
+            var coords = iRoute.toRouteForDevice(snackbarHostState)
             if (coords == null) {
                 snackbarHostState.showSnackbar("Bad coordinates")
                 return@launch

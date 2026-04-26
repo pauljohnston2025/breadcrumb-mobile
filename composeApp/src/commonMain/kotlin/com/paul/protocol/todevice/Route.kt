@@ -361,27 +361,17 @@ fun processDirectionInfo(
     }
 }
 
-// todo make this just a dto and do all the complex init logic in some other place so that we can load them faster for RouteMiniMap
-// maybe a companion object method?
 class Route(
     val name: String,
-    var route: List<Point>,
-    directionsIn: List<DirectionInfo>,
-    routeSettings: RouteSettings
+    val route: List<Point>,
+    val directions: List<DirectionPoint>
 ) :
     Protocol {
 
-    constructor(name: String, route: List<Point>, directionsIn: List<DirectionInfo>) : this(
-        name,
-        route,
-        directionsIn,
-        RouteRepository.getSettings()
-    )
-
     companion object {
         fun summary(route: List<Point>): List<Point> {
-            // hack should lift out to better methods
-            return Route(
+            // hack: should lift out to better methods
+            return prepareForDevice(
                 "ignored",
                 route,
                 listOf(),
@@ -394,18 +384,19 @@ class Route(
                 )
             ).route
         }
-    }
 
-    var directions = processDirectionInfo(routeSettings, route, directionsIn)
+        fun prepareForDevice(name: String, routeIn: List<Point>, directionsIn: List<DirectionInfo>): Route
+        {
+            return prepareForDevice(name, routeIn, directionsIn, RouteRepository.getSettings())
+        }
 
-    // cached values for rectangular points
-    val projectedPoints: List<RectPoint> by lazy {
-        route.mapNotNull { it.convert2XY() }
-    }
+        fun prepareForDevice(name: String, routeIn: List<Point>, directionsIn: List<DirectionInfo>, routeSettings: RouteSettings): Route
+        {
+            var route = routeIn
+            var directions = processDirectionInfo(routeSettings, route, directionsIn)
 
-    init {
-        if (route.isNotEmpty()) {
-            // hack for perf/memory testing, every point is a direction
+            if (route.isNotEmpty()) {
+                // hack for perf/memory testing, every point is a direction
 //        directions =
 //            route.mapIndexed { index, it ->
 //                DirectionPoint(
@@ -416,149 +407,157 @@ class Route(
 //                )
 //            }
 
-            // truncate the directions first, we must keep every coordinate that matches the directions index
-            // assume directions are very minimal, we will still truncate them the same, this could skip important directions though
-            val truncatedDirections = mutableListOf<DirectionPoint>()
-            if (routeSettings.directionsPointLimit != 0) {
-                // only allow much fewer directions so we do not trip watchdog errors or run out of memory
-                var nthDirectionPoint =
-                    Math.ceil(directions.size.toDouble() / routeSettings.directionsPointLimit)
-                        .toInt()
-                if (nthDirectionPoint == 0) {
-                    // get all if less than 1000
-                    // should never happen now we are doing ceil()
-                    nthDirectionPoint = 1
+                // truncate the directions first, we must keep every coordinate that matches the directions index
+                // assume directions are very minimal, we will still truncate them the same, this could skip important directions though
+                val truncatedDirections = mutableListOf<DirectionPoint>()
+                if (routeSettings.directionsPointLimit != 0) {
+                    // only allow much fewer directions so we do not trip watchdog errors or run out of memory
+                    var nthDirectionPoint =
+                        Math.ceil(directions.size.toDouble() / routeSettings.directionsPointLimit)
+                            .toInt()
+                    if (nthDirectionPoint == 0) {
+                        // get all if less than 1000
+                        // should never happen now we are doing ceil()
+                        nthDirectionPoint = 1
+                    }
+                    for (i in 0 until directions.size step nthDirectionPoint) {
+                        val direction = directions[i]
+                        truncatedDirections.add(direction.copy(routeIndex = direction.routeIndex))
+                    }
                 }
-                for (i in 0 until directions.size step nthDirectionPoint) {
-                    val direction = directions[i]
-                    truncatedDirections.add(direction.copy(routeIndex = direction.routeIndex))
-                }
-            }
-            directions = truncatedDirections
+                directions = truncatedDirections
 
 
-            // truncate our points so we can send them to the device without it crashing/taking too long
-            // 1. Mandatory indices that must be kept
-            val directionIndices = directions.map { it.routeIndex }.toSet()
-            val finalIndicesToKeep = mutableSetOf<Int>()
-            finalIndicesToKeep.addAll(directionIndices)
-            finalIndicesToKeep.add(0)
-            finalIndicesToKeep.add(route.size - 1)
+                // truncate our points so we can send them to the device without it crashing/taking too long
+                // 1. Mandatory indices that must be kept
+                val directionIndices = directions.map { it.routeIndex }.toSet()
+                val finalIndicesToKeep = mutableSetOf<Int>()
+                finalIndicesToKeep.addAll(directionIndices)
+                finalIndicesToKeep.add(0)
+                finalIndicesToKeep.add(route.size - 1)
 
-            // 2. Setup budget tracking
-            // How many "other" points are we allowed to have in total?
-            val maxOtherPointsAllowed =
-                (routeSettings.coordinatesPointLimit - finalIndicesToKeep.size).coerceAtLeast(0)
-            val reducedOtherIndices = mutableListOf<Int>()
+                // 2. Setup budget tracking
+                // How many "other" points are we allowed to have in total?
+                val maxOtherPointsAllowed =
+                    (routeSettings.coordinatesPointLimit - finalIndicesToKeep.size).coerceAtLeast(0)
+                val reducedOtherIndices = mutableListOf<Int>()
 
-            // Identify all potential points we could remove
-            val otherIndices = route.indices.filter { it !in finalIndicesToKeep }
+                // Identify all potential points we could remove
+                val otherIndices = route.indices.filter { it !in finalIndicesToKeep }
 
-            if (routeSettings.useReumannWitkam) {
-                if (maxOtherPointsAllowed > 0 && otherIndices.isNotEmpty()) {
-                    val toleranceMeters = 50.0
-                    val anchors = finalIndicesToKeep.toList().sorted()
+                if (routeSettings.useReumannWitkam) {
+                    if (maxOtherPointsAllowed > 0 && otherIndices.isNotEmpty()) {
+                        val toleranceMeters = 50.0
+                        val anchors = finalIndicesToKeep.toList().sorted()
 
-                    for (i in 0 until anchors.size - 1) {
-                        val startIdx = anchors[i]
-                        val endIdx = anchors[i + 1]
+                        for (i in 0 until anchors.size - 1) {
+                            val startIdx = anchors[i]
+                            val endIdx = anchors[i + 1]
 
-                        if (endIdx - startIdx <= 1) continue
+                            if (endIdx - startIdx <= 1) continue
 
-                        var keyIdx = startIdx
-                        var currIdx = startIdx + 1
+                            var keyIdx = startIdx
+                            var currIdx = startIdx + 1
 
-                        while (currIdx < endIdx) {
-                            // The "Corridor" is defined by the line passing through
-                            // keyIdx and keyIdx + 1.
-                            val lineStart = route[keyIdx]
-                            val lineEnd = route[keyIdx + 1]
+                            while (currIdx < endIdx) {
+                                // The "Corridor" is defined by the line passing through
+                                // keyIdx and keyIdx + 1.
+                                val lineStart = route[keyIdx]
+                                val lineEnd = route[keyIdx + 1]
 
-                            // We check if the point at currIdx deviates from the corridor
-                            val distance = calculatePerpendicularDistanceToInfiniteLine(
-                                route[currIdx],
-                                lineStart,
-                                lineEnd
-                            )
+                                // We check if the point at currIdx deviates from the corridor
+                                val distance = calculatePerpendicularDistanceToInfiniteLine(
+                                    route[currIdx],
+                                    lineStart,
+                                    lineEnd
+                                )
 
-                            if (distance > toleranceMeters) {
-                                // This point is outside the corridor.
-                                // We keep it and it becomes the NEW anchor.
-                                reducedOtherIndices.add(currIdx)
-                                keyIdx = currIdx
-                                // The next point to test is the one after the new anchor
-                                currIdx = keyIdx + 1
-                            } else {
-                                // Point is within tolerance, skip it and check the next one
-                                // against the SAME corridor.
-                                currIdx++
+                                if (distance > toleranceMeters) {
+                                    // This point is outside the corridor.
+                                    // We keep it and it becomes the NEW anchor.
+                                    reducedOtherIndices.add(currIdx)
+                                    keyIdx = currIdx
+                                    // The next point to test is the one after the new anchor
+                                    currIdx = keyIdx + 1
+                                } else {
+                                    // Point is within tolerance, skip it and check the next one
+                                    // against the SAME corridor.
+                                    currIdx++
+                                }
                             }
                         }
                     }
+                } else {
+                    reducedOtherIndices.addAll(otherIndices)
                 }
-            } else {
-                reducedOtherIndices.addAll(otherIndices)
-            }
 
 
-            // 4. Fallback: nthPoint sampling
-            // This only runs if the algorithm processed the whole route and the point count is STILL too high.
-            if (reducedOtherIndices.size > maxOtherPointsAllowed && maxOtherPointsAllowed > 0) {
-                val nthPoint =
-                    Math.ceil(reducedOtherIndices.size.toDouble() / maxOtherPointsAllowed).toInt()
-                        .coerceAtLeast(1)
-                for (i in reducedOtherIndices.indices step nthPoint) {
-                    if (finalIndicesToKeep.size < routeSettings.coordinatesPointLimit) {
-                        finalIndicesToKeep.add(reducedOtherIndices[i])
+                // 4. Fallback: nthPoint sampling
+                // This only runs if the algorithm processed the whole route and the point count is STILL too high.
+                if (reducedOtherIndices.size > maxOtherPointsAllowed && maxOtherPointsAllowed > 0) {
+                    val nthPoint =
+                        Math.ceil(reducedOtherIndices.size.toDouble() / maxOtherPointsAllowed).toInt()
+                            .coerceAtLeast(1)
+                    for (i in reducedOtherIndices.indices step nthPoint) {
+                        if (finalIndicesToKeep.size < routeSettings.coordinatesPointLimit) {
+                            finalIndicesToKeep.add(reducedOtherIndices[i])
+                        }
                     }
+                } else {
+                    finalIndicesToKeep.addAll(reducedOtherIndices)
                 }
-            } else {
-                finalIndicesToKeep.addAll(reducedOtherIndices)
+
+                // 5. Rebuild route and update mappings (Same logic as before)
+                val sortedIndicesToKeep = finalIndicesToKeep.sorted()
+                val oldToNewIndexMap = sortedIndicesToKeep
+                    .withIndex()
+                    .associate { (newIndex, oldIndex) -> oldIndex to newIndex }
+
+                route = sortedIndicesToKeep.map { route[it] }
+
+                directions = directions.map { direction ->
+                    val newIndex = oldToNewIndexMap[direction.routeIndex]
+                    direction.copy(routeIndex = newIndex ?: 0)
+                }
             }
 
-            // 5. Rebuild route and update mappings (Same logic as before)
-            val sortedIndicesToKeep = finalIndicesToKeep.sorted()
-            val oldToNewIndexMap = sortedIndicesToKeep
-                .withIndex()
-                .associate { (newIndex, oldIndex) -> oldIndex to newIndex }
+            return Route(name, route, directions)
+        }
 
-            route = sortedIndicesToKeep.map { route[it] }
+        private fun calculatePerpendicularDistanceToInfiniteLine(
+            p: Point,
+            start: Point,
+            end: Point
+        ): Double {
+            // 1. Get projected XY coordinates (meters)
+            val pXY = p.convert2XY() ?: return 0.0
+            val sXY = start.convert2XY() ?: return 0.0
+            val eXY = end.convert2XY() ?: return 0.0
 
-            directions = directions.map { direction ->
-                val newIndex = oldToNewIndexMap[direction.routeIndex]
-                direction.copy(routeIndex = newIndex ?: 0)
-            }
+            val x0 = pXY.x.toDouble()
+            val y0 = pXY.y.toDouble()
+            val x1 = sXY.x.toDouble()
+            val y1 = sXY.y.toDouble()
+            val x2 = eXY.x.toDouble()
+            val y2 = eXY.y.toDouble()
+
+            // 2. Line equation: Ax + By + C = 0
+            // (y1 – y2)x + (x2 – x1)y + (x1y2 – x2y1) = 0
+            val A = y1 - y2
+            val B = x2 - x1
+            val C = x1 * y2 - x2 * y1
+
+            val denominator = Math.sqrt(A * A + B * B)
+            if (denominator == 0.0) return calculateDistanceInMeters(p, start)
+
+            // 3. Perpendicular distance formula
+            return Math.abs(A * x0 + B * y0 + C) / denominator
         }
     }
 
-    private fun calculatePerpendicularDistanceToInfiniteLine(
-        p: Point,
-        start: Point,
-        end: Point
-    ): Double {
-        // 1. Get projected XY coordinates (meters)
-        val pXY = p.convert2XY() ?: return 0.0
-        val sXY = start.convert2XY() ?: return 0.0
-        val eXY = end.convert2XY() ?: return 0.0
-
-        val x0 = pXY.x.toDouble()
-        val y0 = pXY.y.toDouble()
-        val x1 = sXY.x.toDouble()
-        val y1 = sXY.y.toDouble()
-        val x2 = eXY.x.toDouble()
-        val y2 = eXY.y.toDouble()
-
-        // 2. Line equation: Ax + By + C = 0
-        // (y1 – y2)x + (x2 – x1)y + (x1y2 – x2y1) = 0
-        val A = y1 - y2
-        val B = x2 - x1
-        val C = x1 * y2 - x2 * y1
-
-        val denominator = Math.sqrt(A * A + B * B)
-        if (denominator == 0.0) return calculateDistanceInMeters(p, start)
-
-        // 3. Perpendicular distance formula
-        return Math.abs(A * x0 + B * y0 + C) / denominator
+    // cached values for rectangular points
+    val projectedPoints: List<RectPoint> by lazy {
+        route.mapNotNull { it.convert2XY() }
     }
 
     override fun type(): ProtocolType {
