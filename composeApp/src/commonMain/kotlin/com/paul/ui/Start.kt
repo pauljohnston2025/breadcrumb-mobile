@@ -363,10 +363,7 @@ private fun HistoryListItem(
     val name = if (route == null || route.name.isEmpty()) "<unknown>" else route.name
 
     val routeDetail by produceState<Route?>(initialValue = null, route?.id) {
-        if (route != null) {
-            val entity = routeRepo.getRouteI(route.id)
-            value = entity?.toRoute(snackbarHostState)
-        }
+        value = routeRepo.getRouteEntrySummary(route, snackbarHostState)
     }
 
     Row(

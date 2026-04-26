@@ -309,13 +309,7 @@ private fun RouteListItem(
     // 1. Handle the suspend call to get the Route object
     // produceState starts a coroutine that handles the async fetching
     val routeDetail by produceState<Route?>(initialValue = null, route.id) {
-        // This runs in a background scope
-        val entity = routeRepo.getRouteI(route.id)
-        if (entity == null) {
-            value = null
-            return@produceState
-        }
-        value = entity.toRoute(snackbarHostState)
+        value = routeRepo.getRouteEntrySummary(route, snackbarHostState)
     }
 
     Row(

@@ -13,7 +13,11 @@ import kotlinx.serialization.json.Json
 data class RouteSettings(
     val coordinatesPointLimit: Int,
     val directionsPointLimit: Int,
-    val mockDirections: Boolean) {
+    val mockDirections: Boolean,
+    val showRoutePoints: Boolean = false,
+    val useReumannWitkam: Boolean = false,
+) {
+
     companion object {
         val default = RouteSettings(400, 100, false)
     }
@@ -22,6 +26,7 @@ data class RouteSettings(
 @Serializable
 abstract class IRoute(var id: String = uuid4().toString()) {
     abstract suspend fun toRoute(snackbarHostState: SnackbarHostState): Route?
+    abstract suspend fun toSummary(snackbarHostState: SnackbarHostState): List<Point>
     abstract fun name(): String
     abstract fun rawBytes(): ByteArray
     abstract fun setName(name: String)
@@ -48,6 +53,10 @@ data class CoordinatesRoute(
 
     override suspend fun toRoute(snackbarHostState: SnackbarHostState): Route? {
         return Route(_name, _coordinates, _directions)
+    }
+
+    override suspend fun toSummary(snackbarHostState: SnackbarHostState): List<Point> {
+        return Route.summary(_coordinates)
     }
 
     override fun rawBytes(): ByteArray {
@@ -87,4 +96,11 @@ data class RouteEntry(
     val createdAt: Instant,
     val sizeBytes: Long,
     val hasDirectionInfo: Boolean = false,
-)
+    val summary: List<Point>? = null,
+) {
+    fun summaryToRoute(): Route? {
+        if (summary == null) return null
+
+        return Route(name, summary, emptyList())
+    }
+}

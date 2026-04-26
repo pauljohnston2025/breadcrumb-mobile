@@ -20,7 +20,15 @@ data class GpxFile(
 ) : GpxRoute() {
     private var _name: String? = null
 
-    override suspend fun toRoute(snackbarHostState: SnackbarHostState): Route? {
+    override suspend fun toSummary(snackbarHostState: SnackbarHostState): List<Point> {
+        val finalPoints = getPoints(snackbarHostState)
+        if (finalPoints == null) {
+            return Route.summary(emptyList())
+        }
+        return Route.summary(finalPoints)
+    }
+
+    suspend fun getPoints(snackbarHostState: SnackbarHostState): List<Point>? {
         var baseGpxPoints = emptyList<GpxPoint>()
 
         // Prioritize tracks, then routes for the base points of the route.
@@ -48,14 +56,20 @@ data class GpxFile(
         }
 
         // Convert GpxPoints to a mutable list of our domain's Point objects.
-        val finalPoints = baseGpxPoints.map { gpxPoint ->
+        return baseGpxPoints.map { gpxPoint ->
             Point(
                 gpxPoint.latitude?.toFloat() ?: 0.0f,
                 gpxPoint.longitude?.toFloat() ?: 0.0f,
                 gpxPoint.elevation?.toFloat() ?: 0.0f
             )
         }.toMutableList()
+    }
 
+    override suspend fun toRoute(snackbarHostState: SnackbarHostState): Route? {
+        val finalPoints = getPoints(snackbarHostState)?.toMutableList()
+        if (finalPoints == null) {
+            return null
+        }
         val directionsIn = mutableListOf<DirectionInfo>()
 
         // If the route was built from waypoints, every point is a direction.

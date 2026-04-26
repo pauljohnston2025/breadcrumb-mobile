@@ -156,6 +156,7 @@ fun App(
                         snackbarHostState = scaffoldState.snackbarHostState,
                         locationService = locationService,
                         stravaRepo = stravaRepository,
+                        routeRepository = settingsViewModel.routesRepo,
                     )
                 }
 

@@ -1,5 +1,6 @@
 package com.paul.infrastructure.repositories
 
+import androidx.compose.material.SnackbarHostState
 import androidx.compose.runtime.mutableStateListOf
 import com.paul.domain.CoordinatesRoute
 import com.paul.domain.GpxRoute
@@ -10,6 +11,8 @@ import com.paul.domain.RouteType
 import com.paul.infrastructure.repositories.TileServerRepo.Companion.settings
 import com.paul.infrastructure.service.IFileHelper
 import com.paul.infrastructure.service.IGpxFileLoader
+import com.paul.protocol.todevice.Point
+import com.paul.protocol.todevice.Route
 import com.russhwolf.settings.Settings
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -137,7 +140,7 @@ class RouteRepository(
             return
         }
         routes.removeIf { it.id == routeId }
-        routes.add(RouteEntry(routeId, newName, current.type, current.createdAt, current.sizeBytes))
+        routes.add(current.copy(name = newName))
         saveRoutes()
     }
 
@@ -169,5 +172,36 @@ class RouteRepository(
         fileHelper.deleteDir("routes")
         routes.clear()
         saveRoutes()
+    }
+
+    fun updateRouteSummary(id: String, summary: List<Point>) {
+        val current = getRouteEntry(id)
+        if (current == null) {
+            return
+        }
+
+        routes.removeIf { it.id == id }
+        routes.add(current.copy(summary = summary))
+        saveRoutes()
+    }
+
+    suspend fun getRouteEntrySummary(route: RouteEntry?, snackbarHostState: SnackbarHostState): Route?
+    {
+        if (route != null) {
+            var summary = route.summaryToRoute()
+            if (summary == null) {
+                // first time write the summary back and persist it
+                val iRoute = getRouteI(route.id)
+                if (iRoute != null) {
+                    val summaryLine = iRoute.toSummary(snackbarHostState)
+                    updateRouteSummary(route.id, summaryLine)
+                    summary = Route(route.name, summaryLine, emptyList())
+                }
+            }
+
+            return summary
+        }
+
+        return null
     }
 }

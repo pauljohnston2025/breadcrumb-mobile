@@ -51,6 +51,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.input.pointer.pointerInput
@@ -60,6 +61,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import breadcrumb.composeapp.generated.resources.Res
 import breadcrumb.composeapp.generated.resources.strava
 import com.paul.infrastructure.service.GeoPosition
@@ -134,6 +136,7 @@ fun MapTilerComposable(
     val userLocation by viewModel.userLocation.collectAsState()
     val tilServer by viewModel.tileServerRepository.currentServerFlow().collectAsState()
     val tileCache by viewModel.tileCacheState.collectAsState()
+    val routeSettings by viewModel.routeRepository.currentSettingsFlow().collectAsStateWithLifecycle()
 
     var localCenterGeo by remember {
         mutableStateOf(
@@ -359,19 +362,35 @@ fun MapTilerComposable(
                             ), localCenterGeo, integerZoom.toFloat(), viewportSize
                         )
                         path.moveTo(startPoint.x.toFloat(), startPoint.y.toFloat())
+                        val screenPoints = mutableListOf<Offset>()
+                        screenPoints.add(Offset(startPoint.x.toFloat(), startPoint.y.toFloat()))
                         route.route.drop(1).forEach { point ->
                             val screenPoint = geoToScreenPixel(
                                 GeoPosition(
                                     point.latitude.toDouble(), point.longitude.toDouble()
                                 ), localCenterGeo, integerZoom.toFloat(), viewportSize
                             )
-                            path.lineTo(screenPoint.x.toFloat(), screenPoint.y.toFloat())
+                            val offset = Offset(screenPoint.x.toFloat(), screenPoint.y.toFloat())
+                            path.lineTo(offset.x, offset.y)
+                            screenPoints.add(offset)
                         }
                         drawPath(
                             path = path,
                             color = routeColor,
                             style = Stroke(width = routeStrokeWidth / scale, cap = StrokeCap.Round)
                         )
+
+                        if (routeSettings.showRoutePoints) {
+                            val dotRadius = 8f / scale
+                            screenPoints.forEach { offset ->
+                                drawCircle(
+                                    color = Color.White, // High contrast against the blue line
+                                    radius = dotRadius,
+                                    center = offset,
+                                    style = Fill
+                                )
+                            }
+                        }
 
                         // ... inside the Canvas composable, after drawing the blue route path ...
 

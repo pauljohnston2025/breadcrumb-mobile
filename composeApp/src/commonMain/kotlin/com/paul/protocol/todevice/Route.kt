@@ -361,9 +361,41 @@ fun processDirectionInfo(
     }
 }
 
-class Route(val name: String, var route: List<Point>, directionsIn: List<DirectionInfo>) :
+// todo make this just a dto and do all the complex init logic in some other place so that we can load them faster for RouteMiniMap
+// maybe a companion object method?
+class Route(
+    val name: String,
+    var route: List<Point>,
+    directionsIn: List<DirectionInfo>,
+    routeSettings: RouteSettings
+) :
     Protocol {
-    private val routeSettings = RouteRepository.getSettings()
+
+    constructor(name: String, route: List<Point>, directionsIn: List<DirectionInfo>) : this(
+        name,
+        route,
+        directionsIn,
+        RouteRepository.getSettings()
+    )
+
+    companion object {
+        fun summary(route: List<Point>): List<Point> {
+            // hack should lift out to better methods
+            return Route(
+                "ignored",
+                route,
+                listOf(),
+                RouteSettings(
+                    coordinatesPointLimit = 100,
+                    directionsPointLimit = 0,
+                    mockDirections = false,
+                    showRoutePoints = false,
+                    useReumannWitkam = true,
+                )
+            ).route
+        }
+    }
+
     var directions = processDirectionInfo(routeSettings, route, directionsIn)
 
     // cached values for rectangular points
@@ -372,7 +404,8 @@ class Route(val name: String, var route: List<Point>, directionsIn: List<Directi
     }
 
     init {
-        // hack for perf/memory testing, every point is a direction
+        if (route.isNotEmpty()) {
+            // hack for perf/memory testing, every point is a direction
 //        directions =
 //            route.mapIndexed { index, it ->
 //                DirectionPoint(
@@ -383,148 +416,149 @@ class Route(val name: String, var route: List<Point>, directionsIn: List<Directi
 //                )
 //            }
 
-        // truncate the directions first, we must keep every coordinate that matches the directions index
-        // assume directions are very minimal, we will still truncate them the same, this could skip important directions though
-        val truncatedDirections = mutableListOf<DirectionPoint>()
-        if (routeSettings.directionsPointLimit != 0) {
-            // only allow much fewer directions so we do not trip watchdog errors or run out of memory
-            var nthDirectionPoint =
-                Math.ceil(directions.size.toDouble() / routeSettings.directionsPointLimit).toInt()
-            if (nthDirectionPoint == 0) {
-                // get all if less than 1000
-                // should never happen now we are doing ceil()
-                nthDirectionPoint = 1
-            }
-            for (i in 0 until directions.size step nthDirectionPoint) {
-                val direction = directions[i]
-                truncatedDirections.add(direction.copy(routeIndex = direction.routeIndex))
-            }
-        }
-        directions = truncatedDirections
-
-
-        // truncate our points so we can send them to the device without it crashing/taking too long
-        // 1. Mandatory indices that must be kept
-        val directionIndices = directions.map { it.routeIndex }.toSet()
-
-        // 2. Identify non-essential points
-        val otherIndices = route.indices.filter { it !in directionIndices }
-
-        // 3. Douglas-Peucker Reduction
-        // We simplify segments BETWEEN mandatory direction points to ensure they are never moved or removed.
-        val toleranceMeters = 20.0
-        val reducedOtherIndices = mutableListOf<Int>()
-
-        // Create a sorted list of mandatory "anchor" indices (Start, Directions, End)
-        val anchors = (directionIndices + 0 + (route.size - 1)).distinct().sorted()
-
-        for (i in 0 until anchors.size - 1) {
-            val startIdx = anchors[i]
-            val endIdx = anchors[i + 1]
-
-            // If there are points between these two anchors, simplify them
-            if (endIdx - startIdx > 1) {
-                val indicesToKeepInSegment = mutableListOf<Int>()
-
-                // Run DP on the segment (excluding the anchors themselves as they are already in directionIndices)
-                simplifyDouglasPeucker(
-                    points = route,
-                    first = startIdx,
-                    last = endIdx,
-                    epsilon = toleranceMeters,
-                    keepIndices = indicesToKeepInSegment
-                )
-
-                // Add the discovered indices (filtering out the anchors to avoid duplicates)
-                reducedOtherIndices.addAll(indicesToKeepInSegment.filter { it != startIdx && it != endIdx })
-            }
-        }
-
-        // 4. Calculate remaining capacity
-        val remainingCapacity = routeSettings.coordinatesPointLimit - directionIndices.size
-        val finalIndicesToKeep = mutableSetOf<Int>()
-        finalIndicesToKeep.addAll(directionIndices)
-        finalIndicesToKeep.add(0)
-        finalIndicesToKeep.add(route.size - 1)
-
-        // 5. Fallback: If still too many points, use nthPoint sampling on the reduced set
-        if (remainingCapacity > 0 && reducedOtherIndices.isNotEmpty()) {
-            val otherSorted = reducedOtherIndices.distinct().sorted()
-            if (otherSorted.size <= remainingCapacity) {
-                finalIndicesToKeep.addAll(otherSorted)
-            } else {
-                val nthPoint = Math.ceil(otherSorted.size.toDouble() / remainingCapacity)
-                    .toInt().coerceAtLeast(1)
-                for (i in otherSorted.indices step nthPoint) {
-                    finalIndicesToKeep.add(otherSorted[i])
+            // truncate the directions first, we must keep every coordinate that matches the directions index
+            // assume directions are very minimal, we will still truncate them the same, this could skip important directions though
+            val truncatedDirections = mutableListOf<DirectionPoint>()
+            if (routeSettings.directionsPointLimit != 0) {
+                // only allow much fewer directions so we do not trip watchdog errors or run out of memory
+                var nthDirectionPoint =
+                    Math.ceil(directions.size.toDouble() / routeSettings.directionsPointLimit)
+                        .toInt()
+                if (nthDirectionPoint == 0) {
+                    // get all if less than 1000
+                    // should never happen now we are doing ceil()
+                    nthDirectionPoint = 1
+                }
+                for (i in 0 until directions.size step nthDirectionPoint) {
+                    val direction = directions[i]
+                    truncatedDirections.add(direction.copy(routeIndex = direction.routeIndex))
                 }
             }
+            directions = truncatedDirections
 
-            // 6. Rebuild route and update mappings
+
+            // truncate our points so we can send them to the device without it crashing/taking too long
+            // 1. Mandatory indices that must be kept
+            val directionIndices = directions.map { it.routeIndex }.toSet()
+            val finalIndicesToKeep = mutableSetOf<Int>()
+            finalIndicesToKeep.addAll(directionIndices)
+            finalIndicesToKeep.add(0)
+            finalIndicesToKeep.add(route.size - 1)
+
+            // 2. Setup budget tracking
+            // How many "other" points are we allowed to have in total?
+            val maxOtherPointsAllowed =
+                (routeSettings.coordinatesPointLimit - finalIndicesToKeep.size).coerceAtLeast(0)
+            val reducedOtherIndices = mutableListOf<Int>()
+
+            // Identify all potential points we could remove
+            val otherIndices = route.indices.filter { it !in finalIndicesToKeep }
+
+            if (routeSettings.useReumannWitkam) {
+                if (maxOtherPointsAllowed > 0 && otherIndices.isNotEmpty()) {
+                    val toleranceMeters = 50.0
+                    val anchors = finalIndicesToKeep.toList().sorted()
+
+                    for (i in 0 until anchors.size - 1) {
+                        val startIdx = anchors[i]
+                        val endIdx = anchors[i + 1]
+
+                        if (endIdx - startIdx <= 1) continue
+
+                        var keyIdx = startIdx
+                        var currIdx = startIdx + 1
+
+                        while (currIdx < endIdx) {
+                            // The "Corridor" is defined by the line passing through
+                            // keyIdx and keyIdx + 1.
+                            val lineStart = route[keyIdx]
+                            val lineEnd = route[keyIdx + 1]
+
+                            // We check if the point at currIdx deviates from the corridor
+                            val distance = calculatePerpendicularDistanceToInfiniteLine(
+                                route[currIdx],
+                                lineStart,
+                                lineEnd
+                            )
+
+                            if (distance > toleranceMeters) {
+                                // This point is outside the corridor.
+                                // We keep it and it becomes the NEW anchor.
+                                reducedOtherIndices.add(currIdx)
+                                keyIdx = currIdx
+                                // The next point to test is the one after the new anchor
+                                currIdx = keyIdx + 1
+                            } else {
+                                // Point is within tolerance, skip it and check the next one
+                                // against the SAME corridor.
+                                currIdx++
+                            }
+                        }
+                    }
+                }
+            } else {
+                reducedOtherIndices.addAll(otherIndices)
+            }
+
+
+            // 4. Fallback: nthPoint sampling
+            // This only runs if the algorithm processed the whole route and the point count is STILL too high.
+            if (reducedOtherIndices.size > maxOtherPointsAllowed && maxOtherPointsAllowed > 0) {
+                val nthPoint =
+                    Math.ceil(reducedOtherIndices.size.toDouble() / maxOtherPointsAllowed).toInt()
+                        .coerceAtLeast(1)
+                for (i in reducedOtherIndices.indices step nthPoint) {
+                    if (finalIndicesToKeep.size < routeSettings.coordinatesPointLimit) {
+                        finalIndicesToKeep.add(reducedOtherIndices[i])
+                    }
+                }
+            } else {
+                finalIndicesToKeep.addAll(reducedOtherIndices)
+            }
+
+            // 5. Rebuild route and update mappings (Same logic as before)
             val sortedIndicesToKeep = finalIndicesToKeep.sorted()
-            route = sortedIndicesToKeep.mapNotNull { index -> route.getOrNull(index) }
-
             val oldToNewIndexMap = sortedIndicesToKeep
                 .withIndex()
                 .associate { (newIndex, oldIndex) -> oldIndex to newIndex }
 
-            // 7. Update directions with preserved indices
+            route = sortedIndicesToKeep.map { route[it] }
+
             directions = directions.map { direction ->
                 val newIndex = oldToNewIndexMap[direction.routeIndex]
-                direction.copy(routeIndex = newIndex!!)
+                direction.copy(routeIndex = newIndex ?: 0)
             }
         }
     }
 
-    private fun simplifyDouglasPeucker(
-        points: List<Point>,
-        first: Int,
-        last: Int,
-        epsilon: Double,
-        keepIndices: MutableList<Int>
-    ) {
-        var maxDistance = 0.0
-        var index = 0
+    private fun calculatePerpendicularDistanceToInfiniteLine(
+        p: Point,
+        start: Point,
+        end: Point
+    ): Double {
+        // 1. Get projected XY coordinates (meters)
+        val pXY = p.convert2XY() ?: return 0.0
+        val sXY = start.convert2XY() ?: return 0.0
+        val eXY = end.convert2XY() ?: return 0.0
 
-        for (i in first + 1 until last) {
-            val distance = calculatePerpendicularDistance(points[i], points[first], points[last])
-            if (distance > maxDistance) {
-                index = i
-                maxDistance = distance
-            }
-        }
+        val x0 = pXY.x.toDouble()
+        val y0 = pXY.y.toDouble()
+        val x1 = sXY.x.toDouble()
+        val y1 = sXY.y.toDouble()
+        val x2 = eXY.x.toDouble()
+        val y2 = eXY.y.toDouble()
 
-        if (maxDistance > epsilon) {
-            // Recursive call
-            simplifyDouglasPeucker(points, first, index, epsilon, keepIndices)
-            keepIndices.add(index)
-            simplifyDouglasPeucker(points, index, last, epsilon, keepIndices)
-        }
-    }
+        // 2. Line equation: Ax + By + C = 0
+        // (y1 – y2)x + (x2 – x1)y + (x1y2 – x2y1) = 0
+        val A = y1 - y2
+        val B = x2 - x1
+        val C = x1 * y2 - x2 * y1
 
-    private fun calculatePerpendicularDistance(p: Point, start: Point, end: Point): Double {
-        val l2 = calculateDistanceInMeters(start, end).let { it * it }
-        if (l2 == 0.0) return calculateDistanceInMeters(p, start)
+        val denominator = Math.sqrt(A * A + B * B)
+        if (denominator == 0.0) return calculateDistanceInMeters(p, start)
 
-        // Standard cross-track distance or perpendicular distance logic
-        // For small distances, a planar approximation is very fast and sufficient:
-        val lat = p.latitude
-        val lon = p.longitude
-        val sLat = start.latitude
-        val sLon = start.longitude
-        val eLat = end.latitude
-        val eLon = end.longitude
-
-        val t = ((lat - sLat) * (eLat - sLat) + (lon - sLon) * (eLon - sLon)) / l2
-        val tClamped = t.coerceIn(0.0, 1.0)
-
-        val nearestPoint = Point(
-            (sLat + tClamped * (eLat - sLat)).toFloat(),
-            (sLon + tClamped * (eLon - sLon)).toFloat(),
-            0f
-        )
-
-        return calculateDistanceInMeters(p, nearestPoint)
+        // 3. Perpendicular distance formula
+        return Math.abs(A * x0 + B * y0 + C) / denominator
     }
 
     override fun type(): ProtocolType {

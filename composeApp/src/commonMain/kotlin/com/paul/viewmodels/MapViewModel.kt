@@ -17,6 +17,7 @@ import com.paul.domain.StravaActivity
 import com.paul.domain.TileServerInfo
 import com.paul.infrastructure.connectiq.IConnection
 import com.paul.infrastructure.repositories.ITileRepository
+import com.paul.infrastructure.repositories.RouteRepository
 import com.paul.infrastructure.repositories.StravaRepository
 import com.paul.infrastructure.repositories.TileServerRepo
 import com.paul.infrastructure.service.ColourPaletteConverter
@@ -74,6 +75,7 @@ class MapViewModel(
     private val snackbarHostState: SnackbarHostState,
     private val locationService: ILocationService,
     val stravaRepo: StravaRepository,
+    val routeRepository: RouteRepository,
 ) : ViewModel() {
 
     private var seedingJob: Job? = null

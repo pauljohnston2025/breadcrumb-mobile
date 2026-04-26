@@ -885,6 +885,34 @@ fun Settings(
                             )
                         })
                 }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Show route points on map:", style = MaterialTheme.typography.body1)
+                    Switch(
+                        checked = settings.showRoutePoints,
+                        onCheckedChange = { isChecked ->
+                            viewModel.onRouteSettingsChanged(settings.copy(showRoutePoints = isChecked))
+                        }
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Reduce points with Reumann-Witkam:", style = MaterialTheme.typography.body1)
+                    Switch(
+                        checked = settings.useReumannWitkam,
+                        onCheckedChange = { isChecked ->
+                            viewModel.onRouteSettingsChanged(settings.copy(useReumannWitkam = isChecked))
+                        }
+                    )
+                }
             }
 
             Divider(modifier = Modifier.padding(vertical = 16.dp))
@@ -935,7 +963,6 @@ fun StravaSettings(viewModel: com.paul.viewmodels.Settings) {
     val loginStatus by viewModel.stravaRepo.loginStatus.collectAsState()
     val syncErrorStatus by viewModel.stravaRepo.syncErrorStatus.collectAsState()
     val isSyncing by viewModel.stravaRepo.isSyncing.collectAsState()
-    val currentPage by viewModel.stravaRepo.currentPage.collectAsState(0L)
     val currentPageSize by viewModel.stravaRepo.currentPageSize.collectAsState(20L)
 
     Column(
@@ -978,20 +1005,6 @@ fun StravaSettings(viewModel: com.paul.viewmodels.Settings) {
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 singleLine = true
             )
-
-            Row(
-                modifier = Modifier.weight(1f),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
-            ) {
-                IconButton(onClick = { if (currentPage > 0) viewModel.stravaRepo.setPage(currentPage - 1) }) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Prev Page")
-                }
-                Text("Page ${currentPage + 1}", style = MaterialTheme.typography.body1)
-                IconButton(onClick = { viewModel.stravaRepo.setPage(currentPage + 1) }) {
-                    Icon(Icons.Default.ArrowForward, contentDescription = "Next Page")
-                }
-            }
         }
 
         Row(
