@@ -13,7 +13,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DateRangePicker
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -34,7 +33,6 @@ import com.paul.viewmodels.StravaActivitiesViewModel
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
-import androidx.compose.material3.MaterialTheme as M3Theme
 import androidx.compose.material3.Text as M3Text
 import androidx.compose.material3.TextButton as M3TextButton
 
@@ -247,7 +245,7 @@ private fun StravaActivityListItem(
                 .background(Color.Gray.copy(alpha = 0.1f))
         ) {
             RouteMiniMap(
-                route = activity.toRoute(),
+                route = activity.summaryToRoute(),
                 tileRepository = tileRepository,
                 modifier = Modifier.fillMaxSize()
             )

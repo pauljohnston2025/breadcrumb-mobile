@@ -75,6 +75,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
@@ -944,40 +945,6 @@ fun KmpMapAttributionDisplay(
 }
 
 @Composable
-fun CompactDateRangeCard(currentRange: ClosedRange<Instant>, onClick: () -> Unit) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() },
-        shape = RoundedCornerShape(8.dp),
-        border = BorderStroke(1.dp, Color.LightGray.copy(0.5f)),
-        color = MaterialTheme.colors.primary
-    ) {
-        Row(
-            modifier = Modifier.padding(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                Icons.Default.DateRange,
-                null,
-                tint = MaterialTheme.colors.primary,
-                modifier = Modifier.size(16.dp)
-            )
-            Spacer(Modifier.width(8.dp))
-            val start = currentRange.start.toLocalDateTime(TimeZone.currentSystemDefault()).date
-            val end =
-                currentRange.endInclusive.toLocalDateTime(TimeZone.currentSystemDefault()).date
-            Text(
-                "$start — $end",
-                // style = MaterialTheme.typography.caption,
-                modifier = Modifier.weight(1f)
-            )
-            Icon(Icons.Default.Edit, null, tint = Color.Gray, modifier = Modifier.size(14.dp))
-        }
-    }
-}
-
-@Composable
 fun StravaMapFilterSection(viewModel: MapViewModel) {
     val stravaRepo = viewModel.stravaRepo
     val isStravaEnabled by viewModel.isStravaEnabled.collectAsState()
@@ -993,12 +960,12 @@ fun StravaMapFilterSection(viewModel: MapViewModel) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 4.dp), // Slightly more padding
+                .padding(horizontal = 8.dp, vertical = 4.dp), // Slightly more padding
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(0.dp)
         ) {
             Text(
-                text = "Strava: ",
+                text = "Strava:",
                 style = MaterialTheme.typography.caption.copy(
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium
@@ -1023,16 +990,17 @@ fun StravaMapFilterSection(viewModel: MapViewModel) {
                     tint = MaterialTheme.colors.primary
                 )
                 Spacer(Modifier.width(6.dp))
-                val start = currentRange.start.toLocalDateTime(TimeZone.currentSystemDefault()).date
+                val start = currentRange.start.toLocalDateTime(TimeZone.currentSystemDefault()).date.toString()
                 val end =
-                    currentRange.endInclusive.toLocalDateTime(TimeZone.currentSystemDefault()).date
+                    currentRange.endInclusive.toLocalDateTime(TimeZone.currentSystemDefault()).date.toString()
                 Text(
-                    text = "${start.monthNumber}/${start.dayOfMonth} - ${end.monthNumber}/${end.dayOfMonth}",
+                    text = "${start} - ${end}",
                     style = MaterialTheme.typography.caption.copy(
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium
                     ),
-                    maxLines = 1
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
 

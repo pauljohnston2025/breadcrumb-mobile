@@ -20,7 +20,6 @@ import com.paul.protocol.todevice.Route
 import kotlinx.datetime.Instant
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.JsonElement
 
 @Serializable
 data class StravaStreamResponse(
@@ -90,7 +89,7 @@ data class StravaActivity(
         }
     }
 
-    fun toRoute(): Route {
+    fun summaryToRoute(): Route {
         return Route(name, map?.decodePolyline() ?: emptyList(), emptyList())
     }
 

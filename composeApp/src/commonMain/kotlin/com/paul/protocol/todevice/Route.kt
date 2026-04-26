@@ -197,7 +197,7 @@ fun processDirectionInfo(
     var effectiveDirections = directions
 
     // If directions are empty, generate mock directions by analyzing the track's geometry.
-    if(routeSettings.mockDirections) {
+    if (routeSettings.mockDirections) {
         if (directions.isEmpty() && coordinates.size > 2) {
             val mockDirections = mutableListOf<DirectionInfo>()
             // The loop condition `i < coordinates.size - 1` already ensures we don't process
@@ -365,6 +365,7 @@ class Route(val name: String, var route: List<Point>, directionsIn: List<Directi
     Protocol {
     private val routeSettings = RouteRepository.getSettings()
     var directions = processDirectionInfo(routeSettings, route, directionsIn)
+
     // cached values for rectangular points
     val projectedPoints: List<RectPoint> by lazy {
         route.mapNotNull { it.convert2XY() }
@@ -403,43 +404,127 @@ class Route(val name: String, var route: List<Point>, directionsIn: List<Directi
 
 
         // truncate our points so we can send them to the device without it crashing/taking too long
-        // 1. Create a set of indices that must be kept.
+        // 1. Mandatory indices that must be kept
         val directionIndices = directions.map { it.routeIndex }.toSet()
 
-        // 2. Identify indices for points that are not mandatory.
+        // 2. Identify non-essential points
         val otherIndices = route.indices.filter { it !in directionIndices }
 
-        // 3. Calculate how many additional points we can afford to keep.
-        val remainingCapacity = routeSettings.coordinatesPointLimit - directionIndices.size
+        // 3. Douglas-Peucker Reduction
+        // We simplify segments BETWEEN mandatory direction points to ensure they are never moved or removed.
+        val toleranceMeters = 20.0
+        val reducedOtherIndices = mutableListOf<Int>()
 
-        val finalIndicesToKeep = mutableSetOf<Int>()
-        finalIndicesToKeep.addAll(directionIndices) // Add all mandatory direction indices.
+        // Create a sorted list of mandatory "anchor" indices (Start, Directions, End)
+        val anchors = (directionIndices + 0 + (route.size - 1)).distinct().sorted()
 
-        // 4. If there's capacity, sample from the other non-essential points.
-        if (remainingCapacity > 0 && otherIndices.isNotEmpty()) {
-            val nthPoint =
-                Math.ceil(otherIndices.size.toDouble() / remainingCapacity).toInt().coerceAtLeast(1)
-            for (i in otherIndices.indices step nthPoint) {
-                finalIndicesToKeep.add(otherIndices[i])
+        for (i in 0 until anchors.size - 1) {
+            val startIdx = anchors[i]
+            val endIdx = anchors[i + 1]
+
+            // If there are points between these two anchors, simplify them
+            if (endIdx - startIdx > 1) {
+                val indicesToKeepInSegment = mutableListOf<Int>()
+
+                // Run DP on the segment (excluding the anchors themselves as they are already in directionIndices)
+                simplifyDouglasPeucker(
+                    points = route,
+                    first = startIdx,
+                    last = endIdx,
+                    epsilon = toleranceMeters,
+                    keepIndices = indicesToKeepInSegment
+                )
+
+                // Add the discovered indices (filtering out the anchors to avoid duplicates)
+                reducedOtherIndices.addAll(indicesToKeepInSegment.filter { it != startIdx && it != endIdx })
             }
         }
 
-        // 5. Build the new route from the selected indices, ensuring the final list is sorted by the original index.
-        val sortedIndicesToKeep = finalIndicesToKeep.sorted()
-        route = sortedIndicesToKeep.mapNotNull { index -> route.getOrNull(index) }
+        // 4. Calculate remaining capacity
+        val remainingCapacity = routeSettings.coordinatesPointLimit - directionIndices.size
+        val finalIndicesToKeep = mutableSetOf<Int>()
+        finalIndicesToKeep.addAll(directionIndices)
+        finalIndicesToKeep.add(0)
+        finalIndicesToKeep.add(route.size - 1)
 
-        // 6. After truncating the route, the `routeIndex` in the directions is now incorrect.
-        //    We need to create a map from the old indices to the new indices.
-        val oldToNewIndexMap = sortedIndicesToKeep
-            .withIndex()
-            .associate { (newIndex, oldIndex) -> oldIndex to newIndex }
+        // 5. Fallback: If still too many points, use nthPoint sampling on the reduced set
+        if (remainingCapacity > 0 && reducedOtherIndices.isNotEmpty()) {
+            val otherSorted = reducedOtherIndices.distinct().sorted()
+            if (otherSorted.size <= remainingCapacity) {
+                finalIndicesToKeep.addAll(otherSorted)
+            } else {
+                val nthPoint = Math.ceil(otherSorted.size.toDouble() / remainingCapacity)
+                    .toInt().coerceAtLeast(1)
+                for (i in otherSorted.indices step nthPoint) {
+                    finalIndicesToKeep.add(otherSorted[i])
+                }
+            }
 
-        // 7. Update the `directions` list with the new, correct `routeIndex`.
-        //    Since all `directionIndices` were preserved, every `routeIndex` will exist in our map.
-        directions = directions.map { direction ->
-            val newIndex = oldToNewIndexMap[direction.routeIndex]
-            direction.copy(routeIndex = newIndex!!)
+            // 6. Rebuild route and update mappings
+            val sortedIndicesToKeep = finalIndicesToKeep.sorted()
+            route = sortedIndicesToKeep.mapNotNull { index -> route.getOrNull(index) }
+
+            val oldToNewIndexMap = sortedIndicesToKeep
+                .withIndex()
+                .associate { (newIndex, oldIndex) -> oldIndex to newIndex }
+
+            // 7. Update directions with preserved indices
+            directions = directions.map { direction ->
+                val newIndex = oldToNewIndexMap[direction.routeIndex]
+                direction.copy(routeIndex = newIndex!!)
+            }
         }
+    }
+
+    private fun simplifyDouglasPeucker(
+        points: List<Point>,
+        first: Int,
+        last: Int,
+        epsilon: Double,
+        keepIndices: MutableList<Int>
+    ) {
+        var maxDistance = 0.0
+        var index = 0
+
+        for (i in first + 1 until last) {
+            val distance = calculatePerpendicularDistance(points[i], points[first], points[last])
+            if (distance > maxDistance) {
+                index = i
+                maxDistance = distance
+            }
+        }
+
+        if (maxDistance > epsilon) {
+            // Recursive call
+            simplifyDouglasPeucker(points, first, index, epsilon, keepIndices)
+            keepIndices.add(index)
+            simplifyDouglasPeucker(points, index, last, epsilon, keepIndices)
+        }
+    }
+
+    private fun calculatePerpendicularDistance(p: Point, start: Point, end: Point): Double {
+        val l2 = calculateDistanceInMeters(start, end).let { it * it }
+        if (l2 == 0.0) return calculateDistanceInMeters(p, start)
+
+        // Standard cross-track distance or perpendicular distance logic
+        // For small distances, a planar approximation is very fast and sufficient:
+        val lat = p.latitude
+        val lon = p.longitude
+        val sLat = start.latitude
+        val sLon = start.longitude
+        val eLat = end.latitude
+        val eLon = end.longitude
+
+        val t = ((lat - sLat) * (eLat - sLat) + (lon - sLon) * (eLon - sLon)) / l2
+        val tClamped = t.coerceIn(0.0, 1.0)
+
+        val nearestPoint = Point(
+            (sLat + tClamped * (eLat - sLat)).toFloat(),
+            (sLon + tClamped * (eLon - sLon)).toFloat(),
+            0f
+        )
+
+        return calculateDistanceInMeters(p, nearestPoint)
     }
 
     override fun type(): ProtocolType {

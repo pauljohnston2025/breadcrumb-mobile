@@ -168,7 +168,11 @@ class MapViewModel(
                 activities.map { activity ->
                     async(Dispatchers.Default) {
 //                        val stream = streamsMap[activity.id]
-                        val route = activity.toRoute()
+                        // significantly less points when using the summary polyline
+                        // and i can't tell the difference (resolution seems fine)
+                        // note: the summary polyline does not have elevation data,
+                        // but we do not need that for display and click functionality
+                        val route = activity.summaryToRoute()
 
                         // Accessing projectedPoints here triggers the lazy
                         // calculation in the background.
