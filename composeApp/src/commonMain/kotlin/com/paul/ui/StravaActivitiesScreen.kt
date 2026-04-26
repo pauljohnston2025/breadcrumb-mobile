@@ -1,5 +1,6 @@
 package com.paul.ui
 
+import androidx.activity.compose.BackHandler
 import com.paul.composables.RouteMiniMap
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -39,6 +40,10 @@ import androidx.compose.material3.TextButton as M3TextButton
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StravaActivitiesScreen(viewModel: StravaActivitiesViewModel, tileRepository: ITileRepository) {
+    BackHandler(enabled = viewModel.sendingFile.value != "") {
+        // prevent back handler when we are trying to do things, todo cancel the job we are trying to do
+    }
+
     val rawActivities by viewModel.activities.collectAsState(emptyList())
     val isSyncing by viewModel.isSyncing.collectAsState()
     val status by viewModel.loginStatus.collectAsState()
@@ -198,9 +203,12 @@ fun StravaActivitiesScreen(viewModel: StravaActivitiesViewModel, tileRepository:
         ) {
             LazyColumn {
                 itemsIndexed(filteredActivities, key = { _, a -> a.id }) { index, activity ->
-                    StravaActivityListItem(activity, tileRepository) {
-                        viewModel.previewActivity(activity)
-                    }
+                    StravaActivityListItem(
+                        activity,
+                        tileRepository,
+                        { viewModel.previewActivity(activity) },
+                        { viewModel.sendActivityToDevice(activity) },
+                    )
                     if (index < filteredActivities.lastIndex) {
                         Divider(
                             modifier = Modifier.padding(horizontal = 12.dp),
@@ -222,18 +230,22 @@ fun StravaActivitiesScreen(viewModel: StravaActivitiesViewModel, tileRepository:
             }
         )
     }
+
+    SendingFileOverlay(
+        sendingMessage = viewModel.sendingFile
+    )
 }
 
 @Composable
 private fun StravaActivityListItem(
     activity: StravaActivity,
     tileRepository: ITileRepository,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onSendClick: () -> Unit,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() }
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -262,7 +274,6 @@ private fun StravaActivityListItem(
                 overflow = TextOverflow.Ellipsis
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
-                // RESTORED: Using getActivityIcon() from StravaActivity.kt
                 Icon(
                     imageVector = activity.getActivityIcon(),
                     contentDescription = null,
@@ -278,14 +289,48 @@ private fun StravaActivityListItem(
                 )
             }
             Text(
-                text = activity.startDate.toLocalDateTime(TimeZone.currentSystemDefault()).toString(),
+                text = activity.startDate.toLocalDateTime(TimeZone.currentSystemDefault())
+                    .toString().replace("T", " "),
                 style = MaterialTheme.typography.caption,
                 color = Color.Gray
             )
-        }
 
-        // Actions (Right)
-        Icon(Icons.Default.LocationOn, null, tint = MaterialTheme.colors.primary.copy(0.6f))
+            // Actions Row (Bottom Right of the info column)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Spacer(Modifier.weight(1f))
+
+                // Preview Button
+                IconButton(
+                    onClick = onClick,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.LocationOn,
+                        contentDescription = "Preview",
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colors.primary.copy(alpha = 0.8f)
+                    )
+                }
+
+                Spacer(Modifier.width(8.dp))
+
+                // Play/Send Button
+                IconButton(
+                    onClick = onSendClick,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = "Send to Device",
+                        modifier = Modifier.size(24.dp),
+                        tint = Color(0xFF4CAF50) // Green
+                    )
+                }
+            }
+        }
     }
 }
 

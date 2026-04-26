@@ -356,6 +356,10 @@ fun App(
                                             stravaRepository,
                                             mapViewModel,
                                             scaffoldState.snackbarHostState,
+                                            connection,
+                                            deviceSelector,
+                                            startViewModel.routeRepo,
+                                            mapViewModel.historyRepo,
                                         )
                                     }
 
