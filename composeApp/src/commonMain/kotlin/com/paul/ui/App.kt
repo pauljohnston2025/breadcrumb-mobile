@@ -168,7 +168,9 @@ fun App(
                         fileHelper,
                         scaffoldState.snackbarHostState,
                         mapViewModel,
-                        settingsViewModel.routesRepo
+                        settingsViewModel.routesRepo,
+                        mapViewModel.historyRepo,
+                        stravaRepository,
                     )
                 }
 

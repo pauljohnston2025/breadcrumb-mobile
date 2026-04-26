@@ -13,9 +13,12 @@ import androidx.lifecycle.viewModelScope
 import com.benasher44.uuid.uuid4
 import com.paul.composables.byteArrayToImageBitmap
 import com.paul.domain.ColourPalette
+import com.paul.domain.IRoute
+import com.paul.domain.StaveIRoute
 import com.paul.domain.StravaActivity
 import com.paul.domain.TileServerInfo
 import com.paul.infrastructure.connectiq.IConnection
+import com.paul.infrastructure.repositories.HistoryRepository
 import com.paul.infrastructure.repositories.ITileRepository
 import com.paul.infrastructure.repositories.RouteRepository
 import com.paul.infrastructure.repositories.StravaRepository
@@ -23,7 +26,9 @@ import com.paul.infrastructure.repositories.TileServerRepo
 import com.paul.infrastructure.service.ColourPaletteConverter
 import com.paul.infrastructure.service.GeoPosition
 import com.paul.infrastructure.service.ILocationService
+import com.paul.infrastructure.service.SendMessageHelper
 import com.paul.infrastructure.service.SendMessageHelper.Companion.sendingMessage
+import com.paul.infrastructure.service.SendRoute
 import com.paul.infrastructure.service.TileId
 import com.paul.infrastructure.service.UserLocation
 import com.paul.protocol.todevice.CacheCurrentArea
@@ -77,6 +82,8 @@ class MapViewModel(
     val stravaRepo: StravaRepository,
     val routeRepository: RouteRepository,
 ) : ViewModel() {
+
+    val historyRepo = HistoryRepository()
 
     private var seedingJob: Job? = null
 
@@ -825,5 +832,68 @@ class MapViewModel(
         val yTile =
             ((1.0 - Math.log(Math.tan(latRad) + 1.0 / Math.cos(latRad)) / Math.PI) / 2.0 * n).toInt()
         return Pair(xTile, yTile)
+    }
+
+    fun openActivityInStrava(id: Long) {
+        viewModelScope.launch {
+            try {
+                // This usually involves calling a method on the repository to get the URL
+                // and then using an Intent handler or similar mechanism to open it.
+                stravaRepo.openActivityInBrowser(id)
+            } catch (t: Throwable) {
+                snackbarHostState.showSnackbar("Could not open Strava activity")
+                Napier.e("Failed to open Strava", t)
+            }
+        }
+    }
+
+    fun previewActivity(activity: StravaActivity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val stream = stravaRepo.getStreamForActivity(activity.id)
+                if (stream == null) {
+                    snackbarHostState.showSnackbar("Failed to load activity stream, please do a full delete/resync")
+                    return@launch
+                }
+                displayRoute(stream.toRouteForDevice(activity.name))
+
+            } catch (t: Throwable) {
+                snackbarHostState.showSnackbar("Failed to load activity preview")
+                Napier.e("Preview failed", t)
+            }
+        }
+    }
+
+    fun sendActivityToDevice(activity: StravaActivity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val stream = stravaRepo.getStreamForActivity(activity.id)
+                if (stream == null) {
+                    snackbarHostState.showSnackbar("Failed to load activity stream, please do a full delete/resync")
+                    return@launch
+                }
+                sendRoute(StaveIRoute(activity, stream))
+
+            } catch (t: Throwable) {
+                snackbarHostState.showSnackbar("Failed to load activity preview")
+                Napier.e("Preview failed", t)
+            }
+        }
+    }
+
+    private suspend fun sendRoute(
+        gpxRoute: IRoute
+    ) {
+        SendRoute.sendRoute(
+            gpxRoute,
+            deviceSelector,
+            snackbarHostState,
+            connection,
+            routeRepository,
+            historyRepo,
+        )
+        { msg, cb ->
+            this.sendingMessage(msg, cb)
+        }
     }
 }

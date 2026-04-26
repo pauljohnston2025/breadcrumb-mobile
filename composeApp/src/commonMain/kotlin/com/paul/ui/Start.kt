@@ -44,6 +44,7 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -64,8 +65,10 @@ import androidx.core.text.HtmlCompat
 import com.paul.composables.LoadingOverlay
 import com.paul.domain.HistoryItem
 import com.paul.domain.RouteEntry
+import com.paul.domain.StravaActivity
 import com.paul.infrastructure.repositories.ITileRepository
 import com.paul.infrastructure.repositories.RouteRepository
+import com.paul.infrastructure.repositories.StravaRepository
 import com.paul.protocol.todevice.Route
 import com.paul.viewmodels.StartViewModel
 import kotlinx.datetime.TimeZone.Companion.currentSystemDefault
@@ -190,6 +193,9 @@ fun Start(
                 tileRepository,
                 viewModel.routeRepo,
                 viewModel.snackbarHostState,
+                viewModel.stravaRepository,
+                viewModel::previewActivity,
+                viewModel::sendActivityToDevice,
             )
 
         } // End Main Column
@@ -287,6 +293,9 @@ private fun HistoryListSection(
     tileRepository: ITileRepository,
     routeRepo: RouteRepository,
     snackbarHostState: SnackbarHostState,
+    stravaRepository: StravaRepository,
+    onPreviewStrava: (StravaActivity) -> Unit,
+    onSendStrava: (StravaActivity) -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -338,6 +347,9 @@ private fun HistoryListSection(
                             tileRepository,
                             routeRepo,
                             snackbarHostState,
+                            stravaRepository,
+                            onPreviewStrava,
+                            onSendStrava,
                         )
                         Divider()
                     }
@@ -358,12 +370,44 @@ private fun HistoryListItem(
     tileRepository: ITileRepository,
     routeRepo: RouteRepository,
     snackbarHostState: SnackbarHostState,
+    stravaRepository: StravaRepository,
+    onPreviewStrava: (StravaActivity) -> Unit,
+    onSendStrava: (StravaActivity) -> Unit,
 ) {
-    val route = remember(item.routeId, routes) { routes.find { it.id == item.routeId } }
-    val name = if (route == null || route.name.isEmpty()) "<unknown>" else route.name
+    // 1. Resolve local route if it exists
+    val localRoute = remember(item.routeId, routes) { routes.find { it.id == item.routeId } }
 
-    val routeDetail by produceState<Route?>(initialValue = null, route?.id) {
-        value = routeRepo.getRouteEntrySummary(route, snackbarHostState)
+    // 2. State for Display Name and Strava Activity
+    var displayName by remember { mutableStateOf(localRoute?.name ?: "Loading...") }
+    var stravaActivity by remember { mutableStateOf<StravaActivity?>(null) }
+
+    // 3. Fetch Strava metadata if this is a Strava item
+    LaunchedEffect(item.id) {
+        if (item.isStrava()) {
+            val activityId = item.stravaId()
+            if (activityId != null) {
+                val activity = stravaRepository.getActivity(activityId)
+                if (activity != null) {
+                    stravaActivity = activity
+                    displayName = activity.name
+                } else {
+                    displayName = "Strava Activity"
+                }
+            }
+        } else if (localRoute != null) {
+            displayName = localRoute.name
+        } else {
+            displayName = "Unknown Route"
+        }
+    }
+
+    // 4. Fetch Route Detail (for the MiniMap)
+    val routeDetail by produceState<Route?>(initialValue = null, localRoute?.id, stravaActivity) {
+        if (item.isStrava()) {
+            value = stravaActivity?.summaryToRoute()
+        } else {
+            value = routeRepo.getRouteEntrySummary(localRoute, snackbarHostState)
+        }
     }
 
     Row(
@@ -372,7 +416,7 @@ private fun HistoryListItem(
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 1. Map Thumbnail (Left)
+        // --- Map Thumbnail ---
         Box(
             modifier = Modifier
                 .size(72.dp)
@@ -396,11 +440,11 @@ private fun HistoryListItem(
 
         Spacer(Modifier.width(16.dp))
 
-        // 2. Info Column (Middle)
+        // --- Info Column ---
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = name,
+                    text = displayName,
                     style = MaterialTheme.typography.subtitle1,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
@@ -415,13 +459,33 @@ private fun HistoryListItem(
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Spacer(Modifier.weight(1f))
-                if (route != null) {
-                    IconButton(onClick = { onEditClick(route) }, modifier = Modifier.size(32.dp)) {
+
+                // Action Buttons
+                if (!item.isStrava() && localRoute != null) {
+                    // Only show Edit for local routes
+                    IconButton(
+                        onClick = { onEditClick(localRoute) },
+                        modifier = Modifier.size(32.dp)
+                    ) {
                         Icon(Icons.Default.Edit, null, Modifier.size(18.dp), tint = Color.Gray)
                     }
-                    // THE MISSING PREVIEW ICON
+                }
+
+                if (item.isStrava() && stravaActivity != null) {
                     IconButton(
-                        onClick = { onPreviewClick(route) },
+                        onClick = { stravaActivity?.let { onPreviewStrava(it) } },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.LocationOn,
+                            null,
+                            Modifier.size(18.dp),
+                            tint = MaterialTheme.colors.primary
+                        )
+                    }
+                } else if (localRoute != null) {
+                    IconButton(
+                        onClick = { onPreviewClick(localRoute) },
                         modifier = Modifier.size(32.dp)
                     ) {
                         Icon(
@@ -432,7 +496,18 @@ private fun HistoryListItem(
                         )
                     }
                 }
-                IconButton(onClick = onSendClick, modifier = Modifier.size(32.dp)) {
+
+                // Send/Play Action
+                IconButton(
+                    onClick = {
+                        if (item.isStrava()) {
+                            stravaActivity?.let { onSendStrava(it) }
+                        } else {
+                            onSendClick()
+                        }
+                    },
+                    modifier = Modifier.size(32.dp),
+                ) {
                     Icon(
                         Icons.Default.PlayArrow,
                         null,

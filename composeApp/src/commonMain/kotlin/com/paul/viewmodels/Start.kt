@@ -8,10 +8,13 @@ import androidx.lifecycle.viewModelScope
 import com.paul.domain.HistoryItem
 import com.paul.domain.IRoute
 import com.paul.domain.RouteEntry
+import com.paul.domain.StaveIRoute
+import com.paul.domain.StravaActivity
 import com.paul.infrastructure.connectiq.IConnection
 import com.paul.infrastructure.repositories.HistoryRepository
 import com.paul.infrastructure.repositories.KomootRepository
 import com.paul.infrastructure.repositories.RouteRepository
+import com.paul.infrastructure.repositories.StravaRepository
 import com.paul.infrastructure.service.IFileHelper
 import com.paul.infrastructure.service.IGpxFileLoader
 import com.paul.infrastructure.service.SendMessageHelper
@@ -51,7 +54,9 @@ class StartViewModel(
     private val fileHelper: IFileHelper,
     val snackbarHostState: SnackbarHostState,
     private val mapViewModel: MapViewModel,
-    val routeRepo: RouteRepository
+    val routeRepo: RouteRepository,
+    val historyRepo: HistoryRepository,
+    val stravaRepository: StravaRepository,
 ) : ViewModel() {
     val settings: Settings = Settings()
 
@@ -60,7 +65,6 @@ class StartViewModel(
     val htmlErrorMessage: MutableState<String> = mutableStateOf("")
     private val client = KtorClient.client // Get the singleton client instance
     private val komootRepo = KomootRepository()
-    val historyRepo = HistoryRepository()
     private val _deletingHistoryItem = MutableStateFlow<HistoryItem?>(null)
     val deletingHistoryItem: StateFlow<HistoryItem?> = _deletingHistoryItem.asStateFlow()
 
@@ -333,6 +337,48 @@ class StartViewModel(
             }
             sendingMessage("Loading Settings From Device.\nEnsure an activity with the datafield is running (or at least open) or this will fail. Note: this can take a long time (up to 5 minutes) on older devices, be patient. Press back to cancel") {
                 deviceSelector.openDeviceSettingsSuspend(device)
+            }
+        }
+    }
+
+    fun sendActivityToDevice(activity: StravaActivity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val stream = stravaRepository.getStreamForActivity(activity.id)
+                if (stream == null) {
+                    snackbarHostState.showSnackbar("Failed to load activity stream, please do a full delete/resync")
+                    return@launch
+                }
+                sendRoute(StaveIRoute(activity, stream))
+
+            } catch (t: Throwable) {
+                snackbarHostState.showSnackbar("Failed to load activity preview")
+                Napier.e("Preview failed", t)
+            }
+        }
+    }
+
+    fun previewActivity(activity: StravaActivity) {
+        val polyline = activity.map?.summaryPolyline
+        if (polyline.isNullOrBlank()) {
+            viewModelScope.launch {
+                snackbarHostState.showSnackbar("No map data available for this activity")
+            }
+            return
+        }
+
+        viewModelScope.launch(Dispatchers.Default) {
+            try {
+                val stream = stravaRepository.getStreamForActivity(activity.id)
+                if (stream == null) {
+                    snackbarHostState.showSnackbar("Failed to load activity stream, please do a full delete/resync")
+                    return@launch
+                }
+
+                mapViewModel.displayRoute(stream.toRoute(activity.name))
+                _navigationEvents.emit(StartNavigationEvent.NavigateTo(Screen.Map.route))
+            } catch (e: Exception) {
+                snackbarHostState.showSnackbar("Failed to parse map data")
             }
         }
     }

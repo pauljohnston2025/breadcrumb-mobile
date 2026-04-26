@@ -136,7 +136,8 @@ fun MapTilerComposable(
     val userLocation by viewModel.userLocation.collectAsState()
     val tilServer by viewModel.tileServerRepository.currentServerFlow().collectAsState()
     val tileCache by viewModel.tileCacheState.collectAsState()
-    val routeSettings by viewModel.routeRepository.currentSettingsFlow().collectAsStateWithLifecycle()
+    val routeSettings by viewModel.routeRepository.currentSettingsFlow()
+        .collectAsStateWithLifecycle()
 
     var localCenterGeo by remember {
         mutableStateOf(
@@ -352,6 +353,37 @@ fun MapTilerComposable(
                         )
                     }
                 }
+
+                if (isStravaEnabled) {
+                    stravaRoutes.values.forEach { route ->
+                        val path = Path()
+                        route.route.forEachIndexed { index, pt ->
+                            val geo = GeoPosition(pt.latitude.toDouble(), pt.longitude.toDouble())
+
+                            val pos = geoToScreenPixel(
+                                geo,
+                                localCenterGeo,
+                                integerZoom.toFloat(),
+                                viewportSize
+                            )
+
+                            if (index == 0) path.moveTo(pos.x.toFloat(), pos.y.toFloat())
+                            else path.lineTo(pos.x.toFloat(), pos.y.toFloat())
+                        }
+
+                        drawPath(
+                            path = path,
+                            color = Color(0xFFFC4C02).copy(alpha = 0.7f), // Strava Orange
+                            style = Stroke(
+                                // Divide by scale so the line width stays consistent while zooming
+                                width = 6f / scale,
+                                cap = StrokeCap.Round,
+                                join = StrokeJoin.Round
+                            )
+                        )
+                    }
+                }
+
                 routeToDisplay?.let { route ->
                     if (route.route.size >= 2) {
                         val path = Path()
@@ -553,26 +585,6 @@ fun MapTilerComposable(
                     style = Stroke(width = 3f)
                 )
             }
-
-            if (isStravaEnabled) {
-                stravaRoutes.values.forEach { route ->
-                    val path = Path()
-                    route.route.forEachIndexed { index, pt ->
-                        val geo = GeoPosition(pt.latitude.toDouble(), pt.longitude.toDouble())
-                        val pos = geoToScreenPixel(geo, localCenterGeo, localZoom, viewportSize)
-
-                        if (index == 0) path.moveTo(pos.x.toFloat(), pos.y.toFloat())
-                        else path.lineTo(pos.x.toFloat(), pos.y.toFloat())
-                    }
-
-                    drawPath(
-                        path = path, color = Color(0xFFFC4C02).copy(alpha = 0.8f), // Strava Orange
-                        style = Stroke(
-                            width = 6f, cap = StrokeCap.Round, join = StrokeJoin.Round
-                        )
-                    )
-                }
-            }
         }
         Column(
             modifier = Modifier
@@ -589,7 +601,9 @@ fun MapTilerComposable(
                     onClick = { viewModel.toggleStrava(!isStravaEnabled) },
                     colors = ButtonDefaults.buttonColors(
                         // Match the background of your other buttons
-                        backgroundColor = if (isStravaEnabled) MaterialTheme.colors.primary else MaterialTheme.colors.primary.copy(alpha = 0.8f),
+                        backgroundColor = if (isStravaEnabled) MaterialTheme.colors.primary else MaterialTheme.colors.primary.copy(
+                            alpha = 0.8f
+                        ),
                         contentColor = Color.Unspecified // Prevents automatic tinting
                     ),
                 ) {

@@ -462,4 +462,17 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
     fun saveClientId(id: String) = settings.putString(CLIENT_ID_KEY, id)
     fun getClientSecret() = settings.getString(CLIENT_SECRET_KEY, "")
     fun saveClientSecret(secret: String) = settings.putString(CLIENT_SECRET_KEY, secret)
+    fun openActivityInBrowser(id: Long) {
+        val activityUrl = "https://www.strava.com/activities/$id"
+        try {
+            browserLauncher.openUri(activityUrl)
+        } catch (e: Exception) {
+            Napier.e("Could not open Strava activity in browser", e)
+            throw e
+        }
+    }
+
+    suspend fun getActivity(activityId: Long): StravaActivity? {
+        return dao.getActivity(activityId)
+    }
 }

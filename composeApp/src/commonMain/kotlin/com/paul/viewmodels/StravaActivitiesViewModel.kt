@@ -72,7 +72,7 @@ class StravaActivitiesViewModel(
             try {
                 val stream = stravaRepo.getStreamForActivity(activity.id)
                 if (stream == null) {
-                    snackbarHostState.showSnackbar("Failed to load activity steam, please do a full delete/resync")
+                    snackbarHostState.showSnackbar("Failed to load activity stream, please do a full delete/resync")
                     return@launch
                 }
 

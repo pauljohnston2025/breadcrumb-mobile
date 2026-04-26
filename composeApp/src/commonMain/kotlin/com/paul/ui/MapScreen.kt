@@ -1,5 +1,10 @@
 package com.paul.ui
 
+import androidx.compose.material.icons.filled.DirectionsRun
+import androidx.compose.material.icons.filled.DirectionsBike
+import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.Surface
 import androidx.compose.material.IconButton
 import androidx.compose.material.Divider
@@ -28,6 +33,7 @@ import androidx.compose.foundation.text.ClickableText
 import androidx.compose.material.AlertDialog
 import androidx.compose.material.Button
 import androidx.compose.material.ButtonDefaults
+import androidx.compose.material.Card
 import androidx.compose.material.Icon
 import androidx.compose.material.LinearProgressIndicator
 import androidx.compose.material.LocalContentColor
@@ -42,7 +48,9 @@ import androidx.compose.material.icons.filled.Directions
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Downloading
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Terrain
 import androidx.compose.material.icons.filled.Watch
@@ -234,19 +242,111 @@ fun MapScreen(viewModel: MapViewModel) {
                                     Icon(Icons.Default.Close, contentDescription = "Close")
                                 }
                             }
-                            LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) { // Slightly taller for center view
+                            LazyColumn(modifier = Modifier.heightIn(max = 400.dp)) {
                                 items(nearbyActivities) { activity ->
-                                    Text(
-                                        text = activity.name,
+                                    Card(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .clickable {
-                                                // Optional: clear list on selection to focus on the map
-                                                // viewModel.clearNearbyActivities()
+                                            .padding(vertical = 4.dp),
+                                        elevation = 2.dp,
+                                        shape = RoundedCornerShape(8.dp)
+                                    ) {
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(12.dp)
+                                        ) {
+                                            // 1. Activity Title at the top
+                                            Text(
+                                                text = activity.name,
+                                                style = MaterialTheme.typography.subtitle1,
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
+
+                                            Spacer(modifier = Modifier.height(8.dp))
+
+                                            // 2. Bottom section: Icon/Type on left, All Controls on right
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                // Left Side: Icon and Type
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Icon(
+                                                        imageVector = activity.getActivityIcon(),
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(18.dp),
+                                                        tint = MaterialTheme.colors.primary
+                                                    )
+                                                    Spacer(modifier = Modifier.width(8.dp))
+                                                    Text(
+                                                        text = activity.type ?: "Unknown",
+                                                        style = MaterialTheme.typography.caption,
+                                                        color = LocalContentColor.current.copy(alpha = 0.7f)
+                                                    )
+                                                }
+
+                                                // Right Side: Action Buttons (Grouped)
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    // Preview/Location Button
+                                                    IconButton(
+                                                        onClick = {
+                                                            viewModel.previewActivity(
+                                                                activity
+                                                            )
+                                                        },
+                                                        modifier = Modifier.size(32.dp)
+                                                    ) {
+                                                        Icon(
+                                                            Icons.Default.LocationOn,
+                                                            contentDescription = "Preview",
+                                                            modifier = Modifier.size(20.dp),
+                                                            tint = MaterialTheme.colors.primary
+                                                        )
+                                                    }
+
+                                                    // Send to Watch Button
+                                                    IconButton(
+                                                        onClick = {
+                                                            viewModel.sendActivityToDevice(
+                                                                activity
+                                                            )
+                                                        },
+                                                        enabled = !isWatchFeatureDisabled,
+                                                        modifier = Modifier.size(32.dp)
+                                                    ) {
+                                                        Icon(
+                                                            Icons.Default.PlayArrow,
+                                                            contentDescription = "Send to Device",
+                                                            modifier = Modifier.size(20.dp),
+                                                            tint = Color(0xFF4CAF50),
+                                                        )
+                                                    }
+
+                                                    // Strava Link Button (Restored)
+                                                    IconButton(
+                                                        onClick = {
+                                                            viewModel.openActivityInStrava(
+                                                                activity.id
+                                                            )
+                                                        },
+                                                        modifier = Modifier.size(32.dp)
+                                                    ) {
+                                                        Icon(
+                                                            Icons.Default.OpenInNew,
+                                                            contentDescription = "Open in Strava",
+                                                            modifier = Modifier.size(20.dp),
+                                                            tint = MaterialTheme.colors.primary
+                                                        )
+                                                    }
+                                                }
                                             }
-                                            .padding(vertical = 12.dp)
-                                    )
-                                    Divider()
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -990,7 +1090,8 @@ fun StravaMapFilterSection(viewModel: MapViewModel) {
                     tint = MaterialTheme.colors.primary
                 )
                 Spacer(Modifier.width(6.dp))
-                val start = currentRange.start.toLocalDateTime(TimeZone.currentSystemDefault()).date.toString()
+                val start =
+                    currentRange.start.toLocalDateTime(TimeZone.currentSystemDefault()).date.toString()
                 val end =
                     currentRange.endInclusive.toLocalDateTime(TimeZone.currentSystemDefault()).date.toString()
                 Text(

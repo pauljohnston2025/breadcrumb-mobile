@@ -1,5 +1,6 @@
 package com.paul.domain
 
+import androidx.compose.material.SnackbarHostState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DirectionsBike
 import androidx.compose.material.icons.filled.DirectionsRun
@@ -15,6 +16,7 @@ import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import com.benasher44.uuid.uuid4
 import com.paul.protocol.todevice.Point
 import com.paul.protocol.todevice.Route
 import kotlinx.datetime.Instant
@@ -57,6 +59,10 @@ data class StravaStreamEntity(
     fun toRoute(name: String): Route {
         return Route(name, points, emptyList())
     }
+
+    fun toRouteForDevice(name: String): Route {
+        return Route.prepareForDevice(name, points, emptyList())
+    }
 }
 
 @Serializable
@@ -72,7 +78,17 @@ data class StravaActivity(
     val type: String? = null,
 ) {
     companion object {
-        val SUPPORTED_TYPES = listOf("All", "Run", "Ride", "Hike", "Walk", "Swim", "WaterSport", "Kayaking", "Unknown")
+        val SUPPORTED_TYPES = listOf(
+            "All",
+            "Run",
+            "Ride",
+            "Hike",
+            "Walk",
+            "Swim",
+            "WaterSport",
+            "Kayaking",
+            "Unknown"
+        )
 
         fun getActivityIcon(type: String?): ImageVector {
             return when (type) {
@@ -151,5 +167,34 @@ data class StravaMap(
             return emptyList()
         }
         return points
+    }
+}
+
+class StaveIRoute(
+    val activity: StravaActivity,
+    val stravaStreamEntity: StravaStreamEntity
+) : IRoute("strava:${activity.id}") {
+    override suspend fun toRouteForDevice(snackbarHostState: SnackbarHostState): Route? {
+        return stravaStreamEntity.toRouteForDevice(activity.name)
+    }
+
+    override suspend fun toSummary(snackbarHostState: SnackbarHostState): List<Point> {
+        return activity.summaryToRoute().route
+    }
+
+    override fun name(): String {
+        return activity.name
+    }
+
+    override fun rawBytes(): ByteArray {
+        return byteArrayOf()
+    }
+
+    override fun setName(name: String) {
+
+    }
+
+    override fun hasDirectionInfo(): Boolean {
+        return false
     }
 }

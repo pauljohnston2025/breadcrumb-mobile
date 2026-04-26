@@ -36,7 +36,7 @@ class SendRoute {
             var route: Route? = null
             sendingMessage("Loading Route") {
                 try {
-                    if (routeRepo.getRouteEntry(gpxRoute.id) == null) {
+                    if (!gpxRoute.isStrava() && routeRepo.getRouteEntry(gpxRoute.id) == null) {
                         routeRepo.saveRoute(gpxRoute)
                     }
 
@@ -48,7 +48,7 @@ class SendRoute {
                     historyRepo.add(historyItem)
                     route = gpxRoute.toRouteForDevice(snackbarHostState)
                 } catch (e: Exception) {
-                    Napier.d("Failed to parse route: ${e.message}")
+                    Napier.e("Failed to parse route: ${e.message}")
                 }
             }
 

@@ -67,4 +67,7 @@ interface StravaDao {
         WHERE id NOT IN (SELECT activityId FROM strava_streams)
     """)
     suspend fun getActivityIdsMissingStreams(): List<Long>
+
+    @Query("SELECT * FROM strava_activities WHERE id = :id")
+    suspend fun getActivity(id: Long): StravaActivity?
 }

@@ -31,6 +31,11 @@ abstract class IRoute(var id: String = uuid4().toString()) {
     abstract fun rawBytes(): ByteArray
     abstract fun setName(name: String)
     abstract fun hasDirectionInfo(): Boolean
+
+    // dirty dirty hacks
+    fun isStrava(): Boolean {
+        return id.startsWith("strava:")
+    }
 }
 
 abstract class GpxRoute : IRoute()
