@@ -386,6 +386,7 @@ private fun HistoryListItem(
     // 2. State for Display Name and Strava Activity
     var displayName by remember { mutableStateOf(localRoute?.name ?: "Loading...") }
     var stravaActivity by remember { mutableStateOf<StravaActivity?>(null) }
+    var isStravaMetadataLoaded by remember { mutableStateOf(false) }
 
     // 3. Fetch Strava metadata if this is a Strava item
     LaunchedEffect(item.id) {
@@ -397,9 +398,10 @@ private fun HistoryListItem(
                     stravaActivity = activity
                     displayName = activity.name
                 } else {
-                    displayName = "Strava Activity"
+                    displayName = "Strava Activity (${item.stravaId()})"
                 }
             }
+            isStravaMetadataLoaded = true
         } else if (localRoute != null) {
             displayName = localRoute.name
         } else {
@@ -409,11 +411,15 @@ private fun HistoryListItem(
 
     // 4. Fetch Route Detail (for the MiniMap)
     val routeDetail by produceState<Route?>(initialValue = null, localRoute?.id, stravaActivity) {
-        if (item.isStrava()) {
-            value = stravaActivity?.summaryToRoute()
+        val result = if (item.isStrava() && isStravaMetadataLoaded) {
+            stravaActivity?.summaryToRoute()
         } else {
-            value = routeRepo.getRouteEntrySummary(localRoute, snackbarHostState)
+            routeRepo.getRouteEntrySummary(localRoute, snackbarHostState)
         }
+
+        // If result is null, provide an empty Route object so the UI
+        // stops showing the CircularProgressIndicator.
+        value = result ?: Route("ignored name", emptyList(), emptyList())
     }
 
     Row(

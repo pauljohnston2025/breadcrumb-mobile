@@ -887,7 +887,9 @@ fun Settings(
                 }
 
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
@@ -901,11 +903,16 @@ fun Settings(
                 }
 
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text("Reduce points with Reumann-Witkam:", style = MaterialTheme.typography.body1)
+                    Text(
+                        "Reduce points with Reumann-Witkam:",
+                        style = MaterialTheme.typography.body1
+                    )
                     Switch(
                         checked = settings.useReumannWitkam,
                         onCheckedChange = { isChecked ->
@@ -995,16 +1002,25 @@ fun StravaSettings(viewModel: com.paul.viewmodels.Settings) {
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            OutlinedTextField(
-                value = currentPageSize.toString(),
-                onValueChange = {
-                    it.toLongOrNull()?.let { size -> viewModel.stravaRepo.setPageSize(size) }
-                },
-                label = { Text("Page Size") },
-                modifier = Modifier.weight(1f),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                OutlinedTextField(
+                    value = currentPageSize.toString(),
+                    onValueChange = {
+                        it.toLongOrNull()?.let { size -> viewModel.stravaRepo.setPageSize(size) }
+                    },
+                    label = { Text("Map Page Size") }, // Short, clean label
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true
+                )
+                // Supporting caption text
+                Text(
+                    text = "Number of Strava activities to show on the map at a time.",
+                    style = MaterialTheme.typography.caption,
+                    color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f),
+                    modifier = Modifier.padding(start = 4.dp, top = 4.dp)
+                )
+            }
         }
 
         Row(
