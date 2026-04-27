@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import com.paul.composables.RouteMiniMap
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -28,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -39,6 +41,7 @@ import com.paul.viewmodels.StravaActivitiesViewModel
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import kotlin.text.substringBefore
 import androidx.compose.material3.Text as M3Text
 import androidx.compose.material3.TextButton as M3TextButton
 
@@ -66,29 +69,30 @@ fun StravaActivitiesScreen(viewModel: StravaActivitiesViewModel, tileRepository:
     val sortOptions = listOf("Newest", "Oldest", "A-Z")
     var sortOrder by remember { mutableStateOf("Newest") }
 
-    val filteredActivities = remember(rawActivities, searchQuery, selectedType, selectedGearId, sortOrder) {
-        rawActivities
-            .filter { it.name.contains(searchQuery, ignoreCase = true) }
-            .filter {
-                if (selectedType == "All") {
-                    true
-                } else if (selectedType == "Unknown") {
-                    !StravaActivity.SUPPORTED_TYPES.contains(it.type)
-                } else {
-                    it.type == selectedType
+    val filteredActivities =
+        remember(rawActivities, searchQuery, selectedType, selectedGearId, sortOrder) {
+            rawActivities
+                .filter { it.name.contains(searchQuery, ignoreCase = true) }
+                .filter {
+                    if (selectedType == "All") {
+                        true
+                    } else if (selectedType == "Unknown") {
+                        !StravaActivity.SUPPORTED_TYPES.contains(it.type)
+                    } else {
+                        it.type == selectedType
+                    }
+                }.filter {
+                    selectedGearId == null || it.gearId == selectedGearId
                 }
-            }.filter {
-                selectedGearId == null || it.gearId == selectedGearId
-            }
-            .sortedWith { a, b ->
-                when (sortOrder) {
-                    "Newest" -> b.startDate.compareTo(a.startDate)
-                    "Oldest" -> a.startDate.compareTo(b.startDate)
-                    "A-Z" -> a.name.lowercase().compareTo(b.name.lowercase())
-                    else -> 0
+                .sortedWith { a, b ->
+                    when (sortOrder) {
+                        "Newest" -> b.startDate.compareTo(a.startDate)
+                        "Oldest" -> a.startDate.compareTo(b.startDate)
+                        "A-Z" -> a.name.lowercase().compareTo(b.name.lowercase())
+                        else -> 0
+                    }
                 }
-            }
-    }
+        }
 
     Column(
         modifier = Modifier
@@ -96,14 +100,15 @@ fun StravaActivitiesScreen(viewModel: StravaActivitiesViewModel, tileRepository:
             .background(MaterialTheme.colors.background)
     ) {
 
-        // 1. Filter Row: Date Range + Sync Button
+        // 1. Filter Row: Date Range + Sync Button (More Compact)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(horizontal = 16.dp, vertical = 4.dp), // Reduced vertical padding
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(modifier = Modifier.weight(1f)) {
+                // Reduced height for DateRangeCard via internal padding if possible
                 DateRangeCard(currentRange) { showDatePicker = true }
             }
 
@@ -116,88 +121,147 @@ fun StravaActivitiesScreen(viewModel: StravaActivitiesViewModel, tileRepository:
                     containerColor = MaterialTheme.colors.primaryVariant,
                     contentColor = MaterialTheme.colors.primary
                 ),
-                modifier = Modifier.size(48.dp)
+                modifier = Modifier.size(36.dp) // Reduced from 48.dp
             ) {
                 if (isSyncing) {
                     androidx.compose.material3.CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = Color.White
+                        modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = Color.White
                     )
                 } else {
-                    Icon(Icons.Default.Sync, null, tint = Color.White)
+                    Icon(
+                        Icons.Default.Sync,
+                        null,
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
             }
         }
 
-        // 2. Status Banners (Restored)
+// 2. Status Banners (Tighter)
         if (!status.isNullOrEmpty() || !syncErrorStatus.isNullOrEmpty()) {
-            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+            Column(modifier = Modifier.padding(horizontal = 16.dp)) {
                 status?.let {
                     Text(
                         it,
-                        style = MaterialTheme.typography.caption,
-                        color = MaterialTheme.colors.primary,
-                        modifier = Modifier.padding(horizontal = 16.dp)
+                        style = MaterialTheme.typography.overline,
+                        color = MaterialTheme.colors.primary
                     )
                 }
                 syncErrorStatus?.let {
                     Text(
                         it,
-                        style = MaterialTheme.typography.caption,
-                        color = MaterialTheme.colors.error,
-                        modifier = Modifier.padding(horizontal = 16.dp)
+                        style = MaterialTheme.typography.overline,
+                        color = MaterialTheme.colors.error
                     )
                 }
             }
         }
 
-        // 3. Search & Sort & Type Filters
-        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-            OutlinedTextField(
+        // 3. Search & Sort & Type Filters (Much more compact)
+        Column(Modifier.padding(vertical = 4.dp)) {
+            androidx.compose.foundation.text.BasicTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Search activities...", fontSize = 14.sp) },
-                leadingIcon = { Icon(Icons.Default.Search, null) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .height(36.dp) // Professional slim height
+                    .background(MaterialTheme.colors.surface, RoundedCornerShape(8.dp))
+                    .border(1.dp, Color.LightGray.copy(0.5f), RoundedCornerShape(8.dp)),
                 singleLine = true,
-                shape = RoundedCornerShape(12.dp),
+                textStyle = TextStyle(fontSize = 14.sp, color = MaterialTheme.colors.onSurface),
+                decorationBox = { innerTextField ->
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Search,
+                            null,
+                            modifier = Modifier.size(18.dp),
+                            tint = Color.Gray
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                            if (searchQuery.isEmpty()) {
+                                Text(
+                                    text = "Search...",
+                                    color = Color.Gray,
+                                    fontSize = 14.sp
+                                )
+                            }
+                            innerTextField()
+                        }
+                    }
+                }
             )
 
+            // Sort & Type Filter Row (Unified)
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(top = 8.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 6.dp, bottom = 4.dp)
             ) {
-                // Sort Toggle matching Routes logic
-                IconButton(onClick = {
-                    val nextIndex = (sortOptions.indexOf(sortOrder) + 1) % sortOptions.size
-                    sortOrder = sortOptions[nextIndex]
-                }) {
-                    Icon(Icons.Default.Sort, null, tint = MaterialTheme.colors.primary)
+                // Sort Toggle
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .padding(start = 16.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable {
+                            val nextIndex = (sortOptions.indexOf(sortOrder) + 1) % sortOptions.size
+                            sortOrder = sortOptions[nextIndex]
+                        }
+                        .padding(vertical = 4.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Sort,
+                        null,
+                        tint = MaterialTheme.colors.primary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        sortOrder,
+                        style = MaterialTheme.typography.caption,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colors.primary
+                    )
                 }
-                Text(
-                    sortOrder,
-                    style = MaterialTheme.typography.caption,
-                    modifier = Modifier.width(60.dp)
+
+                Box(
+                    modifier = Modifier
+                        .padding(horizontal = 4.dp)
+                        .width(1.dp)
+                        .height(12.dp)
                 )
 
-                Spacer(Modifier.width(8.dp))
-
-                // Type Filters with Strava Icons
-                val types = StravaActivity.SUPPORTED_TYPES
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(types) { type ->
-                        // Determine icon for the chip
-                        val icon = StravaActivity.getActivityIcon(type)
-
-                        FilterChip(type, icon, selectedType == type) { selectedType = type }
+                // Type Filters
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    items(StravaActivity.SUPPORTED_TYPES) { type ->
+                        FilterChip(
+                            type,
+                            StravaActivity.getActivityIcon(type),
+                            selectedType == type
+                        ) {
+                            selectedType = type
+                        }
                     }
                 }
             }
 
             if (allGear.isNotEmpty()) {
                 LazyRow(
-                    modifier = Modifier.padding(top = 8.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp)
                 ) {
                     item {
                         FilterChip(
@@ -209,16 +273,13 @@ fun StravaActivitiesScreen(viewModel: StravaActivitiesViewModel, tileRepository:
                     items(allGear) { gear ->
                         FilterChip(
                             label = gear.name,
-                            icon = StravaGear.getGearIcon(gear.type), // Uses the helper we built
+                            icon = StravaGear.getGearIcon(gear.type),
                             isSelected = selectedGearId == gear.id
-                        ) {
-                            selectedGearId = gear.id
-                        }
+                        ) { selectedGearId = gear.id }
                     }
                 }
             }
         }
-
         // 4. Results Count
         Text(
             text = "Showing ${filteredActivities.size} of $totalCount activities",
@@ -286,14 +347,14 @@ private fun StravaActivityListItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(12.dp),
+            .padding(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Thumbnail (Left)
+        // 1. Smaller Thumbnail
         Box(
             modifier = Modifier
-                .size(72.dp)
-                .clip(RoundedCornerShape(8.dp))
+                .size(64.dp)
+                .clip(RoundedCornerShape(6.dp))
                 .background(Color.Gray.copy(alpha = 0.1f))
         ) {
             RouteMiniMap(
@@ -303,108 +364,75 @@ private fun StravaActivityListItem(
             )
         }
 
-        Spacer(Modifier.width(16.dp))
+        Spacer(Modifier.width(12.dp))
 
-        // Info (Middle)
+        // 2. Info Column
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = activity.name,
-                style = MaterialTheme.typography.subtitle1,
-                maxLines = 2,
+                style = MaterialTheme.typography.subtitle2,
+                maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+
+            // Combined Metadata Row (Type + Gear)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     imageVector = activity.getActivityIcon(),
                     contentDescription = null,
-                    modifier = Modifier.size(14.dp),
+                    modifier = Modifier.size(12.dp),
                     tint = Color.Gray
                 )
                 Spacer(Modifier.width(4.dp))
                 Text(
                     text = (activity.type ?: "Activity").uppercase(),
                     style = MaterialTheme.typography.overline,
-                    color = Color.Gray,
-                    fontWeight = FontWeight.Bold
+                    color = Color.Gray
                 )
-            }
-            if (gear != null) {
-                Spacer(Modifier.width(8.dp))
-                Row {
+
+                if (gear != null) {
+                    Text(" • ", color = Color.Gray.copy(0.5f), style = MaterialTheme.typography.overline)
                     Icon(
                         imageVector = StravaGear.getGearIcon(gear.type),
                         contentDescription = null,
-                        modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colors.primary.copy(alpha = 0.7f)
+                        modifier = Modifier.size(12.dp),
+                        tint = MaterialTheme.colors.primary.copy(alpha = 0.6f)
                     )
                     Spacer(Modifier.width(4.dp))
                     Text(
-                        text = gear.name,
-                        style = MaterialTheme.typography.caption,
-                        color = Color.Gray,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        text = if (gear.name.length > 15) gear.name.take(15) + "..." else gear.name,
+                        style = MaterialTheme.typography.overline,
+                        color = Color.Gray
                     )
                 }
             }
-            Text(
-                text = activity.startDate.toLocalDateTime(TimeZone.currentSystemDefault())
-                    .toString().replace("T", " "),
-                style = MaterialTheme.typography.caption,
-                color = Color.Gray
-            )
 
-            // Actions Row (Bottom Right of the info column)
+            // Bottom Row: Date on left, Actions on right
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 2.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                Text(
+                    text = activity.startDate.toLocalDateTime(TimeZone.currentSystemDefault()).toString(),
+                    style = MaterialTheme.typography.caption,
+                    color = Color.Gray.copy(0.7f)
+                )
+
                 Spacer(Modifier.weight(1f))
 
-                // Preview Button
-                IconButton(
-                    onClick = onClick,
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.LocationOn,
-                        contentDescription = "Preview",
-                        modifier = Modifier.size(18.dp),
-                        tint = MaterialTheme.colors.primary.copy(alpha = 0.8f)
-                    )
-                }
-
-                Spacer(Modifier.width(8.dp))
-
-                // Play/Send Button
-                IconButton(
-                    onClick = onSendClick,
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.PlayArrow,
-                        contentDescription = "Send to Device",
-                        modifier = Modifier.size(24.dp),
-                        tint = Color(0xFF4CAF50) // Green
-                    )
-                }
-
-                Spacer(Modifier.width(8.dp))
-
-                IconButton(
-                    onClick = {
-                        openActivityInStrava(
-                            activity.id
-                        )
-                    },
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(
-                        Icons.Default.OpenInNew,
-                        contentDescription = "Open in Strava",
-                        modifier = Modifier.size(18.dp),
-                        tint = MaterialTheme.colors.primary
-                    )
+                // Action Icons
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onClick, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Default.LocationOn, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colors.primary.copy(0.7f))
+                    }
+                    IconButton(onClick = onSendClick, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(20.dp), tint = Color(0xFF4CAF50))
+                    }
+                    IconButton(onClick = { openActivityInStrava(activity.id) }, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Default.OpenInNew, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colors.primary)
+                    }
                 }
             }
         }
@@ -464,10 +492,6 @@ fun DateRangeCard(currentRange: ClosedRange<Instant>, onClick: () -> Unit) {
                     currentRange.start.toLocalDateTime(TimeZone.currentSystemDefault()).date
                 val end =
                     currentRange.endInclusive.toLocalDateTime(TimeZone.currentSystemDefault()).date
-                Text(
-                    "Filter by Date",
-                    color = Color.Gray
-                )
                 Text(
                     "$start — $end",
                     color = Color.Gray
