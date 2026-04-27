@@ -7,6 +7,7 @@ import androidx.room.TypeConverters
 import androidx.sqlite.driver.AndroidSQLiteDriver
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import com.paul.domain.StravaActivity
+import com.paul.domain.StravaGear
 import com.paul.domain.StravaStreamEntity
 import com.paul.infrastructure.converters.TimestampConverter
 import com.paul.infrastructure.dao.StravaDao
@@ -27,12 +28,13 @@ fun getRoomDatabase(builder: RoomDatabase.Builder<AppDatabase>): AppDatabase {
 }
 
 @Database(
-    entities = [StravaActivity::class, StravaStreamEntity::class],
-    version = 4,
+    entities = [StravaActivity::class, StravaStreamEntity::class, StravaGear::class],
+    version = 5,
     autoMigrations = [
         AutoMigration(from = 1, to = 2),
         AutoMigration(from = 2, to = 3),
         AutoMigration(from = 3, to = 4),
+        AutoMigration(from = 4, to = 5),
     ]
 )
 @TypeConverters(TimestampConverter::class, PointListConverter::class)

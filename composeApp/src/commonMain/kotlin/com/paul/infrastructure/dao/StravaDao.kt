@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.paul.domain.StravaActivity
+import com.paul.domain.StravaGear
 import com.paul.domain.StravaStreamEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.datetime.Instant
@@ -70,4 +71,13 @@ interface StravaDao {
 
     @Query("SELECT * FROM strava_activities WHERE id = :id")
     suspend fun getActivity(id: Long): StravaActivity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertGear(gear: List<StravaGear>)
+
+    @Query("SELECT * FROM strava_gear")
+    fun getAllGear(): Flow<List<StravaGear>>
+
+    @Query("DELETE FROM strava_gear")
+    suspend fun deleteAllGear()
 }

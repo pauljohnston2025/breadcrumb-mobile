@@ -1,8 +1,9 @@
 package com.paul.infrastructure.repositories
 
-import androidx.lifecycle.distinctUntilChanged
-import androidx.lifecycle.map
+import androidx.compose.animation.core.copy
 import com.paul.domain.StravaActivity
+import com.paul.domain.StravaAthleteResponse
+import com.paul.domain.StravaGear
 import com.paul.domain.StravaStreamEntity
 import com.paul.domain.StravaStreamResponse
 import com.paul.domain.StravaTokenResponse
@@ -38,8 +39,6 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toInstant
 import kotlinx.datetime.toLocalDateTime
 import kotlin.math.ceil
-import kotlin.text.toDouble
-import kotlin.text.toLong
 import kotlin.time.Duration.Companion.days
 
 class StravaRepository(private val browserLauncher: IBrowserLauncher, private val dao: StravaDao) {
@@ -91,6 +90,8 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
             url("https://www.strava.com/api/v3/")
         }
     }
+
+    val allGear: Flow<List<StravaGear>> = dao.getAllGear()
 
     private val repoScope = CoroutineScope(Dispatchers.Default)
 
@@ -358,6 +359,7 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
     suspend fun clearAllStravaData() {
         dao.clearAll()
         dao.clearAllStreams()
+        dao.deleteAllGear()
         _loginStatus.value = "Local cache cleared."
     }
 
@@ -369,19 +371,42 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
         return dao.getStreamsForActivityIds(ids).associateBy { it.activityId }
     }
 
+    suspend fun syncAthleteMetadata() {
+        _isSyncing.value = true
+        _loginStatus.value = "Fetching athlete metadata from Strava..."
+        try {
+            val athlete: StravaAthleteResponse = stravaClient.get("athlete").body()
+
+            // Map the plain JSON lists to our Entity with the correct types
+            val bikes = athlete.bikes.map { it.copy(type = StravaGear.TYPE_BIKE) }
+            val shoes = athlete.shoes.map { it.copy(type = StravaGear.TYPE_SHOE) }
+
+            dao.insertGear(bikes + shoes)
+        } catch (e: Exception) {
+            Napier.e("Failed to sync Strava gear metadata", e)
+            handleSyncError(e)
+        } finally {
+            _isSyncing.value = false
+        }
+    }
+
     suspend fun syncActivities() {
         _syncErrorStatus.value = null
+        syncAthleteMetadata()
+        if (_syncErrorStatus.value != null) {
+            return
+        }
         syncMissingStreams()
         if (_syncErrorStatus.value != null) {
-            return;
+            return
         }
         syncNewest()
         if (_syncErrorStatus.value != null) {
-            return;
+            return
         }
         syncOlder()
         if (_syncErrorStatus.value != null) {
-            return;
+            return
         }
 
         _loginStatus.value = "Sync Complete"
@@ -420,7 +445,7 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
                 "&redirect_uri=$encodedRedirect" +
                 "&response_type=code" +
                 "&approval_prompt=auto" +
-                "&scope=activity:read_all"
+                "&scope=read,activity:read_all,profile:read_all"
 
         Napier.d("Launching Strava Auth: $authUrl")
         browserLauncher.openUri(authUrl)

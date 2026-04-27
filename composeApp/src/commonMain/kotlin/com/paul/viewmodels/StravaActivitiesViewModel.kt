@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.paul.domain.IRoute
 import com.paul.domain.StaveIRoute
 import com.paul.domain.StravaActivity
+import com.paul.domain.StravaGear
 import com.paul.infrastructure.connectiq.IConnection
 import com.paul.infrastructure.repositories.HistoryRepository
 import com.paul.infrastructure.repositories.ITileRepository
@@ -53,6 +54,10 @@ class StravaActivitiesViewModel(
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
         )
+
+    val allGear: StateFlow<List<StravaGear>> = stravaRepo.allGear.stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList()
+    )
 
     val isSyncing = stravaRepo.isSyncing
     val loginStatus = stravaRepo.loginStatus

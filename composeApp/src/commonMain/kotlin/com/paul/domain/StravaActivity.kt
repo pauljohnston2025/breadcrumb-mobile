@@ -20,6 +20,7 @@ import com.benasher44.uuid.uuid4
 import com.paul.protocol.todevice.Point
 import com.paul.protocol.todevice.Route
 import kotlinx.datetime.Instant
+import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -76,6 +77,7 @@ data class StravaActivity(
     @Embedded
     val map: StravaMap? = null,
     val type: String? = null,
+    @SerialName("gear_id") val gearId: String? = null,
 ) {
     companion object {
         val SUPPORTED_TYPES = listOf(
@@ -196,5 +198,35 @@ class StaveIRoute(
 
     override fun hasDirectionInfo(): Boolean {
         return false
+    }
+}
+
+@Serializable
+data class StravaAthleteResponse(
+    val bikes: List<StravaGear> = emptyList(),
+    val shoes: List<StravaGear> = emptyList()
+)
+
+@Serializable
+@Entity(tableName = "strava_gear")
+data class StravaGear(
+    @PrimaryKey
+    val id: String,
+    val name: String,
+    val primary: Boolean,
+    @EncodeDefault
+    val type: String = TYPE_BIKE
+) {
+    companion object {
+        const val TYPE_BIKE = "Bike"
+        const val TYPE_SHOE = "Shoes"
+
+        fun getGearIcon(type: String): ImageVector {
+            return when (type) {
+                TYPE_BIKE -> Icons.Default.DirectionsBike
+                TYPE_SHOE -> Icons.Default.DirectionsRun
+                else -> Icons.Default.QuestionMark
+            }
+        }
     }
 }

@@ -17,8 +17,12 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DateRangePicker
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.rememberDateRangePickerState
 import androidx.compose.runtime.*
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -29,6 +33,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.paul.domain.StravaActivity
+import com.paul.domain.StravaGear
 import com.paul.infrastructure.repositories.ITileRepository
 import com.paul.viewmodels.StravaActivitiesViewModel
 import kotlinx.datetime.Instant
@@ -50,15 +55,18 @@ fun StravaActivitiesScreen(viewModel: StravaActivitiesViewModel, tileRepository:
     val syncErrorStatus by viewModel.syncErrorStatus.collectAsState()
     val currentRange by viewModel.currentRange.collectAsState()
     val totalCount by viewModel.totalActivityCount.collectAsState(0)
+    val allGear by viewModel.allGear.collectAsState(emptyList())
+    val gearLookup = remember(allGear) { allGear.associateBy { it.id } }
 
     var searchQuery by remember { mutableStateOf("") }
     var selectedType by remember { mutableStateOf("All") }
+    var selectedGearId by remember { mutableStateOf<String?>(null) } // New: State for filtering
     var showDatePicker by remember { mutableStateOf(false) }
 
     val sortOptions = listOf("Newest", "Oldest", "A-Z")
     var sortOrder by remember { mutableStateOf("Newest") }
 
-    val filteredActivities = remember(rawActivities, searchQuery, selectedType, sortOrder) {
+    val filteredActivities = remember(rawActivities, searchQuery, selectedType, selectedGearId, sortOrder) {
         rawActivities
             .filter { it.name.contains(searchQuery, ignoreCase = true) }
             .filter {
@@ -69,6 +77,8 @@ fun StravaActivitiesScreen(viewModel: StravaActivitiesViewModel, tileRepository:
                 } else {
                     it.type == selectedType
                 }
+            }.filter {
+                selectedGearId == null || it.gearId == selectedGearId
             }
             .sortedWith { a, b ->
                 when (sortOrder) {
@@ -182,6 +192,31 @@ fun StravaActivitiesScreen(viewModel: StravaActivitiesViewModel, tileRepository:
                     }
                 }
             }
+
+            if (allGear.isNotEmpty()) {
+                LazyRow(
+                    modifier = Modifier.padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    item {
+                        FilterChip(
+                            label = "All Gear",
+                            icon = Icons.Default.AllInclusive,
+                            isSelected = selectedGearId == null
+                        ) { selectedGearId = null }
+                    }
+                    items(allGear) { gear ->
+                        FilterChip(
+                            label = gear.name,
+                            icon = StravaGear.getGearIcon(gear.type), // Uses the helper we built
+                            isSelected = selectedGearId == gear.id
+                        ) {
+                            selectedGearId = gear.id
+                        }
+                    }
+                }
+            }
         }
 
         // 4. Results Count
@@ -203,8 +238,10 @@ fun StravaActivitiesScreen(viewModel: StravaActivitiesViewModel, tileRepository:
         ) {
             LazyColumn {
                 itemsIndexed(filteredActivities, key = { _, a -> a.id }) { index, activity ->
+                    val gear = gearLookup[activity.gearId] // Find the gear object
                     StravaActivityListItem(
                         activity,
+                        gear,
                         tileRepository,
                         { viewModel.previewActivity(activity) },
                         { viewModel.sendActivityToDevice(activity) },
@@ -240,6 +277,7 @@ fun StravaActivitiesScreen(viewModel: StravaActivitiesViewModel, tileRepository:
 @Composable
 private fun StravaActivityListItem(
     activity: StravaActivity,
+    gear: StravaGear?,
     tileRepository: ITileRepository,
     onClick: () -> Unit,
     onSendClick: () -> Unit,
@@ -289,6 +327,25 @@ private fun StravaActivityListItem(
                     color = Color.Gray,
                     fontWeight = FontWeight.Bold
                 )
+            }
+            if (gear != null) {
+                Spacer(Modifier.width(8.dp))
+                Row {
+                    Icon(
+                        imageVector = StravaGear.getGearIcon(gear.type),
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colors.primary.copy(alpha = 0.7f)
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        text = gear.name,
+                        style = MaterialTheme.typography.caption,
+                        color = Color.Gray,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
             Text(
                 text = activity.startDate.toLocalDateTime(TimeZone.currentSystemDefault())
@@ -345,7 +402,7 @@ private fun StravaActivityListItem(
                     Icon(
                         Icons.Default.OpenInNew,
                         contentDescription = "Open in Strava",
-                        modifier = Modifier.size(24.dp),
+                        modifier = Modifier.size(18.dp),
                         tint = MaterialTheme.colors.primary
                     )
                 }
