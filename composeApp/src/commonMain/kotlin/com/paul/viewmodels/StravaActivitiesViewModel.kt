@@ -120,6 +120,19 @@ class StravaActivitiesViewModel(
         }
     }
 
+    fun openActivityInStrava(id: Long) {
+        viewModelScope.launch {
+            try {
+                // This usually involves calling a method on the repository to get the URL
+                // and then using an Intent handler or similar mechanism to open it.
+                stravaRepo.openActivityInBrowser(id)
+            } catch (t: Throwable) {
+                snackbarHostState.showSnackbar("Could not open Strava activity")
+                Napier.e("Failed to open Strava", t)
+            }
+        }
+    }
+
     private suspend fun sendRoute(
         gpxRoute: IRoute
     ) {

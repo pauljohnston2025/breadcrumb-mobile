@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.Directions
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.Composable
@@ -62,6 +63,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.text.HtmlCompat
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.paul.composables.LoadingOverlay
 import com.paul.domain.HistoryItem
 import com.paul.domain.RouteEntry
@@ -196,6 +198,7 @@ fun Start(
                 viewModel.stravaRepository,
                 viewModel::previewActivity,
                 viewModel::sendActivityToDevice,
+                viewModel::openActivityInStrava,
             )
 
         } // End Main Column
@@ -296,6 +299,7 @@ private fun HistoryListSection(
     stravaRepository: StravaRepository,
     onPreviewStrava: (StravaActivity) -> Unit,
     onSendStrava: (StravaActivity) -> Unit,
+    openActivityInStrava: (Long) -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -350,6 +354,7 @@ private fun HistoryListSection(
                             stravaRepository,
                             onPreviewStrava,
                             onSendStrava,
+                            openActivityInStrava,
                         )
                         Divider()
                     }
@@ -373,6 +378,7 @@ private fun HistoryListItem(
     stravaRepository: StravaRepository,
     onPreviewStrava: (StravaActivity) -> Unit,
     onSendStrava: (StravaActivity) -> Unit,
+    openActivityInStrava: (Long) -> Unit,
 ) {
     // 1. Resolve local route if it exists
     val localRoute = remember(item.routeId, routes) { routes.find { it.id == item.routeId } }
@@ -468,6 +474,24 @@ private fun HistoryListItem(
                         modifier = Modifier.size(32.dp)
                     ) {
                         Icon(Icons.Default.Edit, null, Modifier.size(18.dp), tint = Color.Gray)
+                    }
+                }
+
+                if (item.isStrava()) {
+                    IconButton(
+                        onClick = {
+                            openActivityInStrava(
+                                item.stravaId()
+                            )
+                        },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.OpenInNew,
+                            contentDescription = "Open in Strava",
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colors.primary
+                        )
                     }
                 }
 

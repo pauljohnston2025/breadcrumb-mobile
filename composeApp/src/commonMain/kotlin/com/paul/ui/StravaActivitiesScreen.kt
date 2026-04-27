@@ -208,6 +208,7 @@ fun StravaActivitiesScreen(viewModel: StravaActivitiesViewModel, tileRepository:
                         tileRepository,
                         { viewModel.previewActivity(activity) },
                         { viewModel.sendActivityToDevice(activity) },
+                        viewModel::openActivityInStrava,
                     )
                     if (index < filteredActivities.lastIndex) {
                         Divider(
@@ -242,6 +243,7 @@ private fun StravaActivityListItem(
     tileRepository: ITileRepository,
     onClick: () -> Unit,
     onSendClick: () -> Unit,
+    openActivityInStrava: (id: Long) -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -327,6 +329,24 @@ private fun StravaActivityListItem(
                         contentDescription = "Send to Device",
                         modifier = Modifier.size(24.dp),
                         tint = Color(0xFF4CAF50) // Green
+                    )
+                }
+
+                Spacer(Modifier.width(8.dp))
+
+                IconButton(
+                    onClick = {
+                        openActivityInStrava(
+                            activity.id
+                        )
+                    },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        Icons.Default.OpenInNew,
+                        contentDescription = "Open in Strava",
+                        modifier = Modifier.size(24.dp),
+                        tint = MaterialTheme.colors.primary
                     )
                 }
             }
