@@ -208,23 +208,29 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
 
     suspend fun getActivityStreams(activityId: Long): List<Point> {
         return try {
-            // 1. Request the streams.
-            // We use .body<StravaStreamResponse>() directly to let Ktor/Serialization
-            // handle the mapping to your new data classes.
-            val response: StravaStreamResponse =
-                stravaClient.get("activities/$activityId/streams") {
-                    url {
-                        parameters.append("keys", "latlng,altitude")
-                        parameters.append("key_by_type", "true")
-                    }
-                }.body()
+            // 1. Request the response (don't call .body() yet)
+            val response = stravaClient.get("activities/$activityId/streams") {
+                url {
+                    parameters.append("keys", "latlng,altitude")
+                    parameters.append("key_by_type", "true")
+                }
+            }
 
-            // 2. Extract data safely.
-            // If latlng is missing, we can't draw a map, so we return empty.
-            val latLngData = response.latlng?.data ?: return emptyList()
-            val altitudeData = response.altitude?.data
+            // 2. Check for 404 (Resource Not Found)
+            if (response.status == io.ktor.http.HttpStatusCode.NotFound) {
+                // or it may be an activity without a gps recording (manual entry)
+                Napier.w("Streams not found for activity $activityId (404). It may be deleted or private.")
+                return emptyList()
+            }
 
-            // 3. Map to your internal Point objects
+            // 3. Parse the body now that we know it's a success
+            val streamData: StravaStreamResponse = response.body()
+
+            // 4. Extract data safely.
+            val latLngData = streamData.latlng?.data ?: return emptyList()
+            val altitudeData = streamData.altitude?.data
+
+            // 5. Map to your internal Point objects
             latLngData.mapIndexed { index, coords ->
                 // coords is a List<Double> containing [lat, lng]
                 val lat = coords.getOrNull(0)?.toFloat() ?: 0f
@@ -243,6 +249,12 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
         } catch (e: Exception) {
             // Essential: Do not swallow CancellationExceptions or the sync loop will hang
             if (e is kotlinx.coroutines.CancellationException) throw e
+
+            // Handle the case where DefaultResponseValidation still throws for other 4xx/5xx errors
+            if (e is io.ktor.client.plugins.ClientRequestException && e.response.status == io.ktor.http.HttpStatusCode.NotFound) {
+                Napier.w("Caught 404 via Exception for activity $activityId")
+                return emptyList()
+            }
 
             Napier.e("Failed to fetch/parse streams for $activityId", e)
             _syncErrorStatus.value = "Failed to parse data for $activityId"
