@@ -3,6 +3,8 @@ package com.paul.infrastructure.service
 import com.paul.domain.ColourPalette
 import com.paul.domain.PaletteMappingMode
 import com.paul.domain.RGBColor
+import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
@@ -134,46 +136,167 @@ class ColourPaletteConverter {
         }
 
         /**
-         * Extracts the dominant colors from a tile's pixel data using a fast, frequency-based
-         * quantization algorithm. This is the refactored version of your createPaletteFromViewport logic.
+         * Extracts the dominant colors from a tile's pixel data using an improved algorithm
+         * based on the selected mapping mode.
          *
          * @param pixelArray The raw ARGB pixel data from the tile.
          * @param maxColors The maximum number of colors to return in the palette.
-         * @param precisionShift The bit shift to apply for color grouping (3 is a good default for 5-bit channels).
+         * @param mappingMode The palette mapping mode to optimize for.
          * @return A List of RGBColor objects representing the most common colors.
          */
         fun extractDominantColors(
             pixelArray: IntArray,
             maxColors: Int = 64,
-            precisionShift: Int = 3
+            mappingMode: PaletteMappingMode = PaletteMappingMode.NEAREST_NEIGHBOR
         ): List<RGBColor> {
             if (pixelArray.isEmpty()) return emptyList()
 
-            val colorFrequencies = mutableMapOf<Int, Int>()
+            return when (mappingMode) {
+                PaletteMappingMode.ORDERED_BY_BRIGHTNESS -> extractDominantColorsForBrightness(pixelArray, maxColors)
+                PaletteMappingMode.CIELAB -> extractDominantColorsMedianCut(pixelArray, maxColors, useLab = true)
+                else -> extractDominantColorsMedianCut(pixelArray, maxColors, useLab = false)
+            }
+        }
 
-            for (color in pixelArray) {
-                // Extract, reduce, and repack color channels into a single Int key.
-                val r = (color shr 16 and 0xFF) shr precisionShift
-                val g = (color shr 8 and 0xFF) shr precisionShift
-                val b = (color and 0xFF) shr precisionShift
-                val reducedColor = (r shl (precisionShift * 2)) or (g shl precisionShift) or b
+        /**
+         * Uses the Median Cut algorithm to extract representative colors.
+         */
+        private fun extractDominantColorsMedianCut(
+            pixelArray: IntArray,
+            maxColors: Int,
+            useLab: Boolean
+        ): List<RGBColor> {
+            val boxes = mutableListOf<ColorBox>()
+            // Initially, one box containing all pixels
+            boxes.add(ColorBox(pixelArray))
 
-                colorFrequencies[reducedColor] = (colorFrequencies[reducedColor] ?: 0) + 1
+            while (boxes.size < maxColors) {
+                // Find the box with the largest "volume" or spread to split
+                val boxToSplit = boxes.maxByOrNull { if (useLab) it.labRangeSum() else it.rgbRangeSum().toDouble() }
+                    ?: break
+
+                val currentRangeSum = if (useLab) boxToSplit.labRangeSum() else boxToSplit.rgbRangeSum().toDouble()
+                if (currentRangeSum <= 0.0) break
+
+                boxes.remove(boxToSplit)
+                val (box1, box2) = boxToSplit.split(useLab)
+                boxes.add(box1)
+                boxes.add(box2)
             }
 
-            // Sort by frequency and take the top colors
-            val topColors = colorFrequencies.entries
-                .sortedByDescending { it.value }
-                .take(maxColors)
-                .map { it.key }
+            return boxes.map { it.averageColor() }
+        }
 
-            // Convert the reduced-precision colors back to full RGBColor objects
-            return topColors.map { reducedColor ->
-                // Unpack and scale the reduced-bit channels back up to 8-bit.
-                val r = (reducedColor shr (precisionShift * 2)) shl precisionShift
-                val g = (reducedColor shr precisionShift and ((1 shl precisionShift) - 1)) shl precisionShift
-                val b = (reducedColor and ((1 shl precisionShift) - 1)) shl precisionShift
-                RGBColor(r, g, b)
+        /**
+         * Special extraction for brightness-ordered palettes to ensure a good gradient.
+         */
+        private fun extractDominantColorsForBrightness(pixelArray: IntArray, maxColors: Int): List<RGBColor> {
+            // Group pixels into brightness buckets
+            val buckets = Array(maxColors) { mutableListOf<Int>() }
+            for (pixel in pixelArray) {
+                val r = (pixel shr 16) and 0xFF
+                val g = (pixel shr 8) and 0xFF
+                val b = pixel and 0xFF
+                val brightnessVal = brightness(r, g, b)
+                val bucketIndex = (brightnessVal / 256f * maxColors).toInt().coerceIn(0, maxColors - 1)
+                buckets[bucketIndex].add(pixel)
+            }
+
+            return buckets.map { bucket ->
+                if (bucket.isEmpty()) {
+                    RGBColor(0, 0, 0)
+                } else {
+                    var rSum = 0L; var gSum = 0L; var bSum = 0L
+                    for (pixel in bucket) {
+                        rSum += (pixel shr 16) and 0xFF
+                        gSum += (pixel shr 8) and 0xFF
+                        bSum += pixel and 0xFF
+                    }
+                    RGBColor((rSum / bucket.size).toInt(), (gSum / bucket.size).toInt(), (bSum / bucket.size).toInt())
+                }
+            }
+        }
+
+        private class ColorBox(val pixels: IntArray) {
+            private var minR = 255; private var maxR = 0
+            private var minG = 255; private var maxG = 0
+            private var minB = 255; private var maxB = 0
+            
+            private var minL = 100.0; private var maxL = 0.0
+            private var minA = 127.0; private var maxA = -128.0
+            private var minBb = 127.0; private var maxBb = -128.0
+
+            init {
+                for (pixel in pixels) {
+                    val r = (pixel shr 16) and 0xFF
+                    val g = (pixel shr 8) and 0xFF
+                    val b = pixel and 0xFF
+                    minR = min(minR, r); maxR = max(maxR, r)
+                    minG = min(minG, g); maxG = max(maxG, g)
+                    minB = min(minB, b); maxB = max(maxB, b)
+                    
+                    val lab = rgbToLab(r, g, b)
+                    minL = min(minL, lab.l); maxL = max(maxL, lab.l)
+                    minA = min(minA, lab.a); maxA = max(maxA, lab.a)
+                    minBb = min(minBb, lab.b); maxBb = max(maxBb, lab.b)
+                }
+            }
+
+            fun rgbRangeSum() = (maxR - minR) + (maxG - minG) + (maxB - minB)
+            fun labRangeSum() = (maxL - minL) + (maxA - minA) + (maxBb - minBb)
+
+            fun split(useLab: Boolean): Pair<ColorBox, ColorBox> {
+                if (pixels.size < 2) return this to this
+
+                val sortField = if (useLab) {
+                    val rl = maxL - minL
+                    val ra = maxA - minA
+                    val rb = maxBb - minBb
+                    if (rl >= ra && rl >= rb) 0 else if (ra >= rl && ra >= rb) 1 else 2
+                } else {
+                    val rr = maxR - minR
+                    val rg = maxG - minG
+                    val rb = maxB - minB
+                    if (rr >= rg && rr >= rb) 0 else if (rg >= rr && rg >= rb) 1 else 2
+                }
+
+                val sortedPixels = pixels.toMutableList().sortedBy { pixel ->
+                    val r = (pixel shr 16) and 0xFF
+                    val g = (pixel shr 8) and 0xFF
+                    val b = pixel and 0xFF
+                    if (useLab) {
+                        val lab = rgbToLab(r, g, b)
+                        when (sortField) {
+                            0 -> lab.l
+                            1 -> lab.a
+                            else -> lab.b
+                        }
+                    } else {
+                        when (sortField) {
+                            0 -> r
+                            1 -> g
+                            else -> b
+                        }.toDouble()
+                    }
+                }.toIntArray()
+
+                val median = sortedPixels.size / 2
+                return ColorBox(sortedPixels.copyOfRange(0, median)) to ColorBox(sortedPixels.copyOfRange(median, sortedPixels.size))
+            }
+
+            fun averageColor(): RGBColor {
+                if (pixels.isEmpty()) return RGBColor(0, 0, 0)
+                var rSum = 0L; var gSum = 0L; var bSum = 0L
+                for (pixel in pixels) {
+                    rSum += (pixel shr 16) and 0xFF
+                    gSum += (pixel shr 8) and 0xFF
+                    bSum += pixel and 0xFF
+                }
+                return RGBColor(
+                    (rSum / pixels.size).toInt(),
+                    (gSum / pixels.size).toInt(),
+                    (bSum / pixels.size).toInt()
+                )
             }
         }
 

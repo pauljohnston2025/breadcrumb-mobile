@@ -91,6 +91,9 @@ class MapViewModel(
 
     val historyRepo = HistoryRepository()
 
+    private val _isGeneratingPalette = MutableStateFlow(false)
+    val isGeneratingPalette: StateFlow<Boolean> = _isGeneratingPalette.asStateFlow()
+
     private var seedingJob: Job? = null
 
     private val _newlyCreatedPalette = MutableStateFlow<ColourPalette?>(null)
@@ -345,65 +348,73 @@ class MapViewModel(
     fun createPaletteFromViewport(
         visibleTiles: List<com.paul.infrastructure.service.TileInfo>,
         tileCache: Map<TileId, ImageBitmap?>,
-        viewportSize: IntSize
+        viewportSize: IntSize,
+        mappingMode: com.paul.domain.PaletteMappingMode = com.paul.domain.PaletteMappingMode.NEAREST_NEIGHBOR
     ) {
         viewModelScope.launch(Dispatchers.Default) { // Use Default dispatcher for CPU-intensive work
-            if (viewportSize == IntSize.Zero || visibleTiles.isEmpty()) {
-                snackbarHostState.showSnackbar("Map view is not ready.")
-                return@launch
-            }
-
-            // 1. Reconstruct the view into a single multiplatform ImageBitmap (No changes here)
-            val compositeBitmap = ImageBitmap(viewportSize.width, viewportSize.height)
-            val canvas = Canvas(compositeBitmap)
-            val paint = Paint()
-
-            visibleTiles.forEach { tileInfo ->
-                tileCache[tileInfo.id]?.let { tileBitmap ->
-                    canvas.drawImage(
-                        image = tileBitmap,
-                        topLeftOffset = Offset(
-                            tileInfo.screenOffset.x.toFloat(),
-                            tileInfo.screenOffset.y.toFloat()
-                        ),
-                        paint = paint
-                    )
+            _isGeneratingPalette.value = true
+            try {
+                if (viewportSize == IntSize.Zero || visibleTiles.isEmpty()) {
+                    snackbarHostState.showSnackbar("Map view is not ready.")
+                    return@launch
                 }
+
+                // 1. Reconstruct the view into a single multiplatform ImageBitmap (No changes here)
+                val compositeBitmap = ImageBitmap(viewportSize.width, viewportSize.height)
+                val canvas = Canvas(compositeBitmap)
+                val paint = Paint()
+
+                visibleTiles.forEach { tileInfo ->
+                    tileCache[tileInfo.id]?.let { tileBitmap ->
+                        canvas.drawImage(
+                            image = tileBitmap,
+                            topLeftOffset = Offset(
+                                tileInfo.screenOffset.x.toFloat(),
+                                tileInfo.screenOffset.y.toFloat()
+                            ),
+                            paint = paint
+                        )
+                    }
+                }
+
+                // 2. Read the raw pixel data from the composite ImageBitmap (No changes here)
+                val pixelCount = viewportSize.width * viewportSize.height
+                val pixelArray = IntArray(pixelCount)
+                compositeBitmap.readPixels(
+                    buffer = pixelArray,
+                    startX = 0,
+                    startY = 0,
+                    width = viewportSize.width,
+                    height = viewportSize.height
+                )
+
+                // 3. Perform color quantization with a single call to your centralized function.
+                //    This replaces all the manual bit-shifting and frequency counting logic.
+                val rgbColors = ColourPaletteConverter.extractDominantColors(
+                    pixelArray = pixelArray,
+                    maxColors = 64, // Explicitly set to match the original ".take(64)"
+                    mappingMode = mappingMode
+                )
+
+                // 4. Check the result and create the final palette (No changes here)
+                if (rgbColors.isEmpty()) {
+                    snackbarHostState.showSnackbar("Could not generate a palette from the current map view.")
+                    return@launch
+                }
+
+                val newPalette = com.paul.domain.ColourPalette(
+                    watchAppPaletteId = 0, // 0 signifies a new, unsaved custom palette
+                    uniqueId = com.benasher44.uuid.uuid4().toString(),
+                    name = "From Map (${mappingMode.name})", // Default name for the user to change
+                    colors = rgbColors,
+                    mappingMode = mappingMode,
+                    isEditable = true
+                )
+                _newlyCreatedPalette.value = newPalette
+                _navigationEvents.emit(MapViewNavigationEvent.NavigateTo(Screen.Settings.route))
+            } finally {
+                _isGeneratingPalette.value = false
             }
-
-            // 2. Read the raw pixel data from the composite ImageBitmap (No changes here)
-            val pixelCount = viewportSize.width * viewportSize.height
-            val pixelArray = IntArray(pixelCount)
-            compositeBitmap.readPixels(
-                buffer = pixelArray,
-                startX = 0,
-                startY = 0,
-                width = viewportSize.width,
-                height = viewportSize.height
-            )
-
-            // 3. Perform color quantization with a single call to your centralized function.
-            //    This replaces all the manual bit-shifting and frequency counting logic.
-            val rgbColors = ColourPaletteConverter.extractDominantColors(
-                pixelArray = pixelArray,
-                maxColors = 64 // Explicitly set to match the original ".take(64)"
-            )
-
-            // 4. Check the result and create the final palette (No changes here)
-            if (rgbColors.isEmpty()) {
-                snackbarHostState.showSnackbar("Could not generate a palette from the current map view.")
-                return@launch
-            }
-
-            val newPalette = ColourPalette(
-                watchAppPaletteId = 0, // 0 signifies a new, unsaved custom palette
-                uniqueId = uuid4().toString(),
-                name = "From Map", // Default name for the user to change
-                colors = rgbColors,
-                isEditable = true
-            )
-            _newlyCreatedPalette.value = newPalette
-            _navigationEvents.emit(MapViewNavigationEvent.NavigateTo(Screen.Settings.route))
         }
     }
 

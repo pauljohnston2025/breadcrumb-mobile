@@ -4,6 +4,7 @@ import android.graphics.Paint
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateCentroid
@@ -14,17 +15,24 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.AlertDialog
 import androidx.compose.material.Button
 import androidx.compose.material.ButtonDefaults
 import androidx.compose.material.Icon
 import androidx.compose.material.LocalContentColor
 import androidx.compose.material.MaterialTheme
+import androidx.compose.material.RadioButton
 import androidx.compose.material.Text
+import androidx.compose.material.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Colorize
@@ -62,6 +70,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import breadcrumb.composeapp.generated.resources.Res
 import breadcrumb.composeapp.generated.resources.strava
+import com.paul.domain.PaletteMappingMode
 import com.paul.infrastructure.service.GeoPosition
 import com.paul.infrastructure.service.TileId
 import com.paul.infrastructure.service.TileInfo
@@ -138,6 +147,8 @@ fun MapTilerComposable(
     val tileCache by viewModel.tileCacheState.collectAsState()
     val routeSettings by viewModel.routeRepository.currentSettingsFlow()
         .collectAsStateWithLifecycle()
+
+    var showMappingModeDialog by remember { mutableStateOf(false) }
 
     var localCenterGeo by remember {
         mutableStateOf(
@@ -230,6 +241,21 @@ fun MapTilerComposable(
             // If the route is cleared, reset our tracker so a new route can be centered later.
             centeredRoute = null
         }
+    }
+
+    if (showMappingModeDialog) {
+        MappingModeSelectionDialog(
+            onDismissRequest = { showMappingModeDialog = false },
+            onModeSelected = { mode ->
+                showMappingModeDialog = false
+                viewModel.createPaletteFromViewport(
+                    visibleTiles = visibleTiles,
+                    tileCache = tileCache,
+                    viewportSize = viewportSize,
+                    mappingMode = mode
+                )
+            }
+        )
     }
 
     Box(
@@ -692,11 +718,7 @@ fun MapTilerComposable(
                 modifier = mapButtonStyle,
                 onClick = {
                     if (viewportSize != IntSize.Zero) {
-                        viewModel.createPaletteFromViewport(
-                            visibleTiles = visibleTiles,
-                            tileCache = tileCache,
-                            viewportSize = viewportSize
-                        )
+                        showMappingModeDialog = true
                     } else {
                         Napier.d("Viewport size not available yet.")
                     }
@@ -766,6 +788,55 @@ fun MapTilerComposable(
             }
         }
     }
+}
+
+@Composable
+fun MappingModeSelectionDialog(
+    onDismissRequest: () -> Unit,
+    onModeSelected: (PaletteMappingMode) -> Unit
+) {
+    var selectedMode by remember { mutableStateOf(PaletteMappingMode.NEAREST_NEIGHBOR) }
+
+    AlertDialog(
+        onDismissRequest = onDismissRequest,
+        title = { Text("Select Mapping Mode") },
+        text = {
+            Column {
+                Text("Choose how colors will be mapped on the device. This choice also affects how the palette is generated.")
+                Spacer(modifier = Modifier.height(16.dp))
+                PaletteMappingMode.entries.forEach { mode ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { selectedMode = mode }
+                            .padding(vertical = 4.dp)
+                    ) {
+                        RadioButton(selected = selectedMode == mode, onClick = { selectedMode = mode })
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = when (mode) {
+                                PaletteMappingMode.NEAREST_NEIGHBOR -> "Nearest (RGB)"
+                                PaletteMappingMode.CIELAB -> "Perceptual (CIELAB)"
+                                PaletteMappingMode.ORDERED_BY_BRIGHTNESS -> "Brightness (Gradient)"
+                                PaletteMappingMode.PALETTE_REMAP -> "Palette Remap"
+                            }
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onModeSelected(selectedMode) }) {
+                Text("Generate")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismissRequest) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 fun calculateVisibleTiles(

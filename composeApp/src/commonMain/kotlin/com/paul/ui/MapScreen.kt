@@ -94,6 +94,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.navigation.NavController
+import com.paul.composables.LoadingOverlay
 import com.paul.composables.MapTilerComposable
 import com.paul.composables.mapButtonStyle
 import com.paul.domain.RouteEntry
@@ -145,7 +146,9 @@ internal const val URL_TAG =
 
 @Composable
 fun MapScreen(viewModel: MapViewModel) {
-    BackHandler(enabled = viewModel.sendingFile.value != "") {
+    val isGeneratingPalette by viewModel.isGeneratingPalette.collectAsState()
+
+    BackHandler(enabled = viewModel.sendingFile.value != "" && !isGeneratingPalette) {
         // prevent back handler when we are trying to do things, todo cancel the job we are trying to do
     }
 
@@ -681,6 +684,11 @@ fun MapScreen(viewModel: MapViewModel) {
 
         SendingFileOverlay(
             sendingMessage = viewModel.sendingFile
+        )
+
+        LoadingOverlay(
+            isLoading = isGeneratingPalette,
+            loadingText = "Generating Color Palette..."
         )
     }
 }
