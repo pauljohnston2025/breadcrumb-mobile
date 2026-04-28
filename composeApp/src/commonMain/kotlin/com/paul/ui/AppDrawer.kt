@@ -1,21 +1,29 @@
 package com.paul.ui
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.* // M2 Imports
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
+import breadcrumb.composeapp.generated.resources.Res
+import breadcrumb.composeapp.generated.resources.strava
+import breadcrumb.composeapp.generated.resources.strava_bw
 import com.paul.viewmodels.DeviceSelector
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.painterResource
 
 @OptIn(ExperimentalMaterialApi::class) // For ListItem
 @Composable
@@ -77,13 +85,30 @@ fun AppDrawerContent(
                     }
                     .padding(horizontal = 16.dp), // Indent items slightly
                 icon = {
-                    Icon(
-                        imageVector = screen.icon,
-                        contentDescription = screen.title,
-                        tint = if (currentRoute == screen.route) MaterialTheme.colors.primary else LocalContentColor.current.copy(
-                            alpha = ContentAlpha.medium
+                    if (screen == Screen.Strava) {
+                        Image(
+                            painter = painterResource(Res.drawable.strava_bw),
+                            contentDescription = "Strava",
+                            modifier = Modifier
+                                .size(24.dp) // Standard Icon Size
+                                .clip(CircleShape),
+                            colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(
+                                if (currentRoute == screen.route) MaterialTheme.colors.primary else LocalContentColor.current.copy(
+                                    alpha = ContentAlpha.medium
+                                ),
+                                blendMode = androidx.compose.ui.graphics.BlendMode.SrcIn
+                            )
                         )
-                    )
+                    }
+                    else {
+                        Icon(
+                            imageVector = screen.icon,
+                            contentDescription = screen.title,
+                            tint = if (currentRoute == screen.route) MaterialTheme.colors.primary else LocalContentColor.current.copy(
+                                alpha = ContentAlpha.medium
+                            )
+                        )
+                    }
                 },
 
                 text = {

@@ -39,6 +39,8 @@ import com.paul.protocol.todevice.RequestLocationLoad
 import com.paul.protocol.todevice.ReturnToUser
 import com.paul.protocol.todevice.Route
 import com.paul.ui.Screen
+import androidx.compose.runtime.snapshotFlow
+import com.paul.domain.RouteEntry
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -161,13 +163,37 @@ class MapViewModel(
     private val _isStravaEnabled = MutableStateFlow(false)
     val isStravaEnabled = _isStravaEnabled.asStateFlow()
 
+    // Toggle for the Stored Routes Layer
+    private val _isRoutesEnabled = MutableStateFlow(false)
+    val isRoutesEnabled = _isRoutesEnabled.asStateFlow()
+
     // Results of the 20m tap-check
     private val _nearbyActivities = MutableStateFlow<List<StravaActivity>>(emptyList())
     val nearbyActivities = _nearbyActivities.asStateFlow()
 
+    // Results of the 20m tap-check for stored routes
+    private val _nearbyStoredRoutes = MutableStateFlow<List<RouteEntry>>(emptyList())
+    val nearbyStoredRoutes = _nearbyStoredRoutes.asStateFlow()
+
     fun setDateRange(start: Instant, end: Instant) {
         stravaRepo.setDateRange(start, end)
     }
+
+    val storedRoutes: StateFlow<Map<RouteEntry, Route>> = snapshotFlow { routeRepository.routes.toList() }
+        .map { entries ->
+            kotlinx.coroutines.coroutineScope {
+                entries.map { entry ->
+                    async {
+                        routeRepository.getRouteEntrySummary(entry, snackbarHostState)?.let { entry to it }
+                    }
+                }.awaitAll().filterNotNull().toMap()
+            }
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyMap()
+        )
 
     // High-fidelity routes derived from the repo's filtered activities
     // When the repo's date range changes, 'activities' emits, and this transforms them
@@ -207,45 +233,87 @@ class MapViewModel(
         _isStravaEnabled.value = enabled
     }
 
+    fun toggleStoredRoutes(enabled: Boolean) {
+        _isRoutesEnabled.value = enabled
+    }
+
     fun clearNearbyActivities() {
         _nearbyActivities.value = emptyList()
+        _nearbyStoredRoutes.value = emptyList()
     }
 
     // Proximity logic for the 20m tap requirement
     // Proximity logic for the 20m tap requirement using segment math
     // 2. Faster Proximity Logic using Cached Projections
     fun findNearbyActivities(tappedGeo: GeoPosition) {
-        if (!_isStravaEnabled.value) return
+        if (!_isStravaEnabled.value && !_isRoutesEnabled.value) return
 
         val tappedPoint = Point(tappedGeo.latitude.toFloat(), tappedGeo.longitude.toFloat(), 0f)
         val tappedXY = tappedPoint.convert2XY() ?: return
 
         viewModelScope.launch(Dispatchers.Default) {
-            val nearby = stravaRoutes.value.filter { (_, route) ->
-                // Use the cached projectedPoints instead of calling convert2XY()
-                val pts = route.projectedPoints
-                if (pts.isEmpty()) return@filter false
+            if (_isStravaEnabled.value) {
+                val nearby = stravaRoutes.value.filter { (_, route) ->
+                    // Use the cached projectedPoints instead of calling convert2XY()
+                    val pts = route.projectedPoints
+                    if (pts.isEmpty()) return@filter false
 
-                val NEARBY_DISTANCE_METERS = 20.0
+                    val NEARBY_DISTANCE_METERS = 20.0
 
-                for (i in 0 until pts.size - 1) {
-                    val p1 = pts[i]
-                    val p2 = pts[i + 1]
+                    for (i in 0 until pts.size - 1) {
+                        val p1 = pts[i]
+                        val p2 = pts[i + 1]
 
-                    // Basic Bounding Box AABB check for speed (Optional optimization)
-                    val minX = min(p1.x, p2.x) - NEARBY_DISTANCE_METERS
-                    val maxX = max(p1.x, p2.x) + NEARBY_DISTANCE_METERS
-                    val minY = min(p1.y, p2.y) - NEARBY_DISTANCE_METERS
-                    val maxY = max(p1.y, p2.y) + NEARBY_DISTANCE_METERS
+                        // Basic Bounding Box AABB check for speed (Optional optimization)
+                        val minX = min(p1.x, p2.x) - NEARBY_DISTANCE_METERS
+                        val maxX = max(p1.x, p2.x) + NEARBY_DISTANCE_METERS
+                        val minY = min(p1.y, p2.y) - NEARBY_DISTANCE_METERS
+                        val maxY = max(p1.y, p2.y) + NEARBY_DISTANCE_METERS
 
-                    if (tappedXY.x in minX..maxX && tappedXY.y in minY..maxY) {
-                        if (distToSegment(tappedXY, p1, p2) <= NEARBY_DISTANCE_METERS) return@filter true
+                        if (tappedXY.x in minX..maxX && tappedXY.y in minY..maxY) {
+                            if (distToSegment(
+                                    tappedXY,
+                                    p1,
+                                    p2
+                                ) <= NEARBY_DISTANCE_METERS
+                            ) return@filter true
+                        }
                     }
-                }
-                false
-            }.keys.toList()
+                    false
+                }.keys.toList()
 
-            _nearbyActivities.value = nearby
+                _nearbyActivities.value = nearby
+            }
+
+            if (_isRoutesEnabled.value) {
+                val nearbyRoutes = storedRoutes.value.filter { (_, route) ->
+                    val pts = route.projectedPoints
+                    if (pts.isEmpty()) return@filter false
+
+                    val NEARBY_DISTANCE_METERS = 20.0
+
+                    for (i in 0 until pts.size - 1) {
+                        val p1 = pts[i]
+                        val p2 = pts[i + 1]
+
+                        val minX = min(p1.x, p2.x) - NEARBY_DISTANCE_METERS
+                        val maxX = max(p1.x, p2.x) + NEARBY_DISTANCE_METERS
+                        val minY = min(p1.y, p2.y) - NEARBY_DISTANCE_METERS
+                        val maxY = max(p1.y, p2.y) + NEARBY_DISTANCE_METERS
+
+                        if (tappedXY.x in minX..maxX && tappedXY.y in minY..maxY) {
+                            if (distToSegment(
+                                    tappedXY,
+                                    p1,
+                                    p2
+                                ) <= NEARBY_DISTANCE_METERS
+                            ) return@filter true
+                        }
+                    }
+                    false
+                }.keys.toList()
+                _nearbyStoredRoutes.value = nearbyRoutes
+            }
         }
     }
 
@@ -838,6 +906,38 @@ class MapViewModel(
         val yTile =
             ((1.0 - Math.log(Math.tan(latRad) + 1.0 / Math.cos(latRad)) / Math.PI) / 2.0 * n).toInt()
         return Pair(xTile, yTile)
+    }
+
+    fun previewStoredRoute(routeEntry: RouteEntry) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val route = routeRepository.getRouteI(routeEntry.id)
+                if (route == null) {
+                    snackbarHostState.showSnackbar("Failed to load route")
+                    return@launch
+                }
+                displayRoute(route.toSummary(snackbarHostState).let { Route(route.name(), it, emptyList()) }, route)
+            } catch (t: Throwable) {
+                snackbarHostState.showSnackbar("Failed to load route preview")
+                Napier.e("Preview failed", t)
+            }
+        }
+    }
+
+    fun sendStoredRouteToDevice(routeEntry: RouteEntry) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val route = routeRepository.getRouteI(routeEntry.id)
+                if (route == null) {
+                    snackbarHostState.showSnackbar("Failed to load route")
+                    return@launch
+                }
+                sendRoute(route)
+            } catch (t: Throwable) {
+                snackbarHostState.showSnackbar("Failed to send route")
+                Napier.e("Send route failed", t)
+            }
+        }
     }
 
     fun openActivityInStrava(id: Long) {

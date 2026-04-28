@@ -13,7 +13,6 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -23,16 +22,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Button
 import androidx.compose.material.ButtonDefaults
 import androidx.compose.material.Icon
-import androidx.compose.material.IconButton
 import androidx.compose.material.LocalContentColor
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Colorize
-import androidx.compose.material.icons.filled.Directions
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.RemoveRedEye
+import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Watch
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -99,12 +97,14 @@ fun MapTilerComposable(
     onViewportSizeChange: (IntSize) -> Unit,
     routeToDisplay: Route? = null,
     routeColor: Color = Color.Blue,
-    routeStrokeWidth: Float = 5f,
+    routeStrokeWidth: Float = 8f,
     fitToBoundsPaddingPercent: Float = 0.1f,
     isWatchFeatureDisabled: Boolean
 ) {
     val isStravaEnabled by viewModel.isStravaEnabled.collectAsState()
     val stravaRoutes by viewModel.stravaRoutes.collectAsState()
+    val isRoutesEnabled by viewModel.isRoutesEnabled.collectAsState()
+    val storedRoutes by viewModel.storedRoutes.collectAsState()
 
     // Create and remember Paint objects for drawing the angle text
     val textPaint = remember {
@@ -239,7 +239,7 @@ fun MapTilerComposable(
             .pointerInput(Unit) {
                 detectTapGestures { offset ->
                     // Check the state inside the callback instead of using it as a key
-                    if (isStravaEnabled) {
+                    if (isStravaEnabled || isRoutesEnabled) {
                         val tappedGeo = screenPixelToGeo(
                             IntOffset(
                                 offset.x.roundToInt(),
@@ -376,7 +376,36 @@ fun MapTilerComposable(
                             color = Color(0xFFFC4C02).copy(alpha = 0.7f), // Strava Orange
                             style = Stroke(
                                 // Divide by scale so the line width stays consistent while zooming
-                                width = 6f / scale,
+                                width = routeStrokeWidth / scale,
+                                cap = StrokeCap.Round,
+                                join = StrokeJoin.Round
+                            )
+                        )
+                    }
+                }
+
+                if (isRoutesEnabled) {
+                    storedRoutes.values.forEach { route ->
+                        val path = Path()
+                        route.route.forEachIndexed { index, pt ->
+                            val geo = GeoPosition(pt.latitude.toDouble(), pt.longitude.toDouble())
+
+                            val pos = geoToScreenPixel(
+                                geo,
+                                localCenterGeo,
+                                integerZoom.toFloat(),
+                                viewportSize
+                            )
+
+                            if (index == 0) path.moveTo(pos.x.toFloat(), pos.y.toFloat())
+                            else path.lineTo(pos.x.toFloat(), pos.y.toFloat())
+                        }
+
+                        drawPath(
+                            path = path,
+                            color = Color(0xFFD01E18),
+                            style = Stroke(
+                                width = routeStrokeWidth / scale,
                                 cap = StrokeCap.Round,
                                 join = StrokeJoin.Round
                             )
@@ -413,7 +442,7 @@ fun MapTilerComposable(
                         )
 
                         if (routeSettings.showRoutePoints) {
-                            val dotRadius = 8f / scale
+                            val dotRadius = 10f / scale
                             screenPoints.forEach { offset ->
                                 drawCircle(
                                     color = Color.White, // High contrast against the blue line
@@ -595,26 +624,40 @@ fun MapTilerComposable(
         ) {
             ZoomLevelIndicator(zoom = localZoom)
 
-            Row {
-                Button(
-                    modifier = mapButtonStyle,
-                    onClick = { viewModel.toggleStrava(!isStravaEnabled) },
-                    colors = ButtonDefaults.buttonColors(
-                        // Match the background of your other buttons
-                        backgroundColor = if (isStravaEnabled) MaterialTheme.colors.primary else MaterialTheme.colors.primary.copy(
-                            alpha = 0.8f
-                        ),
-                        contentColor = Color.Unspecified // Prevents automatic tinting
+            Button(
+                modifier = mapButtonStyle,
+                onClick = { viewModel.toggleStrava(!isStravaEnabled) },
+                colors = ButtonDefaults.buttonColors(
+                    // Match the background of your other buttons
+                    backgroundColor = if (isStravaEnabled) MaterialTheme.colors.primary else MaterialTheme.colors.primary.copy(
+                        alpha = 0.8f
                     ),
-                ) {
-                    Image(
-                        painter = painterResource(Res.drawable.strava),
-                        contentDescription = "Toggle Strava",
-                        modifier = Modifier
-                            .clip(CircleShape), // Makes the orange PNG round
-                        contentScale = ContentScale.Fit,
-                    )
-                }
+                    contentColor = Color.Unspecified // Prevents automatic tinting
+                ),
+            ) {
+                Image(
+                    painter = painterResource(Res.drawable.strava),
+                    contentDescription = "Toggle Strava",
+                    modifier = Modifier
+                        .clip(CircleShape), // Makes the orange PNG round
+                    contentScale = ContentScale.Fit,
+                )
+            }
+
+            Button(
+                modifier = mapButtonStyle,
+                onClick = { viewModel.toggleStoredRoutes(!isRoutesEnabled) },
+                colors = ButtonDefaults.buttonColors(
+                    backgroundColor = if (isRoutesEnabled) MaterialTheme.colors.primary else MaterialTheme.colors.primary.copy(
+                        alpha = 0.8f
+                    ),
+                ),
+            ) {
+                Icon(
+                    Icons.Default.Route,
+                    contentDescription = "Toggle Stored Routes",
+                    tint = if (isRoutesEnabled) Color.White else LocalContentColor.current
+                )
             }
         }
         Column(

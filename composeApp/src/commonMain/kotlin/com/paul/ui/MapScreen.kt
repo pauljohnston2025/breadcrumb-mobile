@@ -96,6 +96,7 @@ import androidx.compose.ui.zIndex
 import androidx.navigation.NavController
 import com.paul.composables.MapTilerComposable
 import com.paul.composables.mapButtonStyle
+import com.paul.domain.RouteEntry
 import com.paul.domain.ServerType
 import com.paul.infrastructure.service.GeoPosition
 import com.paul.infrastructure.service.screenPixelToGeo
@@ -150,6 +151,7 @@ fun MapScreen(viewModel: MapViewModel) {
 
     val isStravaEnabled by viewModel.isStravaEnabled.collectAsState()
     val nearbyActivities by viewModel.nearbyActivities.collectAsState()
+    val nearbyStoredRoutes by viewModel.nearbyStoredRoutes.collectAsState()
     val currentRoute by viewModel.currentRoute.collectAsState()
     val currentRouteI by viewModel.currentRouteI.collectAsState()
     val isSeeding by viewModel.isSeeding.collectAsState()
@@ -223,7 +225,7 @@ fun MapScreen(viewModel: MapViewModel) {
                     isWatchFeatureDisabled = isWatchFeatureDisabled
                 )
 
-                if (nearbyActivities.isNotEmpty()) {
+                if (nearbyActivities.isNotEmpty() || nearbyStoredRoutes.isNotEmpty()) {
                     Surface(
                         modifier = Modifier
                             .align(Alignment.Center) // Change from Alignment.BottomCenter
@@ -235,7 +237,7 @@ fun MapScreen(viewModel: MapViewModel) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    "Nearby Activities",
+                                    "Nearby Items",
                                     style = MaterialTheme.typography.h6,
                                     modifier = Modifier.weight(1f)
                                 )
@@ -342,6 +344,84 @@ fun MapScreen(viewModel: MapViewModel) {
                                                             contentDescription = "Open in Strava",
                                                             modifier = Modifier.size(20.dp),
                                                             tint = MaterialTheme.colors.primary
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                items(nearbyStoredRoutes) { routeEntry ->
+                                    Card(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 4.dp),
+                                        elevation = 2.dp,
+                                        shape = RoundedCornerShape(8.dp)
+                                    ) {
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(12.dp)
+                                        ) {
+                                            Text(
+                                                text = routeEntry.name,
+                                                style = MaterialTheme.typography.subtitle1,
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
+
+                                            Spacer(modifier = Modifier.height(8.dp))
+
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Directions,
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(18.dp),
+                                                        tint = MaterialTheme.colors.primary
+                                                    )
+                                                    Spacer(modifier = Modifier.width(8.dp))
+                                                    Text(
+                                                        text = routeEntry.type.name,
+                                                        style = MaterialTheme.typography.caption,
+                                                        color = LocalContentColor.current.copy(alpha = 0.7f)
+                                                    )
+                                                }
+
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    IconButton(
+                                                        onClick = {
+                                                            viewModel.previewStoredRoute(routeEntry)
+                                                        },
+                                                        modifier = Modifier.size(32.dp)
+                                                    ) {
+                                                        Icon(
+                                                            Icons.Default.LocationOn,
+                                                            contentDescription = "Preview",
+                                                            modifier = Modifier.size(20.dp),
+                                                            tint = MaterialTheme.colors.primary
+                                                        )
+                                                    }
+
+                                                    IconButton(
+                                                        onClick = {
+                                                            viewModel.sendStoredRouteToDevice(routeEntry)
+                                                        },
+                                                        enabled = !isWatchFeatureDisabled,
+                                                        modifier = Modifier.size(32.dp)
+                                                    ) {
+                                                        Icon(
+                                                            Icons.Default.PlayArrow,
+                                                            contentDescription = "Send to Device",
+                                                            modifier = Modifier.size(20.dp),
+                                                            tint = Color(0xFF4CAF50),
                                                         )
                                                     }
                                                 }
