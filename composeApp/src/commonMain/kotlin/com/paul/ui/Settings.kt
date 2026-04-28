@@ -43,6 +43,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -1128,17 +1129,22 @@ fun StravaSettings(viewModel: com.paul.viewmodels.Settings) {
 
             // Manual Sync
             Button(
-                onClick = { viewModel.syncStravaActivities() },
+                onClick = { 
+                    if (isSyncing) viewModel.stopSyncStravaActivities() else viewModel.syncStravaActivities() 
+                },
                 modifier = Modifier.weight(1f),
-                enabled = stravaClientId.isNotBlank() && stravaClientSecret.isNotBlank()
+                enabled = stravaClientId.isNotBlank() && stravaClientSecret.isNotBlank(),
+                colors = if (isSyncing) ButtonDefaults.buttonColors(backgroundColor = MaterialTheme.colors.error) else ButtonDefaults.buttonColors()
             ) {
                 if (isSyncing) {
-                    // Small spinner inside the button
-                    CircularProgressIndicator(
+                    Icon(
+                        Icons.Default.Close,
+                        null,
                         modifier = Modifier.size(18.dp),
-                        color = MaterialTheme.colors.onPrimary,
-                        strokeWidth = 2.dp
+                        tint = MaterialTheme.colors.onError
                     )
+                    Spacer(Modifier.width(4.dp))
+                    Text("Stop", color = MaterialTheme.colors.onError)
                 } else {
                     Text("Sync")
                 }

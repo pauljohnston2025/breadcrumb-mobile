@@ -360,6 +360,8 @@ fun App(
                                             deviceSelector,
                                             startViewModel.routeRepo,
                                             mapViewModel.historyRepo,
+                                            {settingsViewModel.syncStravaActivities()},
+                                            {settingsViewModel.stopSyncStravaActivities()}
                                         )
                                     }
 

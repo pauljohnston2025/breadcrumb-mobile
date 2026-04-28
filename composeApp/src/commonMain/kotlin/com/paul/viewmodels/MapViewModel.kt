@@ -40,7 +40,9 @@ import com.paul.protocol.todevice.ReturnToUser
 import com.paul.protocol.todevice.Route
 import com.paul.ui.Screen
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.unit.IntOffset
 import com.paul.domain.RouteEntry
+import com.paul.infrastructure.service.geoToScreenPixel
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -68,6 +70,7 @@ import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
+import kotlin.math.sqrt
 import kotlin.ranges.coerceIn
 
 sealed class MapViewNavigationEvent {
@@ -242,110 +245,86 @@ class MapViewModel(
         _nearbyStoredRoutes.value = emptyList()
     }
 
-    // Proximity logic for the 20m tap requirement
-    // Proximity logic for the 20m tap requirement using segment math
-    // 2. Faster Proximity Logic using Cached Projections
-    fun findNearbyActivities(tappedGeo: GeoPosition) {
+    fun findNearbyActivities(tappedGeo: GeoPosition, viewportSize: IntSize) {
         if (!_isStravaEnabled.value && !_isRoutesEnabled.value) return
+        if (viewportSize == IntSize.Zero) return
 
-        val tappedPoint = Point(tappedGeo.latitude.toFloat(), tappedGeo.longitude.toFloat(), 0f)
-        val tappedXY = tappedPoint.convert2XY() ?: return
+        val currentZoom = _mapZoom.value
+        val currentCenter = GeoPosition(_mapCenter.value.latitude.toDouble(), _mapCenter.value.longitude.toDouble())
+
+        // Convert the tapped location to a screen pixel point (x, y)
+        val tappedScreenPx = geoToScreenPixel(tappedGeo, currentCenter, currentZoom, viewportSize)
+
+        // Define your "Hit Box" in pixels.
+        // This stays 24px whether you're looking at a street or a continent.
+        val HIT_THRESHOLD_PIXELS = 24.0
 
         viewModelScope.launch(Dispatchers.Default) {
-            if (_isStravaEnabled.value) {
-                val nearby = stravaRoutes.value.filter { (_, route) ->
-                    // Use the cached projectedPoints instead of calling convert2XY()
-                    val pts = route.projectedPoints
-                    if (pts.isEmpty()) return@filter false
+            // Helper to check proximity in screen space
+            fun isNearby(route: Route): Boolean {
+                val geoPoints = route.route // Assuming this is List<Point> or List<GeoPosition>
+                if (geoPoints.size < 2) return false
 
-                    val NEARBY_DISTANCE_METERS = 20.0
+                for (i in 0 until geoPoints.size - 1) {
+                    // 1. Convert route segment points to screen pixels
+                    val p1 = geoToScreenPixel(
+                        GeoPosition(geoPoints[i].latitude.toDouble(), geoPoints[i].longitude.toDouble()),
+                        currentCenter, currentZoom, viewportSize
+                    )
+                    val p2 = geoToScreenPixel(
+                        GeoPosition(geoPoints[i+1].latitude.toDouble(), geoPoints[i+1].longitude.toDouble()),
+                        currentCenter, currentZoom, viewportSize
+                    )
 
-                    for (i in 0 until pts.size - 1) {
-                        val p1 = pts[i]
-                        val p2 = pts[i + 1]
+                    // 2. Simple AABB (Bounding Box) check in pixels for speed
+                    val minX = min(p1.x, p2.x) - HIT_THRESHOLD_PIXELS
+                    val maxX = max(p1.x, p2.x) + HIT_THRESHOLD_PIXELS
+                    val minY = min(p1.y, p2.y) - HIT_THRESHOLD_PIXELS
+                    val maxY = max(p1.y, p2.y) + HIT_THRESHOLD_PIXELS
 
-                        // Basic Bounding Box AABB check for speed (Optional optimization)
-                        val minX = min(p1.x, p2.x) - NEARBY_DISTANCE_METERS
-                        val maxX = max(p1.x, p2.x) + NEARBY_DISTANCE_METERS
-                        val minY = min(p1.y, p2.y) - NEARBY_DISTANCE_METERS
-                        val maxY = max(p1.y, p2.y) + NEARBY_DISTANCE_METERS
+                    if (tappedScreenPx.x in minX.toInt()..maxX.toInt() &&
+                        tappedScreenPx.y in minY.toInt()..maxY.toInt()) {
 
-                        if (tappedXY.x in minX..maxX && tappedXY.y in minY..maxY) {
-                            if (distToSegment(
-                                    tappedXY,
-                                    p1,
-                                    p2
-                                ) <= NEARBY_DISTANCE_METERS
-                            ) return@filter true
+                        // 3. Precise segment distance check in pixels
+                        if (distToSegmentPixels(tappedScreenPx, p1, p2) <= HIT_THRESHOLD_PIXELS) {
+                            return true
                         }
                     }
-                    false
-                }.keys.toList()
-
-                _nearbyActivities.value = nearby
+                }
+                return false
             }
 
+            if (_isStravaEnabled.value) {
+                _nearbyActivities.value = stravaRoutes.value.filter { isNearby(it.value) }.keys.toList()
+            }
             if (_isRoutesEnabled.value) {
-                val nearbyRoutes = storedRoutes.value.filter { (_, route) ->
-                    val pts = route.projectedPoints
-                    if (pts.isEmpty()) return@filter false
-
-                    val NEARBY_DISTANCE_METERS = 20.0
-
-                    for (i in 0 until pts.size - 1) {
-                        val p1 = pts[i]
-                        val p2 = pts[i + 1]
-
-                        val minX = min(p1.x, p2.x) - NEARBY_DISTANCE_METERS
-                        val maxX = max(p1.x, p2.x) + NEARBY_DISTANCE_METERS
-                        val minY = min(p1.y, p2.y) - NEARBY_DISTANCE_METERS
-                        val maxY = max(p1.y, p2.y) + NEARBY_DISTANCE_METERS
-
-                        if (tappedXY.x in minX..maxX && tappedXY.y in minY..maxY) {
-                            if (distToSegment(
-                                    tappedXY,
-                                    p1,
-                                    p2
-                                ) <= NEARBY_DISTANCE_METERS
-                            ) return@filter true
-                        }
-                    }
-                    false
-                }.keys.toList()
-                _nearbyStoredRoutes.value = nearbyRoutes
+                _nearbyStoredRoutes.value = storedRoutes.value.filter { isNearby(it.value) }.keys.toList()
             }
         }
     }
 
-    /**
-     * Calculates the shortest distance from point P to the line segment AB.
-     */
-    private fun distToSegment(p: RectPoint, a: RectPoint, b: RectPoint): Double {
-        val dx = b.x - a.x
-        val dy = b.y - a.y
+    private fun distToSegmentPixels(p: IntOffset, a: IntOffset, b: IntOffset): Double {
+        val dx = (b.x - a.x).toDouble()
+        val dy = (b.y - a.y).toDouble()
+        if (dx == 0.0 && dy == 0.0) return distance(p, a)
 
-        if (dx == 0f && dy == 0f) return distanceBetween(p, a)
-
-        // Calculate projection of P onto the line segment (clamped between 0 and 1)
         val t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy)
-        val clampedT = t.coerceIn(0f, 1f)
-
+        val clampedT = t.coerceIn(0.0, 1.0)
         val closestX = a.x + clampedT * dx
         val closestY = a.y + clampedT * dy
 
-        return kotlin.math.sqrt(
-            (p.x - closestX).toDouble().pow(2.0) +
-                    (p.y - closestY).toDouble().pow(2.0)
-        )
+        return sqrt((p.x - closestX).pow(2) + (p.y - closestY).pow(2))
     }
 
-    private fun distanceBetween(p1: RectPoint, p2: RectPoint): Double {
-        return kotlin.math.sqrt(
-            (p1.x - p2.x).toDouble().pow(2.0) +
-                    (p1.y - p2.y).toDouble().pow(2.0)
-        )
-    }
+    private fun distance(
+        p: IntOffset,
+        a: IntOffset
+    ): Double {
+        val dx = (p.x - a.x).toDouble()
+        val dy = (p.y - a.y).toDouble()
 
+        return sqrt(dx * dx + dy * dy)
+    }
 
     /**
      * Resets the newly created palette state, called after navigation has been handled.

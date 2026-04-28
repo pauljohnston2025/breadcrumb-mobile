@@ -45,6 +45,8 @@ class StravaActivitiesViewModel(
     private val deviceSelector: DeviceSelector,
     val routeRepository: RouteRepository,
     val historyRepo: HistoryRepository,
+    val doActivitySync: () -> Unit,
+    val onStopSync: () -> Unit
 ) : ViewModel() {
 
     // Use stateIn to convert the Flow from the repo into a StateFlow
@@ -74,15 +76,13 @@ class StravaActivitiesViewModel(
     }
 
     fun sync() {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                stravaRepo.syncActivities()
-            } catch (e: Exception) {
-                snackbarHostState.showSnackbar("Sync failed: ${e.message}")
-            }
-        }
+        doActivitySync() // calls into the long running settings view model so sync happens even when page switched
     }
 
+    fun stopSync() {
+        onStopSync()
+    }
+    
     fun previewActivity(activity: StravaActivity) {
         val polyline = activity.map?.summaryPolyline
         if (polyline.isNullOrBlank()) {

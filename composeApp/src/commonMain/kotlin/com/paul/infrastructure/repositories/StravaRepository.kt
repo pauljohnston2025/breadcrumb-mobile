@@ -327,6 +327,7 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
         } catch (e: Exception) {
             handleSyncError(e)
         } finally {
+            _loginStatus.value = null // moving on to next step, or coroutine killed
             _isSyncing.value = false
         }
     }
@@ -352,6 +353,7 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
         } catch (e: Exception) {
             handleSyncError(e)
         } finally {
+            _loginStatus.value = null // moving on to next step, or coroutine killed
             _isSyncing.value = false
         }
     }
@@ -386,6 +388,7 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
             Napier.e("Failed to sync Strava gear metadata", e)
             handleSyncError(e)
         } finally {
+            _loginStatus.value = null // moving on to next step, or coroutine killed
             _isSyncing.value = false
         }
     }

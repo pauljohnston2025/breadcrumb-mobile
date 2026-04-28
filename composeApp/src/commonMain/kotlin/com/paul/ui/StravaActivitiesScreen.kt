@@ -48,12 +48,16 @@ import androidx.compose.material3.TextButton as M3TextButton
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StravaActivitiesScreen(viewModel: StravaActivitiesViewModel, tileRepository: ITileRepository) {
-    BackHandler(enabled = viewModel.sendingFile.value != "") {
-        // prevent back handler when we are trying to do things, todo cancel the job we are trying to do
+    val isSyncing by viewModel.isSyncing.collectAsState()
+
+    BackHandler(enabled = viewModel.sendingFile.value != "" || isSyncing) {
+        if (isSyncing) {
+            viewModel.stopSync()
+        }
+        // prevent back handler when we are trying to do things
     }
 
     val rawActivities by viewModel.activities.collectAsState(emptyList())
-    val isSyncing by viewModel.isSyncing.collectAsState()
     val status by viewModel.loginStatus.collectAsState()
     val syncErrorStatus by viewModel.syncErrorStatus.collectAsState()
     val currentRange by viewModel.currentRange.collectAsState()
@@ -115,17 +119,22 @@ fun StravaActivitiesScreen(viewModel: StravaActivitiesViewModel, tileRepository:
             Spacer(Modifier.width(8.dp))
 
             androidx.compose.material3.FilledIconButton(
-                onClick = { viewModel.sync() },
-                enabled = !isSyncing,
+                onClick = {
+                    if (isSyncing) viewModel.stopSync() else viewModel.sync()
+                },
+                enabled = true,
                 colors = androidx.compose.material3.IconButtonDefaults.filledIconButtonColors(
-                    containerColor = MaterialTheme.colors.primaryVariant,
-                    contentColor = MaterialTheme.colors.primary
+                    containerColor = if (isSyncing) MaterialTheme.colors.error else MaterialTheme.colors.primaryVariant,
+                    contentColor = Color.White
                 ),
                 modifier = Modifier.size(36.dp) // Reduced from 48.dp
             ) {
                 if (isSyncing) {
-                    androidx.compose.material3.CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = Color.White
+                    Icon(
+                        Icons.Default.Close,
+                        null,
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp)
                     )
                 } else {
                     Icon(
@@ -140,20 +149,27 @@ fun StravaActivitiesScreen(viewModel: StravaActivitiesViewModel, tileRepository:
 
 // 2. Status Banners (Tighter)
         if (!status.isNullOrEmpty() || !syncErrorStatus.isNullOrEmpty()) {
-            Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                status?.let {
-                    Text(
-                        it,
-                        style = MaterialTheme.typography.overline,
-                        color = MaterialTheme.colors.primary
-                    )
-                }
-                syncErrorStatus?.let {
-                    Text(
-                        it,
-                        style = MaterialTheme.typography.overline,
-                        color = MaterialTheme.colors.error
-                    )
+            Row(
+                modifier = Modifier
+                    .padding(horizontal = 16.dp)
+                    .fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    status?.let {
+                        Text(
+                            it,
+                            style = MaterialTheme.typography.overline,
+                            color = MaterialTheme.colors.primary
+                        )
+                    }
+                    syncErrorStatus?.let {
+                        Text(
+                            it,
+                            style = MaterialTheme.typography.overline,
+                            color = MaterialTheme.colors.error
+                        )
+                    }
                 }
             }
         }
@@ -391,7 +407,11 @@ private fun StravaActivityListItem(
                 )
 
                 if (gear != null) {
-                    Text(" • ", color = Color.Gray.copy(0.5f), style = MaterialTheme.typography.overline)
+                    Text(
+                        " • ",
+                        color = Color.Gray.copy(0.5f),
+                        style = MaterialTheme.typography.overline
+                    )
                     Icon(
                         imageVector = StravaGear.getGearIcon(gear.type),
                         contentDescription = null,
@@ -415,7 +435,8 @@ private fun StravaActivityListItem(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = activity.startDate.toLocalDateTime(TimeZone.currentSystemDefault()).toString(),
+                    text = activity.startDate.toLocalDateTime(TimeZone.currentSystemDefault())
+                        .toString(),
                     style = MaterialTheme.typography.caption,
                     color = Color.Gray.copy(0.7f)
                 )
@@ -425,13 +446,31 @@ private fun StravaActivityListItem(
                 // Action Icons
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onClick, modifier = Modifier.size(28.dp)) {
-                        Icon(Icons.Default.LocationOn, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colors.primary.copy(0.7f))
+                        Icon(
+                            Icons.Default.LocationOn,
+                            null,
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colors.primary.copy(0.7f)
+                        )
                     }
                     IconButton(onClick = onSendClick, modifier = Modifier.size(28.dp)) {
-                        Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(20.dp), tint = Color(0xFF4CAF50))
+                        Icon(
+                            Icons.Default.PlayArrow,
+                            null,
+                            modifier = Modifier.size(20.dp),
+                            tint = Color(0xFF4CAF50)
+                        )
                     }
-                    IconButton(onClick = { openActivityInStrava(activity.id) }, modifier = Modifier.size(28.dp)) {
-                        Icon(Icons.Default.OpenInNew, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colors.primary)
+                    IconButton(
+                        onClick = { openActivityInStrava(activity.id) },
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.OpenInNew,
+                            null,
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colors.primary
+                        )
                     }
                 }
             }

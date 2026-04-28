@@ -249,7 +249,7 @@ fun MapTilerComposable(
                             localZoom, // Use localZoom for better accuracy than integerZoom
                             size
                         )
-                        viewModel.findNearbyActivities(tappedGeo)
+                        viewModel.findNearbyActivities(tappedGeo, viewportSize)
                     }
                 }
             }
