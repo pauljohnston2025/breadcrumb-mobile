@@ -13,6 +13,7 @@ import com.paul.infrastructure.service.IFileHelper
 import com.paul.infrastructure.service.IGpxFileLoader
 import com.paul.protocol.todevice.Point
 import com.paul.protocol.todevice.Route
+import com.paul.protocol.todevice.Route.Companion.ROUTE_SUMMARY_VERSION
 import com.russhwolf.settings.Settings
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -181,7 +182,7 @@ class RouteRepository(
         }
 
         routes.removeIf { it.id == id }
-        routes.add(current.copy(summary = summary))
+        routes.add(current.copy(summary = summary, summaryVersion = ROUTE_SUMMARY_VERSION))
         saveRoutes()
     }
 
@@ -189,7 +190,7 @@ class RouteRepository(
     {
         if (route != null) {
             var summary = route.summaryToRoute()
-            if (summary == null) {
+            if (summary == null || route.summaryVersion != ROUTE_SUMMARY_VERSION) {
                 // first time write the summary back and persist it
                 val iRoute = getRouteI(route.id)
                 if (iRoute != null) {

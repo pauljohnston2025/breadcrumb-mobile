@@ -622,7 +622,29 @@ fun MapTilerComposable(
             horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            ZoomLevelIndicator(zoom = localZoom)
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(Color.Black.copy(alpha = 0.5f))
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Text(text = "Zoom: %.1f".format(localZoom), color = Color.White, fontSize = 12.sp)
+            }
+
+            if (routeSettings.showRoutePoints && routeToDisplay != null) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Color.Black.copy(alpha = 0.5f))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "Points: ${routeToDisplay.route.size}",
+                        color = Color.White,
+                        fontSize = 12.sp
+                    )
+                }
+            }
 
             Button(
                 modifier = mapButtonStyle,
@@ -743,20 +765,6 @@ fun MapTilerComposable(
                 Icon(Icons.Default.Remove, contentDescription = "Zoom Out")
             }
         }
-    }
-}
-
-@Composable
-private fun ZoomLevelIndicator(
-    zoom: Float, modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(4.dp))
-            .background(Color.Black.copy(alpha = 0.5f))
-            .padding(horizontal = 8.dp, vertical = 4.dp)
-    ) {
-        Text(text = "Zoom: %.1f".format(zoom), color = Color.White, fontSize = 12.sp)
     }
 }
 

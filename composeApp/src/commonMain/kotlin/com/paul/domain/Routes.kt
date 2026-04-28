@@ -16,6 +16,11 @@ data class RouteSettings(
     val mockDirections: Boolean,
     val showRoutePoints: Boolean = false,
     val useReumannWitkam: Boolean = false,
+    val reumannWitkamTolerance: Double = 5.0,
+    val useDouglasPeucker: Boolean = false,
+    val douglasPeuckerEpsilon: Double = 50.0,
+    val useVisvalingamWhyatt: Boolean = false,
+    val visvalingamWhyattThreshold: Double = 1000.0, // Area in square meters
 ) {
 
     companion object {
@@ -102,6 +107,7 @@ data class RouteEntry(
     val sizeBytes: Long,
     val hasDirectionInfo: Boolean = false,
     val summary: List<Point>? = null,
+    val summaryVersion: Int = -1,
 ) {
     fun summaryToRoute(): Route? {
         if (summary == null) return null

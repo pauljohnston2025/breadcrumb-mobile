@@ -369,6 +369,8 @@ class Route(
     Protocol {
 
     companion object {
+        // change every time the below changes
+        const val ROUTE_SUMMARY_VERSION = 1
         fun summary(route: List<Point>): List<Point> {
             // hack: should lift out to better methods
             return prepareForDevice(
@@ -376,11 +378,12 @@ class Route(
                 route,
                 listOf(),
                 RouteSettings(
-                    coordinatesPointLimit = 100,
+                    coordinatesPointLimit = 500,
                     directionsPointLimit = 0,
                     mockDirections = false,
                     showRoutePoints = false,
-                    useReumannWitkam = true,
+                    useDouglasPeucker = true,
+                    douglasPeuckerEpsilon = 30.0,
                 )
             ).route
         }
@@ -443,52 +446,55 @@ class Route(
                 val reducedOtherIndices = mutableListOf<Int>()
 
                 // Identify all potential points we could remove
-                val otherIndices = route.indices.filter { it !in finalIndicesToKeep }
+                val anchors = finalIndicesToKeep.toList().sorted()
 
-                if (routeSettings.useReumannWitkam) {
-                    if (maxOtherPointsAllowed > 0 && otherIndices.isNotEmpty()) {
-                        val toleranceMeters = 50.0
-                        val anchors = finalIndicesToKeep.toList().sorted()
+                for (i in 0 until anchors.size - 1) {
+                    val startIdx = anchors[i]
+                    val endIdx = anchors[i + 1]
+                    if (endIdx - startIdx <= 1) continue
 
-                        for (i in 0 until anchors.size - 1) {
-                            val startIdx = anchors[i]
-                            val endIdx = anchors[i + 1]
+                    // We start with all points in this segment as candidates to KEEP
+                    var segmentIndicesToKeep = (startIdx + 1 until endIdx).toList()
 
-                            if (endIdx - startIdx <= 1) continue
-
-                            var keyIdx = startIdx
-                            var currIdx = startIdx + 1
-
-                            while (currIdx < endIdx) {
-                                // The "Corridor" is defined by the line passing through
-                                // keyIdx and keyIdx + 1.
-                                val lineStart = route[keyIdx]
-                                val lineEnd = route[keyIdx + 1]
-
-                                // We check if the point at currIdx deviates from the corridor
-                                val distance = calculatePerpendicularDistanceToInfiniteLine(
-                                    route[currIdx],
-                                    lineStart,
-                                    lineEnd
-                                )
-
-                                if (distance > toleranceMeters) {
-                                    // This point is outside the corridor.
-                                    // We keep it and it becomes the NEW anchor.
-                                    reducedOtherIndices.add(currIdx)
-                                    keyIdx = currIdx
-                                    // The next point to test is the one after the new anchor
-                                    currIdx = keyIdx + 1
-                                } else {
-                                    // Point is within tolerance, skip it and check the next one
-                                    // against the SAME corridor.
-                                    currIdx++
-                                }
+                    // 1. Apply Reumann-Witkam (Fast pruning of straight lines)
+                    if (routeSettings.useReumannWitkam && segmentIndicesToKeep.isNotEmpty()) {
+                        val toleranceMeters = routeSettings.reumannWitkamTolerance
+                        val filtered = mutableListOf<Int>()
+                        var keyIdx = startIdx
+                        
+                        // We iterate through the current candidates
+                        for (currIdx in segmentIndicesToKeep) {
+                            val lineStart = route[keyIdx]
+                            val lineEnd = route[currIdx + 1].let { if (currIdx + 1 <= endIdx) it else route[endIdx] }
+                            
+                            val distance = calculatePerpendicularDistanceToInfiniteLine(route[currIdx], lineStart, lineEnd)
+                            if (distance > toleranceMeters) {
+                                filtered.add(currIdx)
+                                keyIdx = currIdx
                             }
                         }
+                        segmentIndicesToKeep = filtered
                     }
-                } else {
-                    reducedOtherIndices.addAll(otherIndices)
+
+                    // 2. Apply Douglas-Peucker (Shape preservation)
+                    if (routeSettings.useDouglasPeucker && segmentIndicesToKeep.isNotEmpty()) {
+                        val result = mutableListOf<Int>()
+                        simplifyDouglasPeucker(route, startIdx, endIdx, routeSettings.douglasPeuckerEpsilon, result)
+                        // Only keep points that were ALREADY in our candidate list AND were kept by DP
+                        val dpSet = result.toSet()
+                        segmentIndicesToKeep = segmentIndicesToKeep.filter { it in dpSet }
+                    }
+
+                    // 3. Apply Visvalingam-Whyatt (Area-based smoothing)
+                    if (routeSettings.useVisvalingamWhyatt && segmentIndicesToKeep.isNotEmpty()) {
+                        // VW is iterative, so it's best to run it on the already reduced set
+                        // Note: simplifyVisvalingamWhyatt returns a subset of indices
+                        val result = simplifyVisvalingamWhyatt(route, startIdx, endIdx, routeSettings.visvalingamWhyattThreshold)
+                        val vwSet = result.toSet()
+                        segmentIndicesToKeep = segmentIndicesToKeep.filter { it in vwSet }
+                    }
+
+                    reducedOtherIndices.addAll(segmentIndicesToKeep)
                 }
 
 
@@ -552,6 +558,156 @@ class Route(
 
             // 3. Perpendicular distance formula
             return Math.abs(A * x0 + B * y0 + C) / denominator
+        }
+
+        private fun simplifyDouglasPeucker(
+            points: List<Point>,
+            startIdx: Int,
+            endIdx: Int,
+            epsilon: Double,
+            resultIndices: MutableList<Int>
+        ) {
+            var maxDistance = 0.0
+            var index = -1
+
+            for (i in startIdx + 1 until endIdx) {
+                val distance = calculatePerpendicularDistanceToSegment(
+                    points[i],
+                    points[startIdx],
+                    points[endIdx]
+                )
+                if (distance > maxDistance) {
+                    index = i
+                    maxDistance = distance
+                }
+            }
+
+            if (maxDistance > epsilon) {
+                // If max distance is greater than epsilon, recursively simplify
+                simplifyDouglasPeucker(points, startIdx, index, epsilon, resultIndices)
+                resultIndices.add(index)
+                simplifyDouglasPeucker(points, index, endIdx, epsilon, resultIndices)
+            }
+        }
+
+        private fun simplifyVisvalingamWhyatt(
+            points: List<Point>,
+            startIdx: Int,
+            endIdx: Int,
+            thresholdArea: Double
+        ): List<Int> {
+            val numPoints = endIdx - startIdx + 1
+            if (numPoints <= 2) return emptyList()
+
+            // Map segment-local index to global index
+            val globalIndices = IntArray(numPoints) { startIdx + it }
+            
+            // Double-linked list to keep track of current neighbors
+            val prev = IntArray(numPoints) { it - 1 }
+            val next = IntArray(numPoints) { it + 1 }
+            val areas = DoubleArray(numPoints)
+
+            fun calculateArea(i: Int): Double {
+                if (prev[i] == -1 || next[i] == numPoints) return Double.MAX_VALUE
+                return calculateTriangleArea(
+                    points[globalIndices[prev[i]]],
+                    points[globalIndices[i]],
+                    points[globalIndices[next[i]]]
+                )
+            }
+
+            // Initial area calculation
+            for (i in 0 until numPoints) {
+                areas[i] = calculateArea(i)
+            }
+
+            val removed = BooleanArray(numPoints)
+
+            while (true) {
+                var minArea = Double.MAX_VALUE
+                var minIdx = -1
+
+                // Find the point with the minimum area
+                for (i in 1 until numPoints - 1) {
+                    if (!removed[i] && areas[i] < minArea) {
+                        minArea = areas[i]
+                        minIdx = i
+                    }
+                }
+
+                if (minIdx == -1 || minArea >= thresholdArea) break
+
+                removed[minIdx] = true
+                
+                // Update the linked list
+                val p = prev[minIdx]
+                val n = next[minIdx]
+                if (p != -1) next[p] = n
+                if (n != numPoints) prev[n] = p
+
+                // Recalculate areas for the neighbors
+                if (p != -1) areas[p] = calculateArea(p)
+                if (n != numPoints) areas[n] = calculateArea(n)
+            }
+
+            val resultIndices = mutableListOf<Int>()
+            for (i in 1 until numPoints - 1) {
+                if (!removed[i]) {
+                    resultIndices.add(globalIndices[i])
+                }
+            }
+
+            return resultIndices
+        }
+
+        private fun calculateTriangleArea(p1: Point, p2: Point, p3: Point): Double {
+            val p1XY = p1.convert2XY() ?: return 0.0
+            val p2XY = p2.convert2XY() ?: return 0.0
+            val p3XY = p3.convert2XY() ?: return 0.0
+
+            // Area = |x1(y2 - y3) + x2(y3 - y1) + x3(y1 - y2)| / 2
+            return Math.abs(
+                p1XY.x * (p2XY.y - p3XY.y) +
+                        p2XY.x * (p3XY.y - p1XY.y) +
+                        p3XY.x * (p1XY.y - p2XY.y)
+            ) / 2.0
+        }
+
+        private fun calculatePerpendicularDistanceToSegment(
+            p: Point,
+            start: Point,
+            end: Point
+        ): Double {
+            val pXY = p.convert2XY() ?: return 0.0
+            val sXY = start.convert2XY() ?: return 0.0
+            val eXY = end.convert2XY() ?: return 0.0
+
+            val px = pXY.x.toDouble()
+            val py = pXY.y.toDouble()
+            val sx = sXY.x.toDouble()
+            val sy = sXY.y.toDouble()
+            val ex = eXY.x.toDouble()
+            val ey = eXY.y.toDouble()
+
+            val dx = ex - sx
+            val dy = ey - sy
+
+            if (dx == 0.0 && dy == 0.0) {
+                return calculateDistanceInMeters(p, start)
+            }
+
+            // Parameter t for the projection of P onto the line segment SE
+            var t = ((px - sx) * dx + (py - sy) * dy) / (dx * dx + dy * dy)
+
+            return if (t < 0.0) {
+                calculateDistanceInMeters(p, start)
+            } else if (t > 1.0) {
+                calculateDistanceInMeters(p, end)
+            } else {
+                val projX = sx + t * dx
+                val projY = sy + t * dy
+                Math.sqrt((px - projX) * (px - projX) + (py - projY) * (py - projY))
+            }
         }
     }
 

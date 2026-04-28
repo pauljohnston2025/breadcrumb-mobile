@@ -905,19 +905,108 @@ fun Settings(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 8.dp),
+                        .padding(vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
                         "Reduce points with Reumann-Witkam:",
-                        style = MaterialTheme.typography.body1
+                        style = MaterialTheme.typography.body2
                     )
                     Switch(
                         checked = settings.useReumannWitkam,
                         onCheckedChange = { isChecked ->
                             viewModel.onRouteSettingsChanged(settings.copy(useReumannWitkam = isChecked))
                         }
+                    )
+                }
+                if (settings.useReumannWitkam) {
+                    var rwToleranceString by remember(settings.reumannWitkamTolerance) { mutableStateOf(settings.reumannWitkamTolerance.toString()) }
+                    OutlinedTextField(
+                        value = rwToleranceString,
+                        onValueChange = {
+                            rwToleranceString = it
+                            it.toDoubleOrNull()?.let { tolerance ->
+                                viewModel.onRouteSettingsChanged(settings.copy(reumannWitkamTolerance = tolerance))
+                            }
+                        },
+                        label = { Text("Reumann-Witkam Tolerance (meters)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth().padding(start = 16.dp),
+                        isError = rwToleranceString.toDoubleOrNull() == null,
+                        singleLine = true
+                    )
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        "Reduce points with Douglas-Peucker:",
+                        style = MaterialTheme.typography.body2
+                    )
+                    Switch(
+                        checked = settings.useDouglasPeucker,
+                        onCheckedChange = { isChecked ->
+                            viewModel.onRouteSettingsChanged(settings.copy(useDouglasPeucker = isChecked))
+                        }
+                    )
+                }
+                if (settings.useDouglasPeucker) {
+                    var dpEpsilonString by remember(settings.douglasPeuckerEpsilon) { mutableStateOf(settings.douglasPeuckerEpsilon.toString()) }
+                    OutlinedTextField(
+                        value = dpEpsilonString,
+                        onValueChange = {
+                            dpEpsilonString = it
+                            it.toDoubleOrNull()?.let { epsilon ->
+                                viewModel.onRouteSettingsChanged(settings.copy(douglasPeuckerEpsilon = epsilon))
+                            }
+                        },
+                        label = { Text("Douglas-Peucker Epsilon (meters)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth().padding(start = 16.dp),
+                        isError = dpEpsilonString.toDoubleOrNull() == null,
+                        singleLine = true
+                    )
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        "Reduce points with Visvalingam-Whyatt:",
+                        style = MaterialTheme.typography.body2
+                    )
+                    Switch(
+                        checked = settings.useVisvalingamWhyatt,
+                        onCheckedChange = { isChecked ->
+                            viewModel.onRouteSettingsChanged(settings.copy(useVisvalingamWhyatt = isChecked))
+                        }
+                    )
+                }
+                if (settings.useVisvalingamWhyatt) {
+                    var vwThresholdString by remember(settings.visvalingamWhyattThreshold) { mutableStateOf(settings.visvalingamWhyattThreshold.toString()) }
+                    OutlinedTextField(
+                        value = vwThresholdString,
+                        onValueChange = {
+                            vwThresholdString = it
+                            it.toDoubleOrNull()?.let { threshold ->
+                                viewModel.onRouteSettingsChanged(settings.copy(visvalingamWhyattThreshold = threshold))
+                            }
+                        },
+                        label = { Text("Visvalingam-Whyatt Area (sq meters)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth().padding(start = 16.dp),
+                        isError = vwThresholdString.toDoubleOrNull() == null,
+                        singleLine = true
                     )
                 }
             }
