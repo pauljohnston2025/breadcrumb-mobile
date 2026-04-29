@@ -1034,7 +1034,8 @@ fun ListNumberEditor(property: EditableProperty<Int>) {
 
                 ExposedDropdownMenu(
                     expanded = expanded,
-                    onDismissRequest = { expanded = false }
+                    onDismissRequest = { expanded = false },
+                    modifier = Modifier.heightIn(max = 400.dp)
                 ) {
                     property.options?.forEach { option ->
                         DropdownMenuItem(onClick = {
