@@ -1,33 +1,74 @@
 package com.paul.ui
 
-import com.paul.composables.RouteMiniMap
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.*
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material.AlertDialog
+import androidx.compose.material.Button
+import androidx.compose.material.ButtonDefaults
+import androidx.compose.material.Card
+import androidx.compose.material.CircularProgressIndicator
+import androidx.compose.material.Divider
+import androidx.compose.material.Icon
+import androidx.compose.material.IconButton
+import androidx.compose.material.MaterialTheme
+import androidx.compose.material.OutlinedTextField
+import androidx.compose.material.SnackbarHostState
+import androidx.compose.material.Surface
+import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.automirrored.filled.Sort
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Directions
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.paul.composables.RouteMiniMap
 import com.paul.domain.RouteEntry
 import com.paul.domain.RouteType
+import com.paul.domain.TileServerInfo
 import com.paul.infrastructure.repositories.ITileRepository
 import com.paul.infrastructure.repositories.RouteRepository
+import com.paul.infrastructure.repositories.TileServerRepo
 import com.paul.infrastructure.service.formatBytes
 import com.paul.protocol.todevice.Route
 import com.paul.viewmodels.RoutesViewModel
@@ -70,6 +111,9 @@ fun RoutesScreen(viewModel: RoutesViewModel, tileRepository: ITileRepository) {
         }
     }
 
+    val tileServer by viewModel.tileServerRepo.currentServerFlow()
+        .collectAsState(TileServerRepo.defaultTileServer)
+
     BackHandler(enabled = viewModel.sendingFile.value != "") { /* Handle Cancel */ }
 
     Box(
@@ -80,7 +124,6 @@ fun RoutesScreen(viewModel: RoutesViewModel, tileRepository: ITileRepository) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp)
         ) {
 
             // --- Search, Type Filter, and Sort Header ---
@@ -93,8 +136,6 @@ fun RoutesScreen(viewModel: RoutesViewModel, tileRepository: ITileRepository) {
                 onSortChange = { sortOrder = it }
             )
 
-            Spacer(Modifier.height(12.dp))
-
             // --- Main List ---
             RouteListSection(
                 routes = filteredAndSortedRoutes,
@@ -105,6 +146,8 @@ fun RoutesScreen(viewModel: RoutesViewModel, tileRepository: ITileRepository) {
                 tileRepository,
                 viewModel.routeRepo,
                 viewModel.snackbarHostState,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                tileServer,
             )
         }
 
@@ -138,51 +181,103 @@ private fun RoutesHeader(
     currentSort: RouteSortOrder,
     onSortChange: (RouteSortOrder) -> Unit
 ) {
-    Column {
-        OutlinedTextField(
+    Column(Modifier.padding(vertical = 8.dp)) {
+        BasicTextField(
             value = searchQuery,
             onValueChange = onSearchChange,
-            modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("Search routes...", fontSize = 14.sp) },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-            singleLine = true,
-            shape = RoundedCornerShape(12.dp)
-        )
-
-        // Type Filter Chips
-        Row(
-            modifier = Modifier
-                .padding(vertical = 8.dp)
-                .horizontalScroll(rememberScrollState()),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("Type: ", style = MaterialTheme.typography.caption, color = Color.Gray)
-            FilterChip(label = "All", isSelected = selectedType == null) { onTypeChange(null) }
-            RouteType.entries.forEach { type ->
-                Spacer(Modifier.width(4.dp))
-                FilterChip(
-                    label = type.name,
-                    isSelected = selectedType == type
-                ) { onTypeChange(type) }
-            }
-        }
-
-        // Sort Chips
-        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(Icons.Default.Sort, null, modifier = Modifier.size(16.dp), tint = Color.Gray)
-            Spacer(Modifier.width(8.dp))
-            RouteSortOrder.entries.forEach { order ->
-                SortChip(label = order.label, isSelected = currentSort == order) {
-                    onSortChange(
-                        order
+                .padding(horizontal = 16.dp)
+                .height(36.dp)
+                .background(MaterialTheme.colors.surface, RoundedCornerShape(8.dp))
+                .border(1.dp, Color.LightGray.copy(0.5f), RoundedCornerShape(8.dp)),
+            singleLine = true,
+            textStyle = TextStyle(fontSize = 14.sp, color = MaterialTheme.colors.onSurface),
+            decorationBox = { innerTextField ->
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.Search,
+                        null,
+                        modifier = Modifier.size(18.dp),
+                        tint = Color.Gray
                     )
+                    Spacer(Modifier.width(8.dp))
+                    Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                        if (searchQuery.isEmpty()) {
+                            Text(
+                                text = "Search routes...",
+                                color = Color.Gray,
+                                fontSize = 14.sp
+                            )
+                        }
+                        innerTextField()
+                    }
                 }
+            }
+        )
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp)
+        ) {
+            // Sort Toggle
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .padding(start = 16.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable {
+                        val nextIndex =
+                            (RouteSortOrder.entries.indexOf(currentSort) + 1) % RouteSortOrder.entries.size
+                        onSortChange(RouteSortOrder.entries[nextIndex])
+                    }
+                    .padding(vertical = 4.dp, horizontal = 4.dp)
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Filled.Sort,
+                    null,
+                    tint = MaterialTheme.colors.primary,
+                    modifier = Modifier.size(16.dp)
+                )
                 Spacer(Modifier.width(4.dp))
+                Text(
+                    currentSort.label,
+                    style = MaterialTheme.typography.caption,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colors.primary
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .padding(horizontal = 4.dp)
+                    .width(1.dp)
+                    .height(12.dp)
+                    .background(Color.Gray.copy(0.3f))
+            )
+
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                contentPadding = PaddingValues(horizontal = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                item {
+                    FilterChip(
+                        label = "All",
+                        isSelected = selectedType == null
+                    ) { onTypeChange(null) }
+                }
+                items(RouteType.entries) { type ->
+                    FilterChip(
+                        label = type.name,
+                        isSelected = selectedType == type
+                    ) { onTypeChange(type) }
+                }
             }
         }
     }
@@ -225,41 +320,6 @@ private fun FilterChip(label: String, isSelected: Boolean, onClick: () -> Unit) 
 }
 
 @Composable
-private fun SortChip(label: String, isSelected: Boolean, onClick: () -> Unit) {
-    val backgroundColor = if (isSelected) {
-        MaterialTheme.colors.primary.copy(alpha = 0.15f) // Subtle tint of your primary brand color
-    } else {
-        MaterialTheme.colors.onSurface.copy(alpha = 0.05f) // Very light gray/white depending on theme
-    }
-
-    val contentColor = if (isSelected) {
-        MaterialTheme.colors.primary
-    } else {
-        MaterialTheme.colors.onSurface.copy(alpha = 0.6f) // De-emphasized text
-    }
-
-    val borderColor = if (isSelected) {
-        MaterialTheme.colors.primary
-    } else {
-        MaterialTheme.colors.onSurface.copy(alpha = 0.12f)
-    }
-    Surface(
-        modifier = Modifier.clickable { onClick() },
-        shape = RoundedCornerShape(16.dp),
-        color = backgroundColor,
-        border = BorderStroke(1.dp, borderColor)
-    ) {
-        Text(
-            text = label,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-            color = contentColor,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold
-        )
-    }
-}
-
-@Composable
 private fun RouteListSection(
     routes: List<RouteEntry>,
     onEditClick: (RouteEntry) -> Unit,
@@ -268,14 +328,16 @@ private fun RouteListSection(
     onDeleteClick: (RouteEntry) -> Unit,
     tileRepository: ITileRepository,
     routeRepo: RouteRepository,
-    snackbarHostState: SnackbarHostState
+    snackbarHostState: SnackbarHostState,
+    modifier: Modifier = Modifier,
+    tileServer: TileServerInfo,
 ) {
     if (routes.isEmpty()) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("No routes match your filters.", style = MaterialTheme.typography.caption)
         }
     } else {
-        Card(elevation = 2.dp, shape = RoundedCornerShape(8.dp)) {
+        Card(modifier = modifier, elevation = 2.dp, shape = RoundedCornerShape(12.dp)) {
             LazyColumn {
                 items(routes, key = { it.id }) { route ->
                     RouteListItem(
@@ -286,7 +348,8 @@ private fun RouteListSection(
                         onDeleteClick,
                         tileRepository,
                         routeRepo,
-                        snackbarHostState
+                        snackbarHostState,
+                        tileServer,
                     )
                     Divider(color = Color.LightGray.copy(alpha = 0.2f))
                 }
@@ -305,6 +368,7 @@ private fun RouteListItem(
     tileRepository: ITileRepository,
     routeRepo: RouteRepository,
     snackbarHostState: SnackbarHostState,
+    tileServer: TileServerInfo,
 ) {
     // 1. Handle the suspend call to get the Route object
     // produceState starts a coroutine that handles the async fetching
@@ -330,7 +394,8 @@ private fun RouteListItem(
                 RouteMiniMap(
                     route = activeRoute,
                     tileRepository = tileRepository,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
+                    tileServer,
                 )
             } ?: run {
                 // Optional: Show a small loader or icon while fetching coordinates

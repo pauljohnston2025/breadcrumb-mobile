@@ -10,6 +10,7 @@ import com.paul.domain.RouteEntry
 import com.paul.infrastructure.connectiq.IConnection
 import com.paul.infrastructure.repositories.HistoryRepository
 import com.paul.infrastructure.repositories.RouteRepository
+import com.paul.infrastructure.repositories.TileServerRepo
 import com.paul.infrastructure.service.SendMessageHelper
 import com.paul.infrastructure.service.SendRoute
 import com.paul.ui.Screen
@@ -34,7 +35,8 @@ class RoutesViewModel(
     private val deviceSelector: DeviceSelector,
     val routeRepo: RouteRepository,
     private val historyRepo: HistoryRepository,
-    val snackbarHostState: SnackbarHostState
+    val snackbarHostState: SnackbarHostState,
+    val tileServerRepo: TileServerRepo,
 ) : ViewModel() {
     // State for controlling the edit dialog
     private val _editingRoute = MutableStateFlow<RouteEntry?>(null)

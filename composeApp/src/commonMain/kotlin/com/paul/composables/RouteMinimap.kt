@@ -32,12 +32,14 @@ import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.tan
+import com.paul.domain.TileServerInfo
 
 @Composable
 fun RouteMiniMap(
     route: Route?,
     tileRepository: ITileRepository,
     modifier: Modifier = Modifier,
+    tileServerInfo: TileServerInfo,
     lineColor: Color = Color(0xFFFC4C02),
 ) {
     // Local state to store bitmaps fetched from the repo
@@ -75,7 +77,7 @@ fun RouteMiniMap(
             val zoomH = log2(width / (max(0.00001, maxLon - minLon) * (tileSize / 360.0)))
 
             val bestZoom = (minOf(zoomV, zoomH) - (padding - 1.0)).toFloat().coerceIn(2f, 18f)
-            val integerZoom = bestZoom.roundToInt().coerceIn(2, 18)
+            val integerZoom = bestZoom.roundToInt().coerceIn(tileServerInfo.tileLayerMin, tileServerInfo.tileLayerMax)
 
             Triple(center, bestZoom, integerZoom)
         }

@@ -6,21 +6,23 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
@@ -240,59 +242,81 @@ fun HeaderSection(
 ) {
     val levels = listOf("VERBOSE", "DEBUG", "INFO", "WARNING", "ERROR")
 
-    Surface(
-        elevation = 4.dp
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = onSearchChange,
-                    modifier = Modifier.weight(1f),
-                    placeholder = { Text("Search logs...", fontSize = 14.sp) },
-                    singleLine = true,
-                    textStyle = TextStyle(color = MaterialTheme.colors.onSurface, fontSize = 14.sp),
-                    shape = RoundedCornerShape(8.dp),
-                    colors = TextFieldDefaults.outlinedTextFieldColors(
-                        focusedBorderColor = MaterialTheme.colors.primary,
-                        unfocusedBorderColor = MaterialTheme.colors.onSurface.copy(alpha = 0.12f),
-                        backgroundColor = MaterialTheme.colors.onSurface.copy(alpha = 0.05f)
-                    )
+    Column(modifier = Modifier.padding(vertical = 8.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 16.dp)
+        ) {
+            BasicTextField(
+                value = searchQuery,
+                onValueChange = onSearchChange,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(36.dp)
+                    .background(MaterialTheme.colors.surface, RoundedCornerShape(8.dp))
+                    .border(1.dp, Color.LightGray.copy(0.5f), RoundedCornerShape(8.dp)),
+                singleLine = true,
+                textStyle = TextStyle(fontSize = 14.sp, color = MaterialTheme.colors.onSurface),
+                decorationBox = { innerTextField ->
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Search,
+                            null,
+                            modifier = Modifier.size(18.dp),
+                            tint = Color.Gray
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                            if (searchQuery.isEmpty()) {
+                                Text(
+                                    text = "Search logs...",
+                                    color = Color.Gray,
+                                    fontSize = 14.sp
+                                )
+                            }
+                            innerTextField()
+                        }
+                    }
+                }
+            )
+
+            Spacer(Modifier.width(8.dp))
+
+            IconButton(onClick = onSortToggle, modifier = Modifier.size(32.dp)) {
+                Icon(
+                    if (isDescending) Icons.Default.VerticalAlignBottom else Icons.Default.VerticalAlignTop,
+                    contentDescription = "Sort",
+                    tint = MaterialTheme.colors.primary,
+                    modifier = Modifier.size(20.dp)
                 )
-
-                IconButton(onClick = onSortToggle) {
-                    Icon(
-                        if (isDescending) Icons.Default.VerticalAlignBottom else Icons.Default.VerticalAlignTop,
-                        contentDescription = "Sort",
-                        tint = MaterialTheme.colors.primary
-                    )
-                }
-
-                IconButton(onClick = onExport) {
-                    Icon(Icons.Default.Share, "Export", tint = MaterialTheme.colors.primary)
-                }
-
-                IconButton(onClick = onClear) {
-                    Icon(Icons.Default.DeleteSweep, "Clear", tint = MaterialTheme.colors.error)
-                }
             }
 
-            Spacer(Modifier.height(12.dp))
+            IconButton(onClick = onExport, modifier = Modifier.size(32.dp)) {
+                Icon(Icons.Default.Share, "Export", tint = MaterialTheme.colors.primary, modifier = Modifier.size(20.dp))
+            }
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            IconButton(onClick = onClear, modifier = Modifier.size(32.dp)) {
+                Icon(Icons.Default.DeleteSweep, "Clear", tint = MaterialTheme.colors.error, modifier = Modifier.size(20.dp))
+            }
+        }
+
+        LazyRow(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            item {
                 LogChip(label = "ALL", isSelected = selectedLevel == null) { onLevelSelect(null) }
-                levels.forEach { level ->
-                    Spacer(Modifier.width(6.dp))
-                    LogChip(label = level, isSelected = selectedLevel == level) {
-                        onLevelSelect(
-                            level
-                        )
-                    }
+            }
+            items(levels) { level ->
+                LogChip(label = level, isSelected = selectedLevel == level) {
+                    onLevelSelect(level)
                 }
             }
         }

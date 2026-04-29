@@ -1,6 +1,5 @@
 package com.paul.ui
 
-import com.paul.composables.RouteMiniMap
 import android.widget.TextView
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -27,7 +26,6 @@ import androidx.compose.material.Button
 import androidx.compose.material.ButtonDefaults
 import androidx.compose.material.Card
 import androidx.compose.material.Divider
-import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
 import androidx.compose.material.MaterialTheme
@@ -37,7 +35,6 @@ import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Directions
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.LocationOn
@@ -58,19 +55,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.text.HtmlCompat
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.paul.composables.LoadingOverlay
+import com.paul.composables.RouteMiniMap
 import com.paul.domain.HistoryItem
 import com.paul.domain.RouteEntry
 import com.paul.domain.StravaActivity
+import com.paul.domain.TileServerInfo
 import com.paul.infrastructure.repositories.ITileRepository
 import com.paul.infrastructure.repositories.RouteRepository
 import com.paul.infrastructure.repositories.StravaRepository
+import com.paul.infrastructure.repositories.TileServerRepo
 import com.paul.protocol.todevice.Route
 import com.paul.viewmodels.StartViewModel
 import kotlinx.datetime.TimeZone.Companion.currentSystemDefault
@@ -92,6 +90,8 @@ fun Start(
     var routes = viewModel.routeRepo.routes
     val historyItemBeingDeleted by viewModel.deletingHistoryItem.collectAsState()
     val routeBeingEdited by viewModel.editingRoute.collectAsState()
+    val tileServer by viewModel.tileServerRepo.currentServerFlow()
+        .collectAsState(TileServerRepo.defaultTileServer)
 
     // --- Confirmation Dialog ---
     if (showClearHistoryDialog) {
@@ -199,6 +199,7 @@ fun Start(
                 viewModel::previewActivity,
                 viewModel::sendActivityToDevice,
                 viewModel::openActivityInStrava,
+                tileServer,
             )
 
         } // End Main Column
@@ -300,6 +301,7 @@ private fun HistoryListSection(
     onPreviewStrava: (StravaActivity) -> Unit,
     onSendStrava: (StravaActivity) -> Unit,
     openActivityInStrava: (Long) -> Unit,
+    tileServer: TileServerInfo,
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -355,6 +357,7 @@ private fun HistoryListSection(
                             onPreviewStrava,
                             onSendStrava,
                             openActivityInStrava,
+                            tileServer,
                         )
                         Divider()
                     }
@@ -379,6 +382,7 @@ private fun HistoryListItem(
     onPreviewStrava: (StravaActivity) -> Unit,
     onSendStrava: (StravaActivity) -> Unit,
     openActivityInStrava: (Long) -> Unit,
+    tileServer: TileServerInfo,
 ) {
     // 1. Resolve local route if it exists
     val localRoute = remember(item.routeId, routes) { routes.find { it.id == item.routeId } }
@@ -440,7 +444,8 @@ private fun HistoryListItem(
                 RouteMiniMap(
                     route = activeRoute,
                     tileRepository = tileRepository,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
+                    tileServer,
                 )
             } ?: run {
                 androidx.compose.material.CircularProgressIndicator(

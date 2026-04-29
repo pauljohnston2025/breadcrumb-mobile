@@ -1,5 +1,7 @@
 package com.paul.ui
 
+import com.paul.domain.TileServerInfo
+import com.paul.infrastructure.repositories.TileServerRepo
 import androidx.activity.compose.BackHandler
 import com.paul.composables.RouteMiniMap
 import androidx.compose.foundation.BorderStroke
@@ -37,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import com.paul.domain.StravaActivity
 import com.paul.domain.StravaGear
 import com.paul.infrastructure.repositories.ITileRepository
+import com.paul.infrastructure.repositories.TileServerRepo.Companion.defaultTileServer
 import com.paul.viewmodels.StravaActivitiesViewModel
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
@@ -72,6 +75,8 @@ fun StravaActivitiesScreen(viewModel: StravaActivitiesViewModel, tileRepository:
 
     val sortOptions = listOf("Newest", "Oldest", "A-Z")
     var sortOrder by remember { mutableStateOf("Newest") }
+    val tileServer by viewModel.tileServerRepo.currentServerFlow()
+        .collectAsState(TileServerRepo.defaultTileServer)
 
     val filteredActivities =
         remember(rawActivities, searchQuery, selectedType, selectedGearId, sortOrder) {
@@ -323,6 +328,7 @@ fun StravaActivitiesScreen(viewModel: StravaActivitiesViewModel, tileRepository:
                         { viewModel.previewActivity(activity) },
                         { viewModel.sendActivityToDevice(activity) },
                         viewModel::openActivityInStrava,
+                        tileServer,
                     )
                     if (index < filteredActivities.lastIndex) {
                         Divider(
@@ -359,6 +365,7 @@ private fun StravaActivityListItem(
     onClick: () -> Unit,
     onSendClick: () -> Unit,
     openActivityInStrava: (id: Long) -> Unit,
+    tileServer: TileServerInfo,
 ) {
     Row(
         modifier = Modifier
@@ -376,7 +383,8 @@ private fun StravaActivityListItem(
             RouteMiniMap(
                 route = activity.summaryToRoute(),
                 tileRepository = tileRepository,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize(),
+                tileServer,
             )
         }
 

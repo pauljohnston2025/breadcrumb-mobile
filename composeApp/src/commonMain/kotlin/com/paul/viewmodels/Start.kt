@@ -1,5 +1,6 @@
 package com.paul.viewmodels
 
+import com.paul.infrastructure.repositories.TileServerRepo
 import androidx.compose.material.SnackbarHostState
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
@@ -57,6 +58,7 @@ class StartViewModel(
     val routeRepo: RouteRepository,
     val historyRepo: HistoryRepository,
     val stravaRepository: StravaRepository,
+    val tileServerRepo: TileServerRepo,
 ) : ViewModel() {
     val settings: Settings = Settings()
 

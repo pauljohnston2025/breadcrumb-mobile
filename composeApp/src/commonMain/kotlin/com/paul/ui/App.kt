@@ -171,6 +171,7 @@ fun App(
                         settingsViewModel.routesRepo,
                         mapViewModel.historyRepo,
                         stravaRepository,
+                        settingsViewModel.tileServerRepo,
                     )
                 }
 
@@ -330,6 +331,7 @@ fun App(
                                             startViewModel.routeRepo,
                                             startViewModel.historyRepo,
                                             scaffoldState.snackbarHostState,
+                                            settingsViewModel.tileServerRepo,
                                         )
                                     }
 
@@ -361,7 +363,8 @@ fun App(
                                             startViewModel.routeRepo,
                                             mapViewModel.historyRepo,
                                             {settingsViewModel.syncStravaActivities()},
-                                            {settingsViewModel.stopSyncStravaActivities()}
+                                            {settingsViewModel.stopSyncStravaActivities()},
+                                            settingsViewModel.tileServerRepo,
                                         )
                                     }
 

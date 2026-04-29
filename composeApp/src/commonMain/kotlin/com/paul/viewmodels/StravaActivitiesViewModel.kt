@@ -46,7 +46,8 @@ class StravaActivitiesViewModel(
     val routeRepository: RouteRepository,
     val historyRepo: HistoryRepository,
     val doActivitySync: () -> Unit,
-    val onStopSync: () -> Unit
+    val onStopSync: () -> Unit,
+    val tileServerRepo: TileServerRepo,
 ) : ViewModel() {
 
     // Use stateIn to convert the Flow from the repo into a StateFlow
