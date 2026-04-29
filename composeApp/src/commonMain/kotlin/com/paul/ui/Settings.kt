@@ -894,7 +894,7 @@ fun Settings(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text("Show route points on map:", style = MaterialTheme.typography.body1)
+                    Text("Show Route Points On Map:", style = MaterialTheme.typography.body1)
                     Switch(
                         checked = settings.showRoutePoints,
                         onCheckedChange = { isChecked ->
@@ -911,7 +911,7 @@ fun Settings(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        "Reduce points with Reumann-Witkam:",
+                        "Reduce Points With Reumann-Witkam:",
                         style = MaterialTheme.typography.body2
                     )
                     Switch(
@@ -947,7 +947,7 @@ fun Settings(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        "Reduce points with Douglas-Peucker:",
+                        "Reduce Points With Douglas-Peucker:",
                         style = MaterialTheme.typography.body2
                     )
                     Switch(
@@ -983,7 +983,7 @@ fun Settings(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        "Reduce points with Visvalingam-Whyatt:",
+                        "Reduce Points With Visvalingam-Whyatt:",
                         style = MaterialTheme.typography.body2
                     )
                     Switch(
@@ -1148,7 +1148,6 @@ fun StravaSettings(viewModel: com.paul.viewmodels.Settings) {
             Button(
                 onClick = { viewModel.stravaLogin() },
                 modifier = Modifier.weight(1f),
-                enabled = stravaClientId.isNotBlank()
             ) {
                 Text("Connect")
             }
@@ -1159,7 +1158,6 @@ fun StravaSettings(viewModel: com.paul.viewmodels.Settings) {
                     if (isSyncing) viewModel.stopSyncStravaActivities() else viewModel.syncStravaActivities() 
                 },
                 modifier = Modifier.weight(1f),
-                enabled = stravaClientId.isNotBlank() && stravaClientSecret.isNotBlank(),
                 colors = if (isSyncing) ButtonDefaults.buttonColors(backgroundColor = MaterialTheme.colors.error) else ButtonDefaults.buttonColors()
             ) {
                 if (isSyncing) {
@@ -1184,7 +1182,7 @@ fun StravaSettings(viewModel: com.paul.viewmodels.Settings) {
         ) {
             Icon(Icons.Default.Delete, contentDescription = null)
             Spacer(Modifier.width(8.dp))
-            Text("Clear Local Cache")
+            Text("Clear Local Strava Cache")
         }
 
 

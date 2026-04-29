@@ -43,6 +43,13 @@ import kotlin.time.Duration.Companion.days
 
 class StravaRepository(private val browserLauncher: IBrowserLauncher, private val dao: StravaDao) {
     private val settings = Settings()
+
+    private val _clientId = MutableStateFlow(getClientId())
+    val clientId: StateFlow<String> = _clientId.asStateFlow()
+
+    private val _clientSecret = MutableStateFlow(getClientSecret())
+    val clientSecret: StateFlow<String> = _clientSecret.asStateFlow()
+
     private val stravaClient = KtorClient.client.config {
         // 1. Ensure Auth is installed correctly
         install(Auth) {
@@ -499,9 +506,16 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
     }
 
     fun getClientId() = settings.getString(CLIENT_ID_KEY, "")
-    fun saveClientId(id: String) = settings.putString(CLIENT_ID_KEY, id)
+    fun saveClientId(id: String) {
+        settings.putString(CLIENT_ID_KEY, id)
+        _clientId.value = id
+    }
+
     fun getClientSecret() = settings.getString(CLIENT_SECRET_KEY, "")
-    fun saveClientSecret(secret: String) = settings.putString(CLIENT_SECRET_KEY, secret)
+    fun saveClientSecret(secret: String) {
+        settings.putString(CLIENT_SECRET_KEY, secret)
+        _clientSecret.value = secret
+    }
     fun openActivityInBrowser(id: Long) {
         val activityUrl = "https://www.strava.com/activities/$id"
         try {

@@ -51,17 +51,15 @@ class Settings(
 
     val webServerPortFlow = tileServerRepo.webServerPortFlow()
 
-    private val _stravaClientId = MutableStateFlow(stravaRepo.getClientId())
-    val stravaClientId = _stravaClientId.asStateFlow()
+    val stravaClientId = stravaRepo.clientId
 
-    private val _stravaClientSecret = MutableStateFlow(stravaRepo.getClientSecret())
-    val stravaClientSecret = _stravaClientSecret.asStateFlow()
+    val stravaClientSecret = stravaRepo.clientSecret
 
     fun stravaLogin() {
         viewModelScope.launch(Dispatchers.IO) {
             // Check if credentials exist before trying to login
-            if (stravaRepo.getClientId().isBlank()) {
-                snackbarHostState.showSnackbar("Please enter a Strava Client ID first")
+            if (stravaRepo.getClientId().isBlank() || stravaRepo.getClientSecret().isBlank()) {
+                snackbarHostState.showSnackbar("Please enter Strava Client ID and Secret first")
                 return@launch
             }
 
@@ -72,18 +70,22 @@ class Settings(
     }
 
     fun onStravaClientIdChange(newId: String) {
-        _stravaClientId.value = newId
         stravaRepo.saveClientId(newId)
     }
 
     fun onStravaClientSecretChange(newSecret: String) {
-        _stravaClientSecret.value = newSecret
         stravaRepo.saveClientSecret(newSecret)
     }
 
     private var syncJob: kotlinx.coroutines.Job? = null
 
     fun syncStravaActivities() {
+        if (stravaRepo.getClientId().isBlank() || stravaRepo.getClientSecret().isBlank()) {
+            viewModelScope.launch {
+                snackbarHostState.showSnackbar("Please enter Strava Client ID and Secret first")
+            }
+            return
+        }
         syncJob?.cancel()
         syncJob = viewModelScope.launch(Dispatchers.IO) {
             try {

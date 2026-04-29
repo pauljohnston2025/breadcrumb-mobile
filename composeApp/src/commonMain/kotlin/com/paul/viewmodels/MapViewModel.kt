@@ -169,6 +169,9 @@ class MapViewModel(
     private val _isStravaEnabled = MutableStateFlow(false)
     val isStravaEnabled = _isStravaEnabled.asStateFlow()
 
+    val stravaClientId = stravaRepo.clientId
+    val stravaClientSecret = stravaRepo.clientSecret
+
     // Toggle for the Stored Routes Layer
     private val _isRoutesEnabled = MutableStateFlow(false)
     val isRoutesEnabled = _isRoutesEnabled.asStateFlow()
@@ -236,6 +239,12 @@ class MapViewModel(
         )
 
     fun toggleStrava(enabled: Boolean) {
+        if (enabled && (stravaRepo.getClientId().isBlank() || stravaRepo.getClientSecret().isBlank())) {
+            viewModelScope.launch {
+                snackbarHostState.showSnackbar("Please set Strava Client ID and Secret in Settings")
+            }
+            return
+        }
         _isStravaEnabled.value = enabled
     }
 

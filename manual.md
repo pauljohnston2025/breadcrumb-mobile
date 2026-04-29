@@ -75,7 +75,14 @@ The colour palette has different mapping modes, and a list of colours to use for
 
 **Coordinates Point Limit** - The maximum number of coordinates that will be sent to the watch, each coordinate is a latitude/longitude/altitude reading. A larger number of coordinates will result in a smoother route drawing, but will increase cpu and memory requirements on the watch.     
 **Turn Point Limit** - The maximum number of turn-by-turn coordinates that will be sent to the watch, each coordinate is an index in the coordinates and a direction to turn. `Turn points` are extracted frm gpx waypoint data, or can be generated using `mock directions`. The gpx file should have a route or track, and also include waypoints for each turn. Komoot directions shared by url are special cased, and will include directions also.   
-**Mock Directions** - Attempt to calculate directions from the coordinates of the route only, this setting only applies if the route loaded does not already contain directions (indicated by direction icon next to the route label).    
+**Mock Directions** - Attempt to calculate directions from the coordinates of the route only, this setting only applies if the route loaded does not already contain directions (indicated by direction icon next to the route label).  
+**Show Route Points On Map** - Draw dots on each point on the route in map view, helpful to show what points will be sent to the watch.  
+**Reduce Points With Reumann-Witkam** - Apply Reumann-Witkam to reduce the number of points sent to the device (will still be physically capped at Coordinates Point Limit).  
+**Reumann-Witkam Tolerance (meters)** - Tollerence in meters to eliminate points when using Reumann-Witkam, larger values eliminate more points.  
+**Reduce Points With Douglas-Peucker** - Apply Douglas-Peucker to reduce the number of points sent to the device (will still be physically capped at Coordinates Point Limit).  
+**Douglas-Peucker Tolerance (meters)** - Tollerence in meters to eliminate points when using Douglas-Peucker, larger values eliminate more points.  
+**Reduce Points With Visvalingam-Whyatt** - Apply Visvalingam-Whyatt to reduce the number of points sent to the device (will still be physically capped at Coordinates Point Limit).  
+**Visvalingam-Whyatt Tolerance (meters)** - Tollerence in meters to eliminate points when using Visvalingam-Whyatt, larger values eliminate more points.  
 
 `Turn Point Limit` must be less than or equal `Coordinates Point Limit`, the settings will assert this when you change them.
 
@@ -88,6 +95,24 @@ When tweaking these settings I suggest loading 1 extra route on the watch to sim
 Ensure to enable [Turn Alert Time (s)](https://github.com/pauljohnston2025/breadcrumb-garmin/blob/master/settings.md#turn-alert-time-s) on the watch when sending turn directions to ensure the watch processes them.  
 
 The best way I have found to create a route with directions is komoot, it allows you to import any gpx and then convert it to turn-by-turn. Once the route is saved in komoot its as simple as sharing the url to the breadcrumb app (saved routes/<desired route>/share/share with link). You can also use site like https://www.plotaroute.com/routeplanner to create a route that will have the correct waypoints for use with turn-by-turn. Note, importing routes seems to be a paid thing so this only works with freshly created routes.
+
+### Strava
+
+To use strava integration you will need to obtain a client id and client secret.  
+
+Follow the guide at https://developers.strava.com/docs/getting-started/ to create an ai application.  
+
+For info on creating a strava api application see https://developers.strava.com/  
+
+Make sure the settings in your strava [api application](https://www.strava.com/settings/api) are set to.    
+Website: https://localhost.com
+Authorization Callback Domain: localhost
+
+Once the clientId and clientSecret fields are filled in on the breadcrumb app you should be able to click the connect button to share your data with breadcrumb.
+
+Map page size - Controls how many strava activities to show on the map view when the strava button is clicked  
+Connect - login and link the app with strava  
+Sync - sync all strava activities to the breadcrumb app
 
 ---
 
@@ -149,6 +174,13 @@ Functions:
 
 Not all functions are available all the time, eg. route Features are removed when no route is being previewed.
 
+Strava and routes allow showing previously recorded activities and stored routes on the map, routes and strava activities can be clicked to show. 
+The strava activities additionally are paged (for performance) and filtered by date, change the page setting in [Strava Settings](#strava).
+
+* Strava - Show/Hide all your synced strava activities on the map (shown in orange)   
+* Routes - Show/Hide all your saved routes on the map (shown in red)  
+
+* Play - Send the currently displayed route (in blue) to the watch.  
 * Cross - Close the currently previewed route, and just show the map view.
 * Mountains - Show/hide the route elevation data
 * Watch and Crosshair - Send the 'return to user' command to the watch, clears any current zoom or fixed location on the watch.
@@ -194,6 +226,13 @@ Icons can be clicked to do the following:
 * Pin - Show the route on [Map View Page](#map-view-page)
 * Play - Send the route to the watch
 * Bin - Delete the route and associated storage
+
+---
+
+# Strava Page
+
+First connect your breadcrumb app with strava by setting up [strava](#strava) in the [App Settings Page](#app-settings-page).     
+Once connected you will be able to see and filter all your strava activities, and send them as routes to your watch.  
 
 ---
 
