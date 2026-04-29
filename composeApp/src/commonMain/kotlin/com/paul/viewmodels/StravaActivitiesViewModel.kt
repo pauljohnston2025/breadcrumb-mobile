@@ -45,8 +45,6 @@ class StravaActivitiesViewModel(
     private val deviceSelector: DeviceSelector,
     val routeRepository: RouteRepository,
     val historyRepo: HistoryRepository,
-    val doActivitySync: () -> Unit,
-    val onStopSync: () -> Unit,
     val tileServerRepo: TileServerRepo,
 ) : ViewModel() {
 
@@ -77,11 +75,11 @@ class StravaActivitiesViewModel(
     }
 
     fun sync() {
-        doActivitySync() // calls into the long running settings view model so sync happens even when page switched
+        stravaRepo.startSyncActivities()
     }
 
     fun stopSync() {
-        onStopSync()
+        stravaRepo.stopSyncActivities()
     }
     
     fun previewActivity(activity: StravaActivity) {

@@ -77,8 +77,6 @@ class Settings(
         stravaRepo.saveClientSecret(newSecret)
     }
 
-    private var syncJob: kotlinx.coroutines.Job? = null
-
     fun syncStravaActivities() {
         if (stravaRepo.getClientId().isBlank() || stravaRepo.getClientSecret().isBlank()) {
             viewModelScope.launch {
@@ -86,24 +84,11 @@ class Settings(
             }
             return
         }
-        syncJob?.cancel()
-        syncJob = viewModelScope.launch(Dispatchers.IO) {
-            try {
-                stravaRepo.syncActivities()
-            } catch (e: Exception) {
-                if (e !is kotlinx.coroutines.CancellationException) {
-                    Napier.e("Manual sync failed", e)
-                    snackbarHostState.showSnackbar("Sync failed: ${e.message}")
-                }
-            } finally {
-                syncJob = null
-            }
-        }
+        stravaRepo.startSyncActivities()
     }
 
     fun stopSyncStravaActivities() {
-        syncJob?.cancel()
-        syncJob = null
+        stravaRepo.stopSyncActivities()
     }
 
     fun clearStravaCache() {

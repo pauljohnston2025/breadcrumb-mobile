@@ -101,6 +101,7 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
     val allGear: Flow<List<StravaGear>> = dao.getAllGear()
 
     private val repoScope = CoroutineScope(Dispatchers.Default)
+    private var syncJob: kotlinx.coroutines.Job? = null
 
     // UI can observe this to show success/error messages
     private val _loginStatus = MutableStateFlow<String?>(null)
@@ -270,11 +271,12 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
         }
     }
 
-    suspend fun syncNewest() = sync(direction = "after")
-    suspend fun syncOlder() = sync(direction = "before")
+    suspend fun syncNewest() = syncInner(direction = "after")
+    suspend fun syncOlder() = syncInner(direction = "before")
 
-    private suspend fun sync(direction: String) {
-        _isSyncing.value = true
+    private suspend fun syncInner(direction: String) {
+        val alreadySyncing = _isSyncing.value
+        if (!alreadySyncing) _isSyncing.value = true
         var keepGoing = true
         var totalDiscovered = 0
         var currentAnchor: Long? = if (direction == "after") {
@@ -335,15 +337,19 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
             handleSyncError(e)
         } finally {
             _loginStatus.value = null // moving on to next step, or coroutine killed
-            _isSyncing.value = false
+            if (!alreadySyncing) _isSyncing.value = false
         }
     }
 
     suspend fun syncMissingStreams() {
+        val alreadySyncing = _isSyncing.value
+        if (!alreadySyncing) _isSyncing.value = true
         val missingIds = dao.getActivityIdsMissingStreams()
-        if (missingIds.isEmpty()) return
+        if (missingIds.isEmpty()) {
+            if (!alreadySyncing) _isSyncing.value = false
+            return
+        }
 
-        _isSyncing.value = true
         val total = missingIds.size
 
         try {
@@ -361,7 +367,7 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
             handleSyncError(e)
         } finally {
             _loginStatus.value = null // moving on to next step, or coroutine killed
-            _isSyncing.value = false
+            if (!alreadySyncing) _isSyncing.value = false
         }
     }
 
@@ -381,7 +387,8 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
     }
 
     suspend fun syncAthleteMetadata() {
-        _isSyncing.value = true
+        val alreadySyncing = _isSyncing.value
+        if (!alreadySyncing) _isSyncing.value = true
         _loginStatus.value = "Fetching athlete metadata from Strava..."
         try {
             val athlete: StravaAthleteResponse = stravaClient.get("athlete").body()
@@ -396,8 +403,27 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
             handleSyncError(e)
         } finally {
             _loginStatus.value = null // moving on to next step, or coroutine killed
-            _isSyncing.value = false
+            if (!alreadySyncing) _isSyncing.value = false
         }
+    }
+
+    fun startSyncActivities() {
+        syncJob?.cancel()
+        syncJob = repoScope.launch {
+            try {
+                _isSyncing.value = true
+                syncActivities()
+            } finally {
+                _isSyncing.value = false
+                syncJob = null
+            }
+        }
+    }
+
+    fun stopSyncActivities() {
+        syncJob?.cancel()
+        syncJob = null
+        _isSyncing.value = false
     }
 
     suspend fun syncActivities() {
@@ -468,7 +494,8 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
         _loginStatus.value = "Authenticating with Strava..."
 
         // Launch a coroutine to handle the suspend login call
-        repoScope.launch {
+        syncJob?.cancel()
+        syncJob = repoScope.launch {
             login(code)
         }
     }
@@ -499,9 +526,20 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
             settings[REFRESH_TOKEN_KEY] = response.refreshToken
 
             _loginStatus.value = "Success! Fetching activities..."
-            syncActivities()
+            _isSyncing.value = true
+            try {
+                syncActivities()
+            } finally {
+                _isSyncing.value = false
+                syncJob = null
+            }
         } catch (e: Exception) {
+            // Essential: Do not swallow CancellationExceptions or the login/sync loop will hang
+            if (e is kotlinx.coroutines.CancellationException) throw e
+
             _loginStatus.value = "Login failed: ${e.message}"
+            _isSyncing.value = false
+            syncJob = null
         }
     }
 
