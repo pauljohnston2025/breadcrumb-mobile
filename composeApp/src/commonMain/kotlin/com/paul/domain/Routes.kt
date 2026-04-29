@@ -18,7 +18,7 @@ data class RouteSettings(
     val useReumannWitkam: Boolean = false,
     val reumannWitkamTolerance: Double = 5.0,
     val useDouglasPeucker: Boolean = false,
-    val douglasPeuckerEpsilon: Double = 50.0,
+    val douglasPeuckerEpsilon: Double = 30.0,
     val useVisvalingamWhyatt: Boolean = false,
     val visvalingamWhyattThreshold: Double = 1000.0, // Area in square meters
 ) {

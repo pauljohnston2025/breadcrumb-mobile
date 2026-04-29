@@ -1062,6 +1062,32 @@ fun StravaSettings(viewModel: com.paul.viewmodels.Settings) {
     val isSyncing by viewModel.stravaRepo.isSyncing.collectAsState()
     val currentPageSize by viewModel.stravaRepo.currentPageSize.collectAsState(20L)
 
+    var showClearCacheConfirmDialog by remember { mutableStateOf(false) }
+
+    if (showClearCacheConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearCacheConfirmDialog = false },
+            title = { Text("Confirm Clear Cache") },
+            text = { Text("Are you sure you want to delete all cached Strava activities? This will not affect your Strava account.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.clearStravaCache()
+                        showClearCacheConfirmDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(backgroundColor = MaterialTheme.colors.error)
+                ) {
+                    Text("Clear", color = MaterialTheme.colors.onError)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearCacheConfirmDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1152,7 +1178,7 @@ fun StravaSettings(viewModel: com.paul.viewmodels.Settings) {
         }
 
         OutlinedButton(
-            onClick = { viewModel.clearStravaCache() },
+            onClick = { showClearCacheConfirmDialog = true },
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colors.error)
         ) {
