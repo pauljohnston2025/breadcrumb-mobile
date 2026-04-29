@@ -488,11 +488,29 @@ private fun StravaActivityListItem(
 
 @Composable
 private fun FilterChip(label: String, icon: ImageVector, isSelected: Boolean, onClick: () -> Unit) {
+    val backgroundColor = if (isSelected) {
+        MaterialTheme.colors.primary.copy(alpha = 0.15f) // Subtle tint of your primary brand color
+    } else {
+        MaterialTheme.colors.onSurface.copy(alpha = 0.05f) // Very light gray/white depending on theme
+    }
+
+    val contentColor = if (isSelected) {
+        MaterialTheme.colors.primary
+    } else {
+        MaterialTheme.colors.onSurface.copy(alpha = 0.6f) // De-emphasized text
+    }
+
+    val borderColor = if (isSelected) {
+        MaterialTheme.colors.primary
+    } else {
+        MaterialTheme.colors.onSurface.copy(alpha = 0.12f)
+    }
+
     Surface(
+        modifier = Modifier.clickable { onClick() },
         shape = RoundedCornerShape(16.dp),
-        border = if (isSelected) null else BorderStroke(1.dp, Color.LightGray.copy(0.5f)),
-        color = if (isSelected) MaterialTheme.colors.primary else Color.Transparent,
-        modifier = Modifier.clickable { onClick() }
+        color = backgroundColor,
+        border = BorderStroke(1.dp, borderColor)
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
@@ -502,14 +520,14 @@ private fun FilterChip(label: String, icon: ImageVector, isSelected: Boolean, on
                 imageVector = icon,
                 contentDescription = null,
                 modifier = Modifier.size(16.dp),
-                tint = if (isSelected) Color.White else MaterialTheme.colors.onSurface.copy(alpha = 0.6f)
+                tint = contentColor
             )
             Spacer(Modifier.width(6.dp))
             Text(
                 text = label,
-                style = MaterialTheme.typography.caption,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                color = if (isSelected) Color.White else MaterialTheme.colors.onSurface
+                color = contentColor,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold
             )
         }
     }
