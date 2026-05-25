@@ -25,6 +25,10 @@ data class AppSettings(
     val tileServerId: String,
     val routeSettings: RouteSettings = RouteSettings.default,
     val colourPaletteUniqueId: String? = null,
+    val connectIqAppId: String? = null,
+    val webServerPort: Int? = null,
+    val stravaClientId: String? = null,
+    val stravaClientSecret: String? = null,
 )
 
 @Serializable
@@ -144,6 +148,13 @@ data class Profile(
     ): ExportedProfile {
         val obfuscatedAuthToken =
             if (appSettings.authToken == "") appSettings.authToken else "<AppAuthTokenRequired>"
+
+        val obfuscatedStravaClientId =
+            if (appSettings.stravaClientId == "" || appSettings.stravaClientId == null) appSettings.stravaClientId else "<StravaClientIdRequired>"
+
+        val obfuscatedStravaClientSecret =
+            if (appSettings.stravaClientSecret == "" || appSettings.stravaClientSecret == null) appSettings.stravaClientSecret else "<StravaClientSecretRequired>"
+
         val customServers = mutableListOf<TileServerInfo>()
         var tileServer = tileServerRepo.get(appSettings.tileServerId)
         if (tileServer == null) {
@@ -175,7 +186,11 @@ data class Profile(
 
         return ExportedProfile(
             profileSettings.copy(),
-            appSettings.copy(authToken = obfuscatedAuthToken),
+            appSettings.copy(
+                authToken = obfuscatedAuthToken,
+                stravaClientId = obfuscatedStravaClientId,
+                stravaClientSecret = obfuscatedStravaClientSecret
+            ),
             sortedPropertiesMap,
             lastKnownDevice,
             customServers,

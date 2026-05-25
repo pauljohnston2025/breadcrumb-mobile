@@ -393,7 +393,8 @@ fun App(
                                             ProfileRepo(), // needs to be a singleton if anything else uses it
                                             clipboardHandler,
                                             settingsViewModel.routesRepo,
-                                            colourPaletteRepo
+                                            colourPaletteRepo,
+                                            settingsViewModel.stravaRepo
                                         )
                                     }
                                     ProfilesScreen(

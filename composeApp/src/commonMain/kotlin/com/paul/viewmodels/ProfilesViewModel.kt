@@ -16,6 +16,7 @@ import com.paul.infrastructure.connectiq.IConnection
 import com.paul.infrastructure.repositories.ColourPaletteRepository
 import com.paul.infrastructure.repositories.ProfileRepo
 import com.paul.infrastructure.repositories.RouteRepository
+import com.paul.infrastructure.repositories.StravaRepository
 import com.paul.infrastructure.repositories.TileServerRepo
 import com.paul.infrastructure.service.IClipboardHandler
 import com.paul.infrastructure.service.SendMessageHelper
@@ -46,6 +47,7 @@ class ProfilesViewModel(
     val clipboardHandler: IClipboardHandler,
     val routeRepo: RouteRepository,
     private val colourPaletteRepo: ColourPaletteRepository,
+    private val stravaRepo: StravaRepository,
 ) : ViewModel() {
     companion object {
         private const val TAG = "ProfilesViewModel"
@@ -224,14 +226,28 @@ class ProfilesViewModel(
             tileServerRepo.updateCurrentTileType(profile.appSettings.tileType)
             routeRepo.saveSettings(profile.appSettings.routeSettings)
             if (profile.appSettings.colourPaletteUniqueId != null) {
-                val colourPallet = colourPaletteRepo.getPaletteByUUID(profile.appSettings.colourPaletteUniqueId)
-                if(colourPallet == null)
-                {
+                val colourPallet =
+                    colourPaletteRepo.getPaletteByUUID(profile.appSettings.colourPaletteUniqueId)
+                if (colourPallet == null) {
                     snackbarHostState.showSnackbar("unknown colour palette")
                     return@sendingMessage
                 }
                 colourPaletteRepo.updateCurrentColourPalette(colourPallet)
             }
+
+            profile.appSettings.connectIqAppId?.let {
+                connection.updateConnectIqAppId(it)
+            }
+            profile.appSettings.webServerPort?.let {
+                tileServerRepo.updateWebPort(it)
+            }
+            profile.appSettings.stravaClientId?.let {
+                stravaRepo.saveClientId(it)
+            }
+            profile.appSettings.stravaClientSecret?.let {
+                stravaRepo.saveClientSecret(it)
+            }
+
             delay(1000) // wait for a bit so users can read message
         }
     }
@@ -326,7 +342,11 @@ class ProfilesViewModel(
             tileServerRepo.currentTokenFlow().value,
             tileServerRepo.currentServerFlow().value.id,
             routeRepo.currentSettingsFlow().value,
-            colourPaletteRepo.currentColourPaletteFlow.value.uniqueId
+            colourPaletteRepo.currentColourPaletteFlow.value.uniqueId,
+            connection.connectIqAppIdFlow().value,
+            tileServerRepo.webServerPortFlow().value,
+            stravaRepo.getClientId(),
+            stravaRepo.getClientSecret()
         )
     }
 

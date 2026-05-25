@@ -1101,6 +1101,7 @@ fun StravaSettings(viewModel: com.paul.viewmodels.Settings) {
             onValueChange = { viewModel.onStravaClientIdChange(it) },
             label = { Text("Strava Client ID") },
             modifier = Modifier.fillMaxWidth(),
+            visualTransformation = PasswordVisualTransformation(),
             singleLine = true
         )
 

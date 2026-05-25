@@ -373,6 +373,8 @@ private fun ImportProfileDialog(
     var json by remember { mutableStateOf("") }
     var appAuthToken by remember { mutableStateOf("") }
     var watchAuthToken by remember { mutableStateOf("") }
+    var stravaClientId by remember { mutableStateOf("") }
+    var stravaClientSecret by remember { mutableStateOf("") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -404,6 +406,24 @@ private fun ImportProfileDialog(
                     )
                 }
 
+                if (json.contains("<StravaClientIdRequired>")) {
+                    OutlinedTextField(
+                        value = stravaClientId,
+                        onValueChange = { stravaClientId = it },
+                        label = { Text("Strava Client ID") },
+                        singleLine = true
+                    )
+                }
+
+                if (json.contains("<StravaClientSecretRequired>")) {
+                    OutlinedTextField(
+                        value = stravaClientSecret,
+                        onValueChange = { stravaClientSecret = it },
+                        label = { Text("Strava Client Secret") },
+                        singleLine = true
+                    )
+                }
+
             }
         },
         confirmButton = {
@@ -412,6 +432,8 @@ private fun ImportProfileDialog(
                     onConfirm(
                         json.replace("<AppAuthTokenRequired>", appAuthToken)
                             .replace("<WatchAuthTokenRequired>", watchAuthToken)
+                            .replace("<StravaClientIdRequired>", stravaClientId)
+                            .replace("<StravaClientSecretRequired>", stravaClientSecret)
                     )
                 },
                 enabled = json.isNotBlank() // Optionally disable if name is empty
