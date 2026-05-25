@@ -41,22 +41,6 @@ class ConnectIQMessageReceiver : BroadcastReceiver() {
 
     // see https://forums.garmin.com/developer/connect-iq/f/discussion/4339/start-an-android-service-from-watch/29284#29284
     override fun onReceive(context: Context, intent: Intent) {
-        val enabled = settings.getBooleanOrNull(TILE_SERVER_ENABLED_KEY)
-        if (enabled != null && !enabled) // null check for anyone who has never set the setting, defaults to enabled
-        {
-            with(NotificationManagerCompat.from(context)) {
-                if (ContextCompat.checkSelfPermission(
-                        context,
-                        Manifest.permission.POST_NOTIFICATIONS
-                    ) ==
-                    PackageManager.PERMISSION_GRANTED
-                ) {
-                    cancel(NOTIFICATION_ID)
-                }
-            }
-            return
-        }
-
         if (intent.action == "com.garmin.android.connectiq.INCOMING_MESSAGE") {
             val appId = intent.getStringExtra(ConnectIQ.EXTRA_APPLICATION_ID)
             val payload = intent.getByteArrayExtra(ConnectIQ.EXTRA_PAYLOAD)
@@ -78,6 +62,18 @@ class ConnectIQMessageReceiver : BroadcastReceiver() {
                 && payload.encodeBase64() == "2nraegAAAAoFAAAAAQEAAAAA" // todo figure out how to decode this so we can do more things with it
             ) {
                 Napier.d("got our special start message", tag = TAG)
+
+                val enabled = settings.getBooleanOrNull(TILE_SERVER_ENABLED_KEY)
+                if (enabled == false) { // explicitly disabled by user
+                    Napier.i("Watch requested tiles, but tile server is disabled.", tag = TAG)
+                    showNotification(
+                        context,
+                        "Tile Server Disabled",
+                        "The watch is trying to fetch tiles, but the companion tile server is disabled. Please enable it in the app settings."
+                    )
+                    return
+                }
+
                 // apparently you cannot launch an app if the app is closed, or running inthe background
                 // https://stackoverflow.com/questions/59636083/broadcastreceiver-cant-start-activity-from-closed-or-in-background-app
                 // https://developer.android.com/guide/components/activities/background-starts

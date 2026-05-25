@@ -29,6 +29,18 @@ object KtorClient {
     private const val API_HOST = "127.0.0.1"
     private val API_PROTOCOL = URLProtocol.HTTP
 
+    /**
+     * A plugin that ensures requests to 127.0.0.1 always use the latest port
+     * configured in settings, as DefaultRequest is static once installed.
+     */
+    private val dynamicPortPlugin = createClientPlugin("dynamicPortPlugin") {
+        onRequest { request, _ ->
+            if (request.url.host == API_HOST) {
+                request.url.port = getWebPortOnStart()
+            }
+        }
+    }
+
     val conciseHttpLogger = createClientPlugin("conciseHttpLogger") {
         // This lambda block is the 'install' part of the plugin.
         // 'this' refers to the HttpClient instance (scope) the plugin is installed on.
@@ -73,6 +85,7 @@ object KtorClient {
             }
 
             install(conciseHttpLogger)
+            install(dynamicPortPlugin)
 
 //            install(Logging) {
 //                logger = object : Logger {

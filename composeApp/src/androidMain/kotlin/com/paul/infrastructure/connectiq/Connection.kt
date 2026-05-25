@@ -37,6 +37,10 @@ import com.paul.protocol.fromdevice.Protocol as Response
 
 class Connection(private val context: Context) : IConnection() {
 
+    companion object {
+        private const val TAG = "Connection"
+    }
+
     private var isConnected = false
     private var connectIQ: ConnectIQ = ConnectIqBuilder(context).getInstance()
 
@@ -48,12 +52,12 @@ class Connection(private val context: Context) : IConnection() {
             // we are already connected, todo handle the case where 2 callers call connect at the same time (before onSdkReady is called)
             // need to make an outstanding task that gets returned?
             continuation.resume(Unit) { cause, _, _ ->
-                Napier.d("cancelled whilst resuming")
+                Napier.v("cancelled whilst resuming", tag = TAG)
             }
         } else {
             connectIQ.initialize(context, true, object : ConnectIQListener {
                 override fun onInitializeError(errStatus: IQSdkErrorStatus) {
-                    Napier.d("Failed to initialise: ${errStatus.name}")
+                    Napier.e("Failed to initialise ConnectIQ: ${errStatus.name}", tag = TAG)
                     if (errStatus == IQSdkErrorStatus.GCM_NOT_INSTALLED) {
                         continuation.resumeWithException(ConnectIqNeedsInstall())
                         return
@@ -65,15 +69,15 @@ class Connection(private val context: Context) : IConnection() {
                 }
 
                 override fun onSdkReady() {
-                    Napier.d("onSdkReady()")
+                    Napier.i("ConnectIQ SDK ready", tag = TAG)
                     isConnected = true
                     continuation.resume(Unit) { cause, _, _ ->
-                        Napier.d("cancelled whilst resuming")
+                        Napier.v("cancelled whilst resuming", tag = TAG)
                     }
                 }
 
                 override fun onSdkShutDown() {
-                    Napier.d("onSdkShutDown()")
+                    Napier.i("ConnectIQ SDK shut down", tag = TAG)
                     isConnected = false
                 }
             })
@@ -100,7 +104,7 @@ class Connection(private val context: Context) : IConnection() {
                 sendInternal(cd.device, payload)
             }
         } catch (e: Exception) {
-            Napier.d("failed to send: $e")
+            Napier.e("Failed to send payload to device: $e", e, tag = TAG)
             throw e
         }
     }
@@ -115,8 +119,9 @@ class Connection(private val context: Context) : IConnection() {
             // First inspect the status to make sure this
             // was a SUCCESS. If not then the status will indicate why there
             // was an issue receiving the message from the Connect IQ application.
-            Napier.d(
-                "mDeviceAppMessageListener():" + device + ": " + status.name + " " + messageData
+            Napier.v(
+                "handleMessage(): $device: status=${status.name}, data=$messageData",
+                tag = TAG
             )
             try {
                 if (status == IQMessageStatus.SUCCESS) {
@@ -127,11 +132,11 @@ class Connection(private val context: Context) : IConnection() {
                     @Suppress("UNCHECKED_CAST")
                     trySendBlocking(Response.decode(messageData[0] as List<Any>))
                 } else {
-                    cancel(CancellationException("Device Listen: $status"))
+                    cancel(CancellationException("Device Listen Error: $status"))
                 }
             } catch (t: Throwable) {
                 // exceptions from within the callback crash the app, don't do that
-                Napier.d("failed $t");
+                Napier.e("Exception processing device message", t, tag = TAG);
             }
         }
 
