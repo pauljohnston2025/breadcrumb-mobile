@@ -37,6 +37,8 @@ import kotlinx.serialization.json.Json
 import org.slf4j.event.Level
 import io.ktor.server.resources.get as resourcesGet
 
+private const val TAG = "WebServerService"
+
 val startTimeKey = AttributeKey<Long>("StartTime")
 val responseKey = AttributeKey<Any>("Response")
 
@@ -63,7 +65,7 @@ val RequestLogging = createApplicationPlugin(name = "RequestLogging") {
             }
         Napier.d(
             "Incoming request - Method: $method, Path: $path params: $parametersSingleLine",
-            tag = "WebserverService"
+            tag = TAG
         )
 
         // Store the start time in the call attributes
@@ -89,11 +91,14 @@ val RequestLogging = createApplicationPlugin(name = "RequestLogging") {
             }
         val responseType = call.response.responseType
 //        Napier.d("Outgoing response - Method: $method, Path: $path\n  Status: $statusCode\n  Headers:\n" +
-//                "    $headers\n  Duration: $duration ms\n  ResponseType: $responseType\n  Response: $responseObject", tag = "WebserverService")
-        Napier.d(
-            "Outgoing response - Method: $method Status: $statusCode",
-            tag = "WebserverService"
-        )
+//                "    $headers\n  Duration: $duration ms\n  ResponseType: $responseType\n  Response: $responseObject", tag = TAG)
+
+        val logMessage = "Outgoing response - Method: $method Status: $statusCode"
+        when {
+            statusCode == null || statusCode.value >= 500 -> Napier.e(logMessage, tag = TAG)
+            statusCode.value >= 400 -> Napier.w(logMessage, tag = TAG)
+            else -> Napier.d(logMessage, tag = TAG)
+        }
     }
 }
 
@@ -116,7 +121,7 @@ class WebServerService(
         } catch (t: Throwable) {
             // todo handle shutting down the old service somehow
             // then start a new one
-            Napier.e("failed to start service, probably already bound: $t")
+            Napier.e("failed to start service, probably already bound: $t", tag = TAG)
             throw t
         }
     }
@@ -159,13 +164,15 @@ class WebServerService(
         routing {
             resourcesGet<LoadTileRequest> { params ->
                 val res = tileGetter.getWatchTile(params)
-//                Napier.d("responding with ${res.first}")
+//                Napier.d("responding with ${res.first}", tag = TAG)
                 if (res.first != 200) {
+                    Napier.w("Tile request failed with status ${res.first} for $params", tag = TAG)
                     call.respond(HttpStatusCode.fromValue(res.first), ErrorJson())
                     return@resourcesGet
                 }
 
                 if (res.second == null) {
+                    Napier.e("Tile data is null (500) for $params", tag = TAG)
                     call.respond(HttpStatusCode.fromValue(500), ErrorJson())
                     return@resourcesGet
                 }
@@ -211,7 +218,7 @@ class WebServerService(
                             }
                     Napier.d(
                         "Incoming changeColourPalette request - Path: ${call.route} params: $parametersSingleLine",
-                        tag = "WebserverService"
+                        tag = TAG
                     )
 
                     // Directly receive the ColourPalette object from the JSON body
@@ -220,7 +227,7 @@ class WebServerService(
                     call.respond(HttpStatusCode.OK)
                 } catch (e: Exception) {
                     // Log the error for debugging
-                    Napier.e("Failed to receive/process palette", e)
+                    Napier.e("Failed to receive/process palette", e, tag = TAG)
                     call.respond(HttpStatusCode.BadRequest, "Invalid palette data received.")
                 }
             }

@@ -110,7 +110,7 @@ fun App(
                 updateVersion = latestVersion
             }
         } catch (e: Exception) {
-            Napier.d("Update check failed: $e")
+            Napier.w("Update check failed", e)
         }
     }
 

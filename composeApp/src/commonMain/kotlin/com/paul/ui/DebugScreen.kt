@@ -59,7 +59,10 @@ fun DebugScreen(viewModel: DebugViewModel, fileHelper: IFileHelper) {
                         (searchQuery.isEmpty() || it.message.contains(
                             searchQuery,
                             ignoreCase = true
-                        ))
+                        ) || it.tag?.contains(
+                            searchQuery,
+                            ignoreCase = true
+                        ) == true)
             }
             if (isDescending) filtered.reversed() else filtered
         }
@@ -173,10 +176,15 @@ fun LogItem(
         else -> MaterialTheme.colors.primary
     }
 
-    // Full ISO-8601 Date Formatting
+    // Format time to HH:mm:ss.SSS for better readability in logs
     val timeStr = remember(log.timestamp) {
         val instant = kotlinx.datetime.Instant.fromEpochMilliseconds(log.timestamp)
-        instant.toLocalDateTime(currentSystemDefault()).toString()
+        val lt = instant.toLocalDateTime(currentSystemDefault())
+        val h = lt.hour.toString().padStart(2, '0')
+        val m = lt.minute.toString().padStart(2, '0')
+        val s = lt.second.toString().padStart(2, '0')
+        val ms = (lt.nanosecond / 1_000_000).toString().padStart(3, '0')
+        "$h:$m:$s.$ms"
     }
 
     Surface(
@@ -187,7 +195,7 @@ fun LogItem(
     ) {
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                // Timestamp - Subtle and gray like the "Size" in Routes
+                // Timestamp
                 Text(
                     text = timeStr,
                     style = MaterialTheme.typography.caption,
@@ -197,7 +205,7 @@ fun LogItem(
 
                 Spacer(Modifier.width(8.dp))
 
-                // Level "Badge" - matching the "RouteType" overline style
+                // Level "Badge"
                 Text(
                     text = log.level.uppercase(),
                     style = MaterialTheme.typography.overline,
@@ -207,17 +215,24 @@ fun LogItem(
 
                 if (!log.tag.isNullOrBlank()) {
                     Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = "• ${log.tag}",
-                        style = MaterialTheme.typography.overline,
-                        color = Color.Gray
-                    )
+                    Surface(
+                        color = MaterialTheme.colors.primary.copy(alpha = 0.1f),
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Text(
+                            text = log.tag,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                            style = MaterialTheme.typography.overline,
+                            color = MaterialTheme.colors.primary,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                    }
                 }
             }
 
-            Spacer(Modifier.height(2.dp))
+            Spacer(Modifier.height(4.dp))
 
-            // Message - Clean and themed like the Route Name
+            // Message
             Text(
                 text = log.message,
                 style = MaterialTheme.typography.body2,
@@ -295,11 +310,21 @@ fun HeaderSection(
             }
 
             IconButton(onClick = onExport, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Default.Share, "Export", tint = MaterialTheme.colors.primary, modifier = Modifier.size(20.dp))
+                Icon(
+                    Icons.Default.Share,
+                    "Export",
+                    tint = MaterialTheme.colors.primary,
+                    modifier = Modifier.size(20.dp)
+                )
             }
 
             IconButton(onClick = onClear, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Default.DeleteSweep, "Clear", tint = MaterialTheme.colors.error, modifier = Modifier.size(20.dp))
+                Icon(
+                    Icons.Default.DeleteSweep,
+                    "Clear",
+                    tint = MaterialTheme.colors.error,
+                    modifier = Modifier.size(20.dp)
+                )
             }
         }
 

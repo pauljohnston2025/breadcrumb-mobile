@@ -15,13 +15,17 @@ import kotlinx.coroutines.launch
 
 class DeviceList(private val connection: Connection) : IDeviceList {
 
+    companion object {
+        private const val TAG = "DeviceList"
+    }
+
     private var deviceList: List<CommonDeviceImpl> = listOf()
     private var deviceListFlow: MutableStateFlow<List<CommonDeviceImpl>> =
         MutableStateFlow(listOf())
     private var job: Job? = null
 
     private val mDeviceEventListener = IQDeviceEventListener { device, status ->
-        Napier.d("onDeviceStatusChanged():" + device + ": " + status.name)
+        Napier.v("onDeviceStatusChanged():" + device + ": " + status.name, tag = TAG)
 
         val oldDevice = deviceList.find { device.deviceIdentifier == it.device.deviceIdentifier }
         val list = deviceList.filter {
@@ -53,7 +57,7 @@ class DeviceList(private val connection: Connection) : IDeviceList {
 //        list.add(dummyDevice2)
         deviceList = list
         CoroutineScope(Dispatchers.IO).launch {
-            Napier.d("emitting $list")
+            Napier.v("emitting $list", tag = TAG)
             deviceListFlow.emit(list.toList())
         }
     }
@@ -102,14 +106,14 @@ class DeviceList(private val connection: Connection) : IDeviceList {
             }
 
             for (device in toRemove) {
-                Napier.d("removing device $device")
+                Napier.i("removing device $device", tag = TAG)
             }
             val newList = deviceList.filter { device ->
                 toRemove.find { device.device.deviceIdentifier == it.device.deviceIdentifier } == null
             }.toMutableList()
 
             for (device in toAdd) {
-                Napier.d("adding device $device")
+                Napier.i("adding device $device", tag = TAG)
                 newList.add(device)
             }
 
@@ -141,13 +145,13 @@ class DeviceList(private val connection: Connection) : IDeviceList {
         } catch (e: InvalidStateException) {
             // This generally means you forgot to call initialize(), but since
             // we are in the callback for initialize(), this should never happen
-            Napier.d("invalid state")
+            Napier.e("invalid state", e, tag = TAG)
         } catch (e: ServiceUnavailableException) {
             // This will happen if for some reason your app was not able to connect
             // to the ConnectIQ service running within Garmin Connect Mobile.  This
             // could be because Garmin Connect Mobile is not installed or needs to
             // be upgraded.
-            Napier.d("service unavailable")
+            Napier.e("service unavailable", e, tag = TAG)
         }
     }
 }

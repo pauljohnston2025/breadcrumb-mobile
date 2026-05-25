@@ -60,6 +60,10 @@ class StartViewModel(
     val stravaRepository: StravaRepository,
     val tileServerRepo: TileServerRepo,
 ) : ViewModel() {
+    companion object {
+        private const val TAG = "StartViewModel"
+    }
+
     val settings: Settings = Settings()
 
     val sendingFile: MutableState<String> = mutableStateOf("")
@@ -129,7 +133,7 @@ class StartViewModel(
                 uri = fileHelper.findFile()
             } catch (e: Exception) {
                 snackbarHostState.showSnackbar("Failed to find file (invalid or no selection)")
-                Napier.e("Failed to find file $e")
+                Napier.e("Failed to find file", e, tag = TAG)
                 return@launch
             }
 
@@ -176,7 +180,7 @@ class StartViewModel(
             viewModelScope.launch(Dispatchers.Main) {
                 snackbarHostState.showSnackbar("Failed to find route for history item")
             }
-            Napier.d("route entry not found")
+            Napier.w("route entry not found for history item ${historyItem.routeId}", tag = TAG)
             return
         }
 
@@ -185,7 +189,7 @@ class StartViewModel(
                 val route = routeRepo.getRouteI(historyItem.routeId)
                 if (route == null) {
                     snackbarHostState.showSnackbar("Failed to find route for history item")
-                    Napier.d("route file not found")
+                    Napier.w("route file not found for history item ${historyItem.routeId}", tag = TAG)
                     return@sendingMessage
                 }
 
@@ -203,10 +207,10 @@ class StartViewModel(
                     sendRoute(gpxRoute)
                 } catch (e: SecurityException) {
                     snackbarHostState.showSnackbar("Failed to load gpx file (you might not have permissions, please restart app to grant)")
-                    Napier.d(e.toString())
+                    Napier.e("Security exception loading GPX", e, tag = TAG)
                 } catch (e: Exception) {
                     snackbarHostState.showSnackbar("Failed to load gpx file (possibly invalid format)")
-                    Napier.d(e.toString())
+                    Napier.e("Error loading GPX file", e, tag = TAG)
                 }
             }
         }
@@ -227,7 +231,7 @@ class StartViewModel(
                     val gpxRoute = try {
                         komootRepo.getRoute(komootUrl)
                     } catch (e: Exception) {
-                        Napier.d("failed to load komoot url $e")
+                        Napier.e("failed to load komoot url $komootUrl", e, tag = TAG)
                         snackbarHostState.showSnackbar("Failed to load komoot url")
                         return@launch
                     }
@@ -270,10 +274,10 @@ class StartViewModel(
                 sendRoute(gpxRoute)
             } catch (e: SecurityException) {
                 snackbarHostState.showSnackbar("Failed to load gpx file (you might not have permissions, please restart app to grant)")
-                Napier.d(e.toString())
+                Napier.e("Security exception loading GPX from mapstogpx", e, tag = TAG)
             } catch (e: Exception) {
                 snackbarHostState.showSnackbar("Failed to load gpx file (possibly invalid format)")
-                Napier.d(e.toString())
+                Napier.e("Error parsing GPX from mapstogpx", e, tag = TAG)
             }
         }
     }
@@ -320,7 +324,7 @@ class StartViewModel(
                 return@withContext res
             }
         } catch (e: Throwable) {
-            Napier.d("Problem while loading maps from mapstogpx $e")
+            Napier.e("Problem while loading maps from mapstogpx", e, tag = TAG)
         }
 
         return null
@@ -355,7 +359,7 @@ class StartViewModel(
 
             } catch (t: Throwable) {
                 snackbarHostState.showSnackbar("Failed to load activity preview")
-                Napier.e("Preview failed", t)
+                Napier.e("Preview failed", t, tag = TAG)
             }
         }
     }
@@ -380,6 +384,7 @@ class StartViewModel(
                 mapViewModel.displayRoute(stream.toRouteForDevice(activity.name), StaveIRoute(activity, stream))
                 _navigationEvents.emit(StartNavigationEvent.NavigateTo(Screen.Map.route))
             } catch (e: Exception) {
+                Napier.e("Failed to parse map data for preview", e, tag = TAG)
                 snackbarHostState.showSnackbar("Failed to parse map data")
             }
         }
@@ -393,7 +398,7 @@ class StartViewModel(
                 stravaRepository.openActivityInBrowser(id)
             } catch (t: Throwable) {
                 snackbarHostState.showSnackbar("Could not open Strava activity")
-                Napier.e("Failed to open Strava", t)
+                Napier.e("Failed to open Strava", t, tag = TAG)
             }
         }
     }

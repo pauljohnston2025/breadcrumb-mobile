@@ -38,6 +38,9 @@ class Settings(
     private val colourPaletteRepository: ColourPaletteRepository,
     public val stravaRepo: StravaRepository,
 ) : ViewModel() {
+    companion object {
+        private const val TAG = "SettingsViewModel"
+    }
 
     val tileServerRepo = TileServerRepo(webServerController, tileRepo)
 
@@ -96,7 +99,7 @@ class Settings(
             try {
                 stravaRepo.clearAllStravaData()
             } catch (e: Exception) {
-                Napier.e("Clear strava data failed", e)
+                Napier.e("Clear strava data failed", e, tag = TAG)
                 snackbarHostState.showSnackbar("Clear strava data failed: ${e.message}")
             }
         }
@@ -124,7 +127,7 @@ class Settings(
             try {
                 routesRepo.saveSettings(newSettings)
             } catch (t: Throwable) {
-                Napier.d("Failed to save route settings: $t")
+                Napier.e("Failed to save route settings", t, tag = TAG)
                 snackbarHostState.showSnackbar("Error saving route settings")
                 // Optional: You could roll back the change here if saving fails
                 // _routeSettings.value = routesRepo.getSettings()
@@ -139,7 +142,7 @@ class Settings(
                     try {
                         tileServerRepo.updateCurrentTileType(tileType)
                     } catch (e: Exception) {
-                        Napier.d("tile type update failed: ${e.message}")
+                        Napier.e("tile type update failed", e, tag = TAG)
                         snackbarHostState.showSnackbar("Failed to update tile type")
                         return@sendingMessage
                     }
@@ -158,7 +161,7 @@ class Settings(
                     try {
                         tileServerRepo.updateCurrentTileType(tileType)
                     } catch (e: Exception) {
-                        Napier.d("POST request failed: ${e.message}")
+                        Napier.e("POST request failed for tile type update", e, tag = TAG)
                         snackbarHostState.showSnackbar("Failed to update tile type")
                         return@sendingMessage
                     }
@@ -192,7 +195,7 @@ class Settings(
                     try {
                         tileServerRepo.updateCurrentTileServer(tileServer)
                     } catch (e: Exception) {
-                        Napier.d("tile server update failed: ${e.message}")
+                        Napier.e("tile server update failed", e, tag = TAG)
                         snackbarHostState.showSnackbar("Failed to update tile server")
                         return@sendingMessage
                     }
@@ -212,7 +215,7 @@ class Settings(
                     try {
                         tileServerRepo.updateCurrentTileServer(tileServer)
                     } catch (e: Exception) {
-                        Napier.d("POST request failed: ${e.message}")
+                        Napier.e("POST request failed for tile server update", e, tag = TAG)
                         snackbarHostState.showSnackbar("Failed to update tile server")
                         return@sendingMessage
                     }
@@ -245,7 +248,7 @@ class Settings(
             }
             cb()
         } catch (t: Throwable) {
-            Napier.d("Failed to do operation: $msg $t")
+            Napier.e("Failed to do operation: $msg", t, tag = TAG)
         } finally {
             viewModelScope.launch(Dispatchers.Main) {
                 sendingMessage.value = ""
@@ -269,7 +272,7 @@ class Settings(
                     }
                     snackbarHostState.showSnackbar("Tile server saved successfully")
                 } catch (e: Exception) {
-                    Napier.e("Failed to save custom tile server", e)
+                    Napier.e("Failed to save custom tile server", e, tag = TAG)
                     snackbarHostState.showSnackbar("Error: Could not save tile server")
                 }
             }
@@ -283,7 +286,7 @@ class Settings(
                 try {
                     tileServerRepo.onTileServerEnabledChange(newVal)
                 } catch (t: Throwable) {
-                    Napier.d("failed to update tile server enabled, reverting: $t")
+                    Napier.e("failed to update tile server enabled, reverting", t, tag = TAG)
                     snackbarHostState.showSnackbar("Failed to stop/start tile server")
                     launch(Dispatchers.Main) {
                         tileServerRepo.rollBackEnabled(oldVal)
@@ -331,7 +334,7 @@ class Settings(
             try {
                 tileServerRepo.updateAuthToken(newVal)
             } catch (t: Throwable) {
-                Napier.d("failed to update tile server auth token: $t")
+                Napier.e("failed to update tile server auth token", t, tag = TAG)
                 snackbarHostState.showSnackbar("Failed to update tile server auth token")
             }
         }
@@ -353,7 +356,7 @@ class Settings(
                     colourPaletteRepository.updateCurrentColourPalette(palette)
                     watchSendTileServerChanged()
                 } catch (e: Exception) {
-                    Napier.d("colour palette update failed: ${e.message}")
+                    Napier.e("colour palette update failed", e, tag = TAG)
                     snackbarHostState.showSnackbar("Failed to update colour palette")
                 }
             }
@@ -369,7 +372,7 @@ class Settings(
                     }
                     snackbarHostState.showSnackbar("Colour palette saved")
                 } catch (e: Exception) {
-                    Napier.d("failed to save custom palette: ${e.message}")
+                    Napier.e("failed to save custom palette", e, tag = TAG)
                     snackbarHostState.showSnackbar("Failed to save colour palette")
                 }
             }
@@ -385,7 +388,7 @@ class Settings(
                     }
                     snackbarHostState.showSnackbar("Colour palette removed")
                 } catch (e: Exception) {
-                    Napier.d("failed to remove custom palette: ${e.message}")
+                    Napier.e("failed to remove custom palette", e, tag = TAG)
                     snackbarHostState.showSnackbar("Failed to remove colour palette")
                 }
             }

@@ -622,7 +622,7 @@ fun MapScreen(viewModel: MapViewModel) {
                                         maxZoom = maxSeedZoom
                                     )
                                 } else {
-                                    Napier.d("Viewport size not available yet for seeding.")
+                                    Napier.v("Viewport size not available yet for seeding.")
                                 }
                             },
                         ) {

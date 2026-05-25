@@ -47,6 +47,10 @@ class ProfilesViewModel(
     val routeRepo: RouteRepository,
     private val colourPaletteRepo: ColourPaletteRepository,
 ) : ViewModel() {
+    companion object {
+        private const val TAG = "ProfilesViewModel"
+    }
+
     val sendingMessage: MutableState<String> = mutableStateOf("")
 
     private val _creatingProfile = MutableStateFlow<Boolean>(false)
@@ -180,7 +184,7 @@ class ProfilesViewModel(
                 // already logged in clipboard handler
                 // snackbarHostState.showSnackbar("Profile copied to clipboard")
             } catch (t: Throwable) {
-                Napier.e("Failed to export profile: $t")
+                Napier.e("Failed to export profile", t, tag = TAG)
                 snackbarHostState.showSnackbar("Failed to export profile")
             }
         }
@@ -267,7 +271,7 @@ class ProfilesViewModel(
                 profileRepo.addProfile(profile)
                 applyProfile(profile) // apply the profile when we load it from json
             } catch (t: Throwable) {
-                Napier.e("Failed to load profile from json: $t")
+                Napier.e("Failed to load profile from json", t, tag = TAG)
                 snackbarHostState.showSnackbar("Failed to load profile from json")
             }
         }
@@ -349,10 +353,11 @@ class ProfilesViewModel(
                     RequestSettings(),
                     ProtocolResponse.PROTOCOL_SEND_SETTINGS
                 )
-                Napier.d("got settings $settings")
+                Napier.i("got settings $settings", tag = TAG)
                 settingsLoading.value = false
                 settings
             } catch (t: Throwable) {
+                Napier.e("Failed to load settings from device", t, tag = TAG)
                 settingsLoading.value = false
                 snackbarHostState.showSnackbar("Failed to load settings. Please ensure an activity is running on the watch.")
                 null
@@ -361,7 +366,7 @@ class ProfilesViewModel(
     }
 
     fun cancelDeviceSettingsLoading() {
-        Napier.d("Cancelling settings load job.")
+        Napier.i("Cancelling settings load job.", tag = TAG)
         settingsJob?.cancel()
         // Immediately update UI state
         settingsLoading.value = false
@@ -381,6 +386,7 @@ class ProfilesViewModel(
                 )
                 appInfo.version
             } catch (t: Throwable) {
+                Napier.e("Failed to load app version from device", t, tag = TAG)
                 snackbarHostState.showSnackbar("Failed to load settings. Please ensure an activity is running on the watch.")
                 null
             }

@@ -26,14 +26,8 @@ class RouteRepository(
     private val fileHelper: IFileHelper,
     private val gpxLoader: IGpxFileLoader,
 ) {
-    val ROUTES_KEY = "ROUTES"
-    val settings: Settings = Settings()
-    val routes = mutableStateListOf<RouteEntry>()
-    private val currentSettings: MutableStateFlow<RouteSettings> = MutableStateFlow(
-        getSettings()
-    )
-
     companion object {
+        private const val TAG = "RouteRepository"
         private val SETTINGS_KEY = "ROUTE_SETTINGS"
 
         fun getSettings(): RouteSettings {
@@ -47,10 +41,18 @@ class RouteRepository(
                 Json.decodeFromString<RouteSettings>(routeSettings)
             } catch (t: Throwable) {
                 // bad encoding, maybe we changed it
+                Napier.w("Failed to decode RouteSettings, using defaults", t, tag = TAG)
                 return RouteSettings.default
             }
         }
     }
+
+    val ROUTES_KEY = "ROUTES"
+    val settings: Settings = Settings()
+    val routes = mutableStateListOf<RouteEntry>()
+    private val currentSettings: MutableStateFlow<RouteSettings> = MutableStateFlow(
+        getSettings()
+    )
 
     init {
         val routesJson = settings.getStringOrNull(ROUTES_KEY)
@@ -60,7 +62,7 @@ class RouteRepository(
                     routes.add(it)
                 }
             } catch (t: Throwable) {
-                Napier.d("failed to hydrate routes items $t")
+                Napier.e("failed to hydrate routes items", t, tag = TAG)
             }
         }
     }
@@ -150,7 +152,11 @@ class RouteRepository(
         val type = when (route) {
             is GpxRoute -> RouteType.GPX
             is CoordinatesRoute -> RouteType.COORDINATES
-            else -> throw RuntimeException("unknown route type")
+            else -> {
+                val error = "unknown route type: ${route::class.simpleName}"
+                Napier.e(error, tag = TAG)
+                throw RuntimeException(error)
+            }
         }
         routes.add(
             RouteEntry(

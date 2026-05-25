@@ -1,6 +1,5 @@
 package com.paul.infrastructure.repositories
 
-import androidx.compose.animation.core.copy
 import com.paul.domain.StravaActivity
 import com.paul.domain.StravaAthleteResponse
 import com.paul.domain.StravaGear
@@ -86,7 +85,7 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
 
                         BearerTokens(response.accessToken, response.refreshToken)
                     } catch (e: Exception) {
-                        Napier.e("Token refresh failed", e)
+                        Napier.e("Token refresh failed", e, tag = TAG)
                         null
                     }
                 }
@@ -200,6 +199,7 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
     }
 
     companion object {
+        private const val TAG = "StravaRepository"
         private const val CLIENT_ID_KEY = "STRAVA_CLIENT_ID"
         private const val CLIENT_SECRET_KEY = "STRAVA_CLIENT_SECRET"
         private const val ACCESS_TOKEN_KEY = "STRAVA_ACCESS_TOKEN"
@@ -228,7 +228,7 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
             // 2. Check for 404 (Resource Not Found)
             if (response.status == io.ktor.http.HttpStatusCode.NotFound) {
                 // or it may be an activity without a gps recording (manual entry)
-                Napier.w("Streams not found for activity $activityId (404). It may be deleted or private.")
+                Napier.i("Streams not found for activity $activityId (404). It may be deleted, private, or have no GPS data.", tag = TAG)
                 return emptyList()
             }
 
@@ -261,11 +261,11 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
 
             // Handle the case where DefaultResponseValidation still throws for other 4xx/5xx errors
             if (e is io.ktor.client.plugins.ClientRequestException && e.response.status == io.ktor.http.HttpStatusCode.NotFound) {
-                Napier.w("Caught 404 via Exception for activity $activityId")
+                Napier.i("Caught 404 via Exception for activity $activityId", tag = TAG)
                 return emptyList()
             }
 
-            Napier.e("Failed to fetch/parse streams for $activityId", e)
+            Napier.e("Failed to fetch/parse streams for $activityId", e, tag = TAG)
             _syncErrorStatus.value = "Failed to parse data for $activityId"
             throw e
         }
@@ -399,7 +399,7 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
 
             dao.insertGear(bikes + shoes)
         } catch (e: Exception) {
-            Napier.e("Failed to sync Strava gear metadata", e)
+            Napier.e("Failed to sync Strava gear metadata", e, tag = TAG)
             handleSyncError(e)
         } finally {
             _loginStatus.value = null // moving on to next step, or coroutine killed
@@ -463,7 +463,7 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
 
             else -> {
                 _syncErrorStatus.value = "Sync failed. Check connection."
-                Napier.e("Sync Error", e)
+                Napier.e("Sync Error", e, tag = TAG)
             }
         }
     }
@@ -483,14 +483,14 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
                 "&approval_prompt=auto" +
                 "&scope=read,activity:read_all,profile:read_all"
 
-        Napier.d("Launching Strava Auth: $authUrl")
+        Napier.i("Launching Strava Auth: $authUrl", tag = TAG)
         browserLauncher.openUri(authUrl)
     }
 
     // --- OAuth Handlers ---
 
     fun stravaOauthSuccess(code: String) {
-        Napier.d("OAuth code received, starting token exchange...")
+        Napier.i("OAuth code received, starting token exchange...", tag = TAG)
         _loginStatus.value = "Authenticating with Strava..."
 
         // Launch a coroutine to handle the suspend login call
@@ -501,7 +501,7 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
     }
 
     fun stravaOauthFailed(error: String) {
-        Napier.e("Strava Auth Failed: $error")
+        Napier.e("Strava Auth Failed: $error", tag = TAG)
         _loginStatus.value = "Strava Auth Failed: $error"
     }
 
@@ -559,7 +559,7 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
         try {
             browserLauncher.openUri(activityUrl)
         } catch (e: Exception) {
-            Napier.e("Could not open Strava activity in browser", e)
+            Napier.e("Could not open Strava activity in browser for id $id", e, tag = TAG)
             throw e
         }
     }

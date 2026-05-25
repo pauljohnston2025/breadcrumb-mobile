@@ -38,6 +38,11 @@ class RoutesViewModel(
     val snackbarHostState: SnackbarHostState,
     val tileServerRepo: TileServerRepo,
 ) : ViewModel() {
+
+    companion object {
+        private const val TAG = "RoutesViewModel"
+    }
+
     // State for controlling the edit dialog
     private val _editingRoute = MutableStateFlow<RouteEntry?>(null)
     val sendingFile: MutableState<String> = mutableStateOf("")
@@ -101,12 +106,12 @@ class RoutesViewModel(
 
     }
 
-    fun sendRoute(route: RouteEntry) {
+    fun sendRoute(routeEntry: RouteEntry) {
         viewModelScope.launch(Dispatchers.IO) {
-            val route = routeRepo.getRouteI(route.id)
+            val route = routeRepo.getRouteI(routeEntry.id)
             if (route == null) {
                 snackbarHostState.showSnackbar("failed to load route")
-                Napier.d("Failed to load route")
+                Napier.e("Failed to load route for id ${routeEntry.id}", tag = TAG)
                 return@launch
             }
             sendRoute(route)

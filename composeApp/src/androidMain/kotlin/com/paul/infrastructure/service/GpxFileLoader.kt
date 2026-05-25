@@ -34,7 +34,7 @@ data class GpxFile(
         // Prioritize tracks, then routes for the base points of the route.
         if (gpx.tracks.isNotEmpty()) {
             val track = gpx.tracks[0]
-            Napier.d("loading track points for ${name()}")
+            Napier.v("loading track points for ${name()}")
             if (track.trackSegments.isEmpty()) {
                 snackbarHostState.showSnackbar("failed to get segments")
                 return null
@@ -42,16 +42,16 @@ data class GpxFile(
             baseGpxPoints = track.trackSegments[0].trackPoints
         } else if (gpx.routes.isNotEmpty()) {
             val route = gpx.routes[0]
-            Napier.d("loading route points for ${name()}")
+            Napier.v("loading route points for ${name()}")
             baseGpxPoints = route.routePoints
         } else if (gpx.wayPoints.isNotEmpty()) {
             // No track or route, the waypoints themselves form the route.
-            Napier.d("loading waypoints as the main route for ${name()}")
+            Napier.v("loading waypoints as the main route for ${name()}")
             baseGpxPoints = gpx.wayPoints
         }
 
         if (baseGpxPoints.isEmpty()) {
-            Napier.d("failed to get track, route, or waypoints")
+            Napier.w("failed to get track, route, or waypoints for ${name()}")
             return null
         }
 
@@ -206,11 +206,16 @@ class GpxFileLoader() : IGpxFileLoader {
     private var parser = GPXParser()
 
     override suspend fun loadGpxFromBytes(stream: ByteArray): GpxFile {
-        val fileContents = loadFileContents(stream)
-        return GpxFile(
-            fileContents.first,
-            fileContents.second.encodeToByteArray()
-        )
+        try {
+            val fileContents = loadFileContents(stream)
+            return GpxFile(
+                fileContents.first,
+                fileContents.second.encodeToByteArray()
+            )
+        } catch (t: Throwable) {
+            Napier.e("Failed to load GPX from bytes", t)
+            throw t
+        }
     }
 
     private fun loadFileContents(stream: ByteArray): Pair<Gpx, String> {

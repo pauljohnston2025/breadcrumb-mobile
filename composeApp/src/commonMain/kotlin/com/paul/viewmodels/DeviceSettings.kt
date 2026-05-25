@@ -375,6 +375,10 @@ class DeviceSettings(
     private val connection: IConnection,
     private val snackbarHostState: SnackbarHostState,
 ) : ViewModel() {
+    companion object {
+        private const val TAG = "DeviceSettingsViewModel"
+    }
+
     val settingsSaving: MutableState<Boolean> = mutableStateOf(false)
 
     private val _navigationEvents = MutableSharedFlow<DeviceSettingsNavigationEvent>()
@@ -689,11 +693,11 @@ class DeviceSettings(
                                 try {
                                     RouteItem.fromDict(map)
                                 } catch (e: Exception) {
-                                    Napier.d("Error parsing route item content at index $index: $e. Skipping.")
+                                    Napier.e("Error parsing route item content at index $index", e, tag = TAG)
                                     null // Skip items that cause errors during content parsing
                                 }
                             } else {
-                                Napier.d("Route item at index $index is not a Map. Skipping.")
+                                Napier.w("Route item at index $index is not a Map. Skipping.", tag = TAG)
                                 null // Skip items that aren't maps
                             }
                         }.toMutableList() // Crucial: Convert to MutableList for state modification
@@ -710,7 +714,7 @@ class DeviceSettings(
 
                     // --- Default/Unknown ---
                     else -> {
-                        Napier.d("Warning: Unhandled property key '$key' - Treating as UNKNOWN/String")
+                        Napier.w("Warning: Unhandled property key '$key' - Treating as UNKNOWN/String", tag = TAG)
                         EditableProperty(
                             key,
                             PropertyType.UNKNOWN,
@@ -726,10 +730,10 @@ class DeviceSettings(
             }
         } catch (e: ClassCastException) {
             // This catch block is less likely to trigger now due to 'as?'
-            Napier.d("Error: Type mismatch for key '$key'. Skipping. Error: ${e.message}")
+            Napier.e("Error: Type mismatch for key '$key'. Skipping.", e, tag = TAG)
             null
         } catch (e: Exception) {
-            Napier.d("Error creating EditableProperty for key '$key': ${e.message}")
+            Napier.e("Error creating EditableProperty for key '$key'", e, tag = TAG)
             null
         }
     }
@@ -742,14 +746,14 @@ class DeviceSettings(
                     device,
                     SaveSettings(updatedValues, connection.connectIqAppIdFlow().value)
                 )
-                Napier.d("got settings $updatedValues")
+                Napier.i("Successfully saved settings: $updatedValues", tag = TAG)
                 settingsSaving.value = false
                 viewModelScope.launch {
                     _navigationEvents.emit(DeviceSettingsNavigationEvent.PopBackStack)
                 }
             } catch (t: Throwable) {
                 settingsSaving.value = false
-                Napier.d("Failed to save settings $t")
+                Napier.e("Failed to save settings", t, tag = TAG)
                 snackbarHostState.showSnackbar("Failed to save settings")
                 viewModelScope.launch {
                     _navigationEvents.emit(DeviceSettingsNavigationEvent.PopBackStack)

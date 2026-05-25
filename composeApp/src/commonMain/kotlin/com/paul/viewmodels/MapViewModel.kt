@@ -89,6 +89,10 @@ class MapViewModel(
     val routeRepository: RouteRepository,
 ) : ViewModel() {
 
+    companion object {
+        private const val TAG = "MapViewModel"
+    }
+
     val historyRepo = HistoryRepository()
 
     private val _isGeneratingPalette = MutableStateFlow(false)
@@ -450,7 +454,7 @@ class MapViewModel(
                     var bitmapResult: ImageBitmap? = null
                     _loadingTiles.add(tileId) // Mark as loading (update state flow if exposing)
                     try {
-                        // Napier.d("VM Fetching $tileId")
+                        // Napier.v("VM Fetching $tileId", tag = TAG)
                         val data = tileRepository.getTile(
                             tileId.x,
                             tileId.y,
@@ -471,10 +475,10 @@ class MapViewModel(
                         }.join()
 
                     } catch (e: CancellationException) {
-                        // Napier.d("VM Job cancelled for $tileId")
+                        // Napier.v("VM Job cancelled for $tileId", tag = TAG)
                         // Don't update cache
                     } catch (e: Exception) {
-                        // Napier.d("VM Error $tileId: ${e.message}")
+                        Napier.e("VM Error $tileId: ${e.message}", e, tag = TAG)
                         launch(Dispatchers.Main) {
                             _tileBitmapCache[tileId] = null // Cache error state
                             _tileCacheState.value = _tileBitmapCache.toMap()
@@ -609,7 +613,7 @@ class MapViewModel(
                 )
             } catch (t: Throwable) {
                 snackbarHostState.showSnackbar("Failed to start seed on watch")
-                Napier.e("Failed to start seed on watch", t) // Log the full exception
+                Napier.e("Failed to start seed on watch", t, tag = TAG) // Log the full exception
             }
         }
     }
@@ -639,7 +643,7 @@ class MapViewModel(
                 }
             } catch (t: Throwable) {
                 snackbarHostState.showSnackbar("Failed to start seed on watch")
-                Napier.e("Failed to start seed on watch", t) // Log the full exception
+                Napier.e("Failed to start seed on watch", t, tag = TAG) // Log the full exception
             } finally {
                 _watchSendStarted.value = null
             }
@@ -660,7 +664,7 @@ class MapViewModel(
                 }
             } catch (t: Throwable) {
                 snackbarHostState.showSnackbar("Failed to return watch to users location")
-                Napier.e("Failed to return watch to users location", t) // Log the full exception
+                Napier.e("Failed to return watch to users location", t, tag = TAG) // Log the full exception
             }
         }
     }
@@ -736,7 +740,7 @@ class MapViewModel(
                 }
             } catch (t: Throwable) {
                 snackbarHostState.showSnackbar("Failed to show location on watch")
-                Napier.e("Failed to show location on watch", t) // Log the full exception
+                Napier.e("Failed to show location on watch", t, tag = TAG) // Log the full exception
             } finally {
                 _watchSendStarted.value = null
             }
@@ -793,11 +797,11 @@ class MapViewModel(
                     }
                 }
 
-                Napier.d("Total tiles expected: $totalTilesExpected") // Debug log
+                Napier.i("Total tiles expected: $totalTilesExpected", tag = TAG)
 
                 if (totalTilesExpected <= 0) {
                     // It's possible the area is too small or spans across anti-meridian incorrectly handled
-                    Napier.d("Warning: No tiles expected for the given area/zoom. Lat: $minLat/$maxLat, Lon: $minLon/$maxLon, Zoom: $effectiveMinZoom..$effectiveMaxZoom")
+                    Napier.w("No tiles expected for the given area/zoom. Lat: $minLat/$maxLat, Lon: $minLon/$maxLon, Zoom: $effectiveMinZoom..$effectiveMaxZoom", tag = TAG)
                     // Don't throw an exception, just finish gracefully
                     _seedingProgress.value = 1f
                     _isSeeding.value = false
@@ -824,7 +828,7 @@ class MapViewModel(
                     val finalYMin = min(yTileMaxLat, yTileMinLat) // Smaller Y index (North)
                     val finalYMax = max(yTileMaxLat, yTileMinLat) // Larger Y index (South)
 
-                    Napier.d("Seeding Layer z=$z: X=$finalXMin..$finalXMax, Y=$finalYMin..$finalYMax") // Debug log
+                    Napier.i("Seeding Layer z=$z: X=$finalXMin..$finalXMax, Y=$finalYMin..$finalYMax", tag = TAG)
                     _zSeedingProgress.value = z
 
                     // --- Pass the correct bounds to seedLayer ---
@@ -845,7 +849,7 @@ class MapViewModel(
                         },
                         errorCallback = { x, y, z, e ->
                             // Error handling remains the same
-                            Napier.e("Failed to seed: $x, $y, $z, $e")
+                            Napier.e("Failed to seed: $x, $y, $z, $e", e, tag = TAG)
                             // Launch on Main for Snackbar
                             launch(Dispatchers.Main) {
                                 snackbarHostState.showSnackbar("failed to seed: $x, $y, $z")
@@ -871,7 +875,7 @@ class MapViewModel(
                 _seedingError.value = "Seeding failed: ${e.message}"
                 _seedingProgress.value = 0f // Reset progress on error
                 seedingJob = null // Clear the job reference
-                Napier.e("Seeding error", e) // Log the full exception
+                Napier.e("Seeding error", e, tag = TAG) // Log the full exception
             } finally {
                 _isSeeding.value = false
             }
@@ -918,7 +922,7 @@ class MapViewModel(
                 displayRoute(route.toSummary(snackbarHostState).let { Route(route.name(), it, emptyList()) }, route)
             } catch (t: Throwable) {
                 snackbarHostState.showSnackbar("Failed to load route preview")
-                Napier.e("Preview failed", t)
+                Napier.e("Preview failed", t, tag = TAG)
             }
         }
     }
@@ -934,7 +938,7 @@ class MapViewModel(
                 sendRoute(route)
             } catch (t: Throwable) {
                 snackbarHostState.showSnackbar("Failed to send route")
-                Napier.e("Send route failed", t)
+                Napier.e("Send route failed", t, tag = TAG)
             }
         }
     }
@@ -947,7 +951,7 @@ class MapViewModel(
                 stravaRepo.openActivityInBrowser(id)
             } catch (t: Throwable) {
                 snackbarHostState.showSnackbar("Could not open Strava activity")
-                Napier.e("Failed to open Strava", t)
+                Napier.e("Failed to open Strava", t, tag = TAG)
             }
         }
     }
@@ -964,7 +968,7 @@ class MapViewModel(
 
             } catch (t: Throwable) {
                 snackbarHostState.showSnackbar("Failed to load activity preview")
-                Napier.e("Preview failed", t)
+                Napier.e("Preview failed", t, tag = TAG)
             }
         }
     }
@@ -981,7 +985,7 @@ class MapViewModel(
 
             } catch (t: Throwable) {
                 snackbarHostState.showSnackbar("Failed to send activity route")
-                Napier.e("Send route failed", t)
+                Napier.e("Send route failed", t, tag = TAG)
             }
         }
     }
@@ -993,7 +997,7 @@ class MapViewModel(
 
             } catch (t: Throwable) {
                 snackbarHostState.showSnackbar("Failed to send route")
-                Napier.e("Send route failed", t)
+                Napier.e("Send route failed", t, tag = TAG)
             }
         }
     }
