@@ -991,7 +991,7 @@ fun PropertyRow(
 
             // Editor Section: Sits on the right
             Box(
-                modifier = Modifier.widthIn(max = 200.dp),
+                modifier = Modifier.widthIn(max = 240.dp),
                 contentAlignment = Alignment.CenterEnd
             ) {
                 editor()
@@ -1029,20 +1029,31 @@ fun ListNumberEditor(property: EditableProperty<Int>) {
                     },
                     colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
                     textStyle = MaterialTheme.typography.body2,
-                    modifier = Modifier.widthIn(min = 140.dp) // Ensures readability
+                    modifier = Modifier.fillMaxWidth() // Use available space in the Box
                 )
 
                 ExposedDropdownMenu(
                     expanded = expanded,
                     onDismissRequest = { expanded = false },
-                    modifier = Modifier.heightIn(max = 400.dp)
+                    modifier = Modifier
+                        .widthIn(min = 200.dp) // Ensure menu is wide enough for long text
+                        .heightIn(max = 400.dp)
                 ) {
-                    property.options?.forEach { option ->
-                        DropdownMenuItem(onClick = {
-                            property.state.value = option.value
-                            expanded = false
-                        }) {
-                            Text(text = option.display)
+                    property.options?.forEachIndexed { index, option ->
+                        DropdownMenuItem(
+                            onClick = {
+                                property.state.value = option.value
+                                expanded = false
+                            },
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
+                        ) {
+                            Text(
+                                text = option.display,
+                                style = MaterialTheme.typography.body2
+                            )
+                        }
+                        if (index < property.options.size - 1) {
+                            Divider(modifier = Modifier.padding(horizontal = 16.dp))
                         }
                     }
                 }

@@ -11,6 +11,8 @@ import com.paul.domain.IqDevice
 import com.paul.infrastructure.connectiq.IConnection
 import com.paul.infrastructure.connectiq.IConnection.Companion.BREADCRUMB_APP_GLANCE_ID
 import com.paul.infrastructure.connectiq.IConnection.Companion.BREADCRUMB_APP_ID
+import com.paul.infrastructure.connectiq.IConnection.Companion.LIGHT_WEIGHT_BREADCRUMB_DATAFIELD_ID
+import com.paul.infrastructure.connectiq.IConnection.Companion.ULTRA_LIGHT_BREADCRUMB_DATAFIELD_ID
 import com.paul.protocol.fromdevice.Settings
 import com.paul.protocol.todevice.SaveSettings
 import io.github.aakira.napier.Napier
@@ -187,6 +189,7 @@ val settingsAliases = mapOf(
     "zoomAtPaceSpeedMPS" to "e",
     "useTrackAsHeadingSpeedMPS" to "p",
     "minTrackPointDistanceM" to "q",
+    "renderMode" to "r",
 )
 
 val reverseAliases = settingsAliases.entries.associate { (longKey, alias) -> alias to longKey }
@@ -369,6 +372,8 @@ fun padColorString(original: String): String {
     return atLeast8.drop(atLeast8.length - 8)
 }
 
+val excludedAppGlanceDataFieldTypes = listOf(14, 15, 16, 17, 18, 21)
+
 class DeviceSettings(
     settings: Settings,
     private val device: IqDevice,
@@ -450,7 +455,17 @@ class DeviceSettings(
                     label = label
                 )
             } else if (listOptionsMapping.containsKey(key)) {
-                val options = listOptionsMapping[key]!! // Safe due to containsKey check
+                var options = listOptionsMapping[key]!! // Safe due to containsKey check
+                val currentAppId = connection.connectIqAppIdFlow().value
+
+                if (key == "renderMode" && (currentAppId == LIGHT_WEIGHT_BREADCRUMB_DATAFIELD_ID || currentAppId == ULTRA_LIGHT_BREADCRUMB_DATAFIELD_ID)) {
+                    options = options.filter { it.value != 0 && it.value != 2 }
+                }
+
+                if ((key == "topDataType" || key == "bottomDataType") && currentAppId == BREADCRUMB_APP_GLANCE_ID) {
+                    options = options.filter { it.value !in excludedAppGlanceDataFieldTypes }
+                }
+
                 EditableProperty(
                     key,
                     PropertyType.LIST_NUMBER,
@@ -469,13 +484,20 @@ class DeviceSettings(
                 val typesCsv = settings.settings["dataFieldPageTypes"] as? String ?: ""
                 val initialPages = createDataPagesFromCsv(countsCsv, typesCsv)
 
+                val currentAppId = connection.connectIqAppIdFlow().value
+                var options = dataFieldTypes
+                if (currentAppId == BREADCRUMB_APP_GLANCE_ID) {
+                    options = dataFieldTypes.filter { it.value !in excludedAppGlanceDataFieldTypes }
+                }
+
                 return@mapNotNull EditableProperty(
                     id = "dataFieldPagesEditor", // This is the ID our Save button looks for
                     type = PropertyType.DATA_FIELD_PAGES,
                     state = mutableStateOf(initialPages),
                     stringVal = originalString,
                     label = "Data Screen Layout",
-                    description = "Configure pages and data field types"
+                    description = "Configure pages and data field types",
+                    options = options
                 )
             } else {
                 when (key) {
@@ -693,11 +715,18 @@ class DeviceSettings(
                                 try {
                                     RouteItem.fromDict(map)
                                 } catch (e: Exception) {
-                                    Napier.e("Error parsing route item content at index $index", e, tag = TAG)
+                                    Napier.e(
+                                        "Error parsing route item content at index $index",
+                                        e,
+                                        tag = TAG
+                                    )
                                     null // Skip items that cause errors during content parsing
                                 }
                             } else {
-                                Napier.w("Route item at index $index is not a Map. Skipping.", tag = TAG)
+                                Napier.w(
+                                    "Route item at index $index is not a Map. Skipping.",
+                                    tag = TAG
+                                )
                                 null // Skip items that aren't maps
                             }
                         }.toMutableList() // Crucial: Convert to MutableList for state modification
@@ -714,7 +743,10 @@ class DeviceSettings(
 
                     // --- Default/Unknown ---
                     else -> {
-                        Napier.w("Warning: Unhandled property key '$key' - Treating as UNKNOWN/String", tag = TAG)
+                        Napier.w(
+                            "Warning: Unhandled property key '$key' - Treating as UNKNOWN/String",
+                            tag = TAG
+                        )
                         EditableProperty(
                             key,
                             PropertyType.UNKNOWN,

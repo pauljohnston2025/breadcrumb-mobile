@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Button
@@ -63,6 +64,7 @@ fun getDataTypeString(typeId: Int): String {
 fun FieldRow(
     fieldIndex: Int,
     currentTypeId: Int,
+    options: List<com.paul.viewmodels.ListOption>,
     onTypeSelected: (Int) -> Unit,
     onRemoveField: () -> Unit
 ) {
@@ -98,15 +100,26 @@ fun FieldRow(
             DropdownMenu(
                 expanded = expanded,
                 onDismissRequest = { expanded = false },
-                modifier = Modifier.heightIn(max = 400.dp)
+                modifier = Modifier
+                    .widthIn(min = 180.dp)
+                    .heightIn(max = 400.dp)
             ) {
-                // Use your dataFieldTypes list for the selection options
-                dataFieldTypes.forEach { option ->
-                    DropdownMenuItem(onClick = {
-                        onTypeSelected(option.value)
-                        expanded = false
-                    }) {
-                        Text(option.display)
+                // Use the provided options list
+                options.forEachIndexed { index, option ->
+                    DropdownMenuItem(
+                        onClick = {
+                            onTypeSelected(option.value)
+                            expanded = false
+                        },
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
+                    ) {
+                        Text(
+                            text = option.display,
+                            style = MaterialTheme.typography.body2
+                        )
+                    }
+                    if (index < options.size - 1) {
+                        Divider(modifier = Modifier.padding(horizontal = 16.dp))
                     }
                 }
             }
@@ -223,6 +236,7 @@ fun DataFieldPagesInternalContent(
     property: EditableProperty<MutableList<DataFieldPage>>
 ) {
     val pages by property.state
+    val options = property.options ?: dataFieldTypes
 
     Column(
         modifier = Modifier
@@ -272,6 +286,7 @@ fun DataFieldPagesInternalContent(
                         FieldRow(
                             fieldIndex = fieldIndex,
                             currentTypeId = typeId,
+                            options = options,
                             onTypeSelected = { newType ->
                                 val newList = property.state.value.map { it.deepCopy() }.toMutableList()
                                 newList[pageIndex].fields[fieldIndex] = newType
