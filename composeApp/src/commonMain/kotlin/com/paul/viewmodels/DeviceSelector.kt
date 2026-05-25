@@ -43,6 +43,11 @@ class DeviceSelector(
     private val snackbarHostState: SnackbarHostState,
 ) :
     ViewModel() {
+
+    companion object {
+        private const val TAG = "DeviceSelector"
+    }
+
     var currentDevice: MutableState<IqDevice?> = mutableStateOf(null)
     private var devicesFlow: MutableStateFlow<List<IqDevice>> = MutableStateFlow(listOf())
     private var currentDevicePoll: Job? = null
@@ -64,23 +69,23 @@ class DeviceSelector(
     init {
         viewModelScope.launch {
             try {
-                Napier.d("launching list")
+                Napier.i("Subscribing to device list", tag = TAG)
                 val sub = deviceList.subscribe()
                 sub.collect {
-                    Napier.d("got device ${it.size} $it")
+                    Napier.v("Received device list update: ${it.size} devices", tag = TAG)
                     devicesFlow.emit(it)
                 }
             } catch (t: ConnectIqNeedsUpdate) {
                 errorMessage.value = "Please update the garmin connect app"
-                Napier.d("failed to subscribe to device list $t")
+                Napier.e("ConnectIQ needs update", t, tag = TAG)
             } catch (t: ConnectIqNeedsInstall) {
                 errorMessage.value = "Please install the garmin connect app"
-                Napier.d("failed to subscribe to device list $t")
+                Napier.e("ConnectIQ needs install", t, tag = TAG)
             } catch (t: Throwable) {
-                Napier.d("failed to subscribe to device list $t")
+                Napier.e("Failed to subscribe to device list", t, tag = TAG)
             }
         }.invokeOnCompletion {
-            Napier.d("list completed")
+            Napier.v("Device list subscription completed", tag = TAG)
         }
     }
 
@@ -89,7 +94,7 @@ class DeviceSelector(
     }
 
     override fun onCleared() {
-        Napier.d("view model cleared")
+        Napier.v("DeviceSelector onCleared", tag = TAG)
     }
 
     fun cancelSelection() {
@@ -154,19 +159,20 @@ class DeviceSelector(
                 ProtocolResponse.PROTOCOL_SEND_SETTINGS
             )
             lastLoadedSettings = settings
-            Napier.d("got settings $settings")
+            Napier.i("Successfully loaded device settings", tag = TAG)
             settingsLoading.value = false
             // INSTEAD of navigating, emit an event to the UI
             _navigationEvents.emit(NavigationEvent.NavigateTo(Screen.DeviceSettings.route))
         } catch (t: Throwable) {
             // most likely a timeout exception
+            Napier.e("Failed to load device settings", t, tag = TAG)
             settingsLoading.value = false
             snackbarHostState.showSnackbar("Failed to load settings. Please ensure an activity is running on the watch.")
         }
     }
 
     fun cancelDeviceSettingsLoading() {
-        Napier.d("Cancelling settings load job.")
+        Napier.i("Cancelling device settings load job", tag = TAG)
         settingsJob?.cancel()
         // Immediately update UI state
         settingsLoading.value = false

@@ -720,7 +720,7 @@ fun MapTilerComposable(
                     if (viewportSize != IntSize.Zero) {
                         showMappingModeDialog = true
                     } else {
-                        Napier.d("Viewport size not available yet.")
+                        Napier.v("Viewport size not available yet.")
                     }
                 }) {
                 Icon(Icons.Default.Colorize, contentDescription = "Create Palette from Map")
@@ -746,7 +746,7 @@ fun MapTilerComposable(
                                 bottomRightGeo = bottomRightGeo
                             )
                         } else {
-                            Napier.d("Viewport size not available yet.")
+                            Napier.v("Viewport size not available yet.")
                         }
                     }) {
                     Row(

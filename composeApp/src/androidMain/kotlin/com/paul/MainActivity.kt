@@ -120,7 +120,7 @@ class MainActivity : ComponentActivity() {
             val error = data.getQueryParameter("error")
 
             if (code != null) {
-                Napier.d("Strava OAuth Success! Code: $code")
+                Napier.i("Strava OAuth Success! Code: $code")
                 // Send this code to your Ktor client logic to get the Token
                 stravaRepository.stravaOauthSuccess(code)
             } else if (error != null) {

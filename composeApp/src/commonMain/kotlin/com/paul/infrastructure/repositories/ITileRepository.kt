@@ -33,6 +33,11 @@ import kotlinx.coroutines.withContext
 import java.util.concurrent.atomic.AtomicLong
 
 class ITileRepository(private val fileHelper: IFileHelper) {
+
+    companion object {
+        private const val TAG = "ITileRepository"
+    }
+
     private val client = KtorClient.client // Get the singleton client instance
 
     private var tileServer = getTileServerOnStart()
@@ -74,7 +79,7 @@ class ITileRepository(private val fileHelper: IFileHelper) {
         val scaleUpSize = smallTilesPerScaledTile * req.tileSize
         val x = req.x / smallTilesPerScaledTile
         val y = req.y / smallTilesPerScaledTile
-        Napier.d("webserver full tile req: $x, $y, ${req.z}")
+        Napier.v("getWatchTile: tileId=($x, $y, ${req.z}), smallTile=(${req.x}, ${req.y})", tag = TAG)
 
         val tileContents = getTile(x, y, req.z)
         if (tileContents.first != 200 || tileContents.second == null) {
@@ -85,12 +90,12 @@ class ITileRepository(private val fileHelper: IFileHelper) {
         val sourceBitmap = try {
             byteArrayToImageBitmap(tileContents.second!!)
         } catch (e: Throwable) {
-            Napier.d("failed to parse bitmap from bytes", e)
+            Napier.e("Failed to parse tile bitmap from bytes", e, tag = TAG)
             return Pair(500, null)
         }
 
         if (sourceBitmap == null) {
-            Napier.d("decoded bitmap is null")
+            Napier.e("Decoded tile bitmap is null", tag = TAG)
             return Pair(500, null)
         }
 
@@ -129,7 +134,7 @@ class ITileRepository(private val fileHelper: IFileHelper) {
         val offset = xOffset * smallTilesPerScaledTile + yOffset
 
         if (offset >= bitmaps.size || offset < 0) {
-            Napier.d("our math aint mathing. offset: $offset, size: ${bitmaps.size}")
+            Napier.e("Tile splitting logic error: offset $offset out of bounds (size ${bitmaps.size})", tag = TAG)
             return Pair(500, null)
         }
         val targetBitmap = bitmaps[offset]
@@ -258,7 +263,7 @@ class ITileRepository(private val fileHelper: IFileHelper) {
                     }
                 }
                 if (!response.status.isSuccess()) {
-                    Napier.d("fetching $tileUrl failed ${response.status}")
+                    Napier.w("Fetching tile failed: status=${response.status}, url=$tileUrl", tag = TAG)
                     // todo: cache tile errors, and show them to user to (especially for map page)
                     return Pair(response.status.value, null)
                 }
@@ -271,7 +276,7 @@ class ITileRepository(private val fileHelper: IFileHelper) {
 
             return Pair(200, tileContents)
         } catch (e: Throwable) {
-            Napier.d("fetching $tileUrl failed $e")
+            Napier.e("Fetching tile failed: exception=${e.message}, url=$tileUrl", e, tag = TAG)
             return Pair(500, null)
         }
     }

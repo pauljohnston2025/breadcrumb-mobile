@@ -10,13 +10,15 @@ enum class ProtocolResponse(val value: Int) {
 
 sealed class Protocol(val type: ProtocolResponse) {
     companion object {
+        private const val TAG = "Protocol"
+
         fun decode(data: List<Any>): Protocol? {
             val payload = data.subList(1, data.size)
             return when (data[0]) {
                 ProtocolResponse.PROTOCOL_SEND_OPEN_APP.value -> OpenApp.decode(payload)
                 ProtocolResponse.PROTOCOL_SEND_SETTINGS.value -> Settings.decode(payload)
                 else -> {
-                    Napier.d("failed to decode: $data")
+                    Napier.e("Failed to decode protocol response: unknown type ${data[0]} in message $data", tag = TAG)
                     null
                 }
             }

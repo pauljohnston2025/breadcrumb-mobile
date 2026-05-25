@@ -50,18 +50,18 @@ class ConnectIQMessageReceiver : BroadcastReceiver() {
 //            val remoteApplication = intent.getStringExtra(ConnectIQ.EXTRA_REMOTE_APPLICATION)
 //            val remoteDevice = intent.getStringExtra(ConnectIQ.EXTRA_REMOTE_DEVICE)
 
-            Napier.d("Received Connect IQ message:", tag = TAG)
-            Napier.d("  appId: $appId", tag = TAG)
-            Napier.d("  payload: $payload", tag = TAG)
-//            Napier.d("  remoteApplication: $remoteApplication", tag = TAG)
-//            Napier.d("  remoteDevice: $remoteDevice", tag = TAG)
+            Napier.v("Received Connect IQ message:", tag = TAG)
+            Napier.v("  appId: $appId", tag = TAG)
+            Napier.v("  payload: $payload", tag = TAG)
+//            Napier.v("  remoteApplication: $remoteApplication", tag = TAG)
+//            Napier.v("  remoteDevice: $remoteDevice", tag = TAG)
             if (appId != null && IConnection.availableConnectIqApps.any {
                     it.id.replace("-", "").equals(appId.replace("-", ""), ignoreCase = true)
                 }
                 && payload != null
                 && payload.encodeBase64() == "2nraegAAAAoFAAAAAQEAAAAA" // todo figure out how to decode this so we can do more things with it
             ) {
-                Napier.d("got our special start message", tag = TAG)
+                Napier.i("Received special start message from watch", tag = TAG)
 
                 val enabled = settings.getBooleanOrNull(TILE_SERVER_ENABLED_KEY)
                 if (enabled == false) { // explicitly disabled by user

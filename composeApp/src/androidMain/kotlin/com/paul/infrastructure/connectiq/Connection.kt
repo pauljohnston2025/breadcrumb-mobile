@@ -179,17 +179,18 @@ class Connection(private val context: Context) : IConnection() {
                     override fun onApplicationInfoReceived(
                         iqApp: IQApp,
                     ) {
-                        Napier.d(
-                            "app info: " + iqApp.version() + " " + iqApp.displayName + " " + iqApp.status + " " + iqApp.applicationId
+                        Napier.i(
+                            "Application info received: ver=${iqApp.version()}, name=${iqApp.displayName}, status=${iqApp.status}, id=${iqApp.applicationId}",
+                            tag = TAG
                         )
 
                         continuation.resume(AppInfo(iqApp.version())) { cause, _, _ ->
-                            Napier.d("cancelled whilst resuming")
+                            Napier.v("cancelled whilst resuming", tag = TAG)
                         }
                     }
 
                     override fun onApplicationNotInstalled(var1: String) {
-                        Napier.d("app info not installed: " + var1)
+                        Napier.w("Application not installed: $var1", tag = TAG)
                         continuation.resumeWithException(RuntimeException(var1))
                     }
                 })
@@ -215,14 +216,14 @@ class Connection(private val context: Context) : IConnection() {
                         var2: IQApp,
                         status: ConnectIQ.IQOpenApplicationStatus
                     ) {
-                        Napier.d("app open response: " + var1 + " " + var2 + " " + status)
+                        Napier.i("Open application response: device=$var1, app=$var2, status=$status", tag = TAG)
 
                         // garmin likes to double complete things
                         if (!completed) {
                             // we get PROMPT_NOT_SHOWN_ON_DEVICE if the app is already open, so mark it as success
                             if (status == ConnectIQ.IQOpenApplicationStatus.PROMPT_SHOWN_ON_DEVICE || status == ConnectIQ.IQOpenApplicationStatus.PROMPT_NOT_SHOWN_ON_DEVICE) {
                                 continuation.resume(Unit) { cause, _, _ ->
-                                    Napier.d("cancelled whilst resuming")
+                                    Napier.v("cancelled whilst resuming", tag = TAG)
                                 }
                             } else {
                                 continuation.resumeWithException(RuntimeException("failed to open app $status"))
@@ -299,8 +300,9 @@ class Connection(private val context: Context) : IConnection() {
                     app: IQApp,
                     status: IQMessageStatus
                 ) {
-                    Napier.d(
-                        "onMessageStatus device: " + device.toString() + " app: " + app.toString() + " status: " + status.name
+                    Napier.v(
+                        "onMessageStatus(): device=$device, app=$app, status=${status.name}",
+                        tag = TAG
                     )
                     if (completed) {
                         return
@@ -312,9 +314,9 @@ class Connection(private val context: Context) : IConnection() {
                     }
 
                     completed = true
-                    Napier.d("onMessageStatus: reciver.send")
+                    Napier.v("onMessageStatus(): SUCCESS, resuming continuation", tag = TAG)
                     continuation.resume(Unit) { cause, _, _ ->
-                        Napier.d("cancelled whilst resuming")
+                        Napier.v("cancelled whilst resuming", tag = TAG)
                     }
                 }
             })
