@@ -172,8 +172,8 @@ class StravaImportService(
                         Napier.e("Failed to import activity $entryName", e, tag = TAG)
                     }
                 }
-                // Continue until we've checked every file in the ZIP
-                false 
+                // Stop early if we've found and matched all requested activities
+                matchedIds.size >= totalToImport
             }
 
             val missingCount = totalToImport - matchedIds.size
