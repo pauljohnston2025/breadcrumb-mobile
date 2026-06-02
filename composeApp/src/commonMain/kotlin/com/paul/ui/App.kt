@@ -54,6 +54,7 @@ import com.paul.infrastructure.service.IFileHelper
 import com.paul.infrastructure.service.IGpxFileLoader
 import com.paul.infrastructure.service.ILocationService
 import com.paul.infrastructure.service.IntentHandler
+import com.paul.infrastructure.service.StravaImportService
 import com.paul.infrastructure.web.KtorClient.client
 import com.paul.infrastructure.web.WebServerController
 import com.paul.infrastructure.web.versionName
@@ -90,6 +91,7 @@ fun App(
     intentHandler: IntentHandler,
     locationService: ILocationService,
     stravaRepository: StravaRepository,
+    stravaImportService: StravaImportService,
     ) {
     // Inside the App composable:
     var updateVersion by remember { mutableStateOf<String?>(null) }
@@ -363,6 +365,8 @@ fun App(
                                             startViewModel.routeRepo,
                                             mapViewModel.historyRepo,
                                             settingsViewModel.tileServerRepo,
+                                            fileHelper,
+                                            stravaImportService,
                                         )
                                     }
 

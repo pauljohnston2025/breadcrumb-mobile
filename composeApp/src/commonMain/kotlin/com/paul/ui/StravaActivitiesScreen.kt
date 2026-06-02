@@ -52,10 +52,14 @@ import androidx.compose.material3.TextButton as M3TextButton
 @Composable
 fun StravaActivitiesScreen(viewModel: StravaActivitiesViewModel, tileRepository: ITileRepository) {
     val isSyncing by viewModel.isSyncing.collectAsState()
+    val isImporting = viewModel.isImporting.value
+    var showCancelImportDialog by remember { mutableStateOf(false) }
 
-    BackHandler(enabled = viewModel.sendingFile.value != "" || isSyncing) {
+    BackHandler(enabled = viewModel.sendingFile.value != "" || isSyncing || isImporting) {
         if (isSyncing) {
             viewModel.stopSync()
+        } else if (isImporting) {
+            showCancelImportDialog = true
         }
         // prevent back handler when we are trying to do things
     }
@@ -119,6 +123,27 @@ fun StravaActivitiesScreen(viewModel: StravaActivitiesViewModel, tileRepository:
             Box(modifier = Modifier.weight(1f)) {
                 // Reduced height for DateRangeCard via internal padding if possible
                 DateRangeCard(currentRange) { showDatePicker = true }
+            }
+
+            Spacer(Modifier.width(8.dp))
+
+            androidx.compose.material3.FilledIconButton(
+                onClick = {
+                    viewModel.importStravaData()
+                },
+                enabled = !isSyncing,
+                colors = androidx.compose.material3.IconButtonDefaults.filledIconButtonColors(
+                    containerColor = MaterialTheme.colors.secondary,
+                    contentColor = Color.White
+                ),
+                modifier = Modifier.size(36.dp)
+            ) {
+                Icon(
+                    Icons.Default.FileOpen,
+                    null,
+                    tint = Color.White,
+                    modifier = Modifier.size(18.dp)
+                )
             }
 
             Spacer(Modifier.width(8.dp))
@@ -355,6 +380,30 @@ fun StravaActivitiesScreen(viewModel: StravaActivitiesViewModel, tileRepository:
     SendingFileOverlay(
         sendingMessage = viewModel.sendingFile
     )
+
+    if (showCancelImportDialog) {
+        AlertDialog(
+            onDismissRequest = { showCancelImportDialog = false },
+            title = { Text("Cancel Import?") },
+            text = { Text("Are you sure you want to cancel the Strava import? This will stop adding new activities.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.stopImport()
+                        showCancelImportDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(backgroundColor = MaterialTheme.colors.error)
+                ) {
+                    Text("Cancel Import", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCancelImportDialog = false }) {
+                    Text("Continue Import")
+                }
+            }
+        )
+    }
 }
 
 @Composable

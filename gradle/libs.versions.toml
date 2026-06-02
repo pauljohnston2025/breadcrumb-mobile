@@ -24,6 +24,7 @@ datetime = "0.6.2"
 napier = "2.7.1"
 androidxFragment = "1.7.1"
 garmin-ciq-sdk = "2.3.0"
+garmin-fit = "21.141.0"
 reorderable = "2.4.1"
 room = "2.7.2"
 sqliteBundled = "2.6.2"
@@ -75,6 +76,7 @@ play-services-location = { module = "com.google.android.gms:play-services-locati
 # https://developer.garmin.com/connect-iq/core-topics/mobile-sdk-for-android/
 # https://central.sonatype.com/artifact/com.garmin.connectiq/ciq-companion-app-sdk
 garmin-ciq-sdk = { group = "com.garmin.connectiq", name = "ciq-companion-app-sdk", version.ref = "garmin-ciq-sdk" }
+garmin-fit = { group = "com.garmin", name = "fit", version.ref = "garmin-fit" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }

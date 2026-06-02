@@ -15,10 +15,12 @@ import com.paul.infrastructure.repositories.ITileRepository
 import com.paul.infrastructure.repositories.RouteRepository
 import com.paul.infrastructure.repositories.StravaRepository
 import com.paul.infrastructure.repositories.TileServerRepo
+import com.paul.infrastructure.service.IFileHelper
 import com.paul.infrastructure.service.ILocationService
 import com.paul.infrastructure.service.SendMessageHelper
 import com.paul.infrastructure.service.SendMessageHelper.Companion
 import com.paul.infrastructure.service.SendRoute
+import com.paul.infrastructure.service.StravaImportService
 import com.paul.ui.Screen
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
@@ -46,6 +48,8 @@ class StravaActivitiesViewModel(
     val routeRepository: RouteRepository,
     val historyRepo: HistoryRepository,
     val tileServerRepo: TileServerRepo,
+    private val fileHelper: IFileHelper,
+    private val stravaImportService: StravaImportService,
 ) : ViewModel() {
 
     // Use stateIn to convert the Flow from the repo into a StateFlow
@@ -66,6 +70,8 @@ class StravaActivitiesViewModel(
     val currentRange = stravaRepo.currentRange
     val totalActivityCount: Flow<Long> = stravaRepo.getTotalCountFlow()
     val sendingFile: MutableState<String> = mutableStateOf("")
+    val isImporting: MutableState<Boolean> = mutableStateOf(false)
+    private var importJob: kotlinx.coroutines.Job? = null
 
     private val _navigationEvents = MutableSharedFlow<StravaNavigationEvent>()
     val navigationEvents: SharedFlow<StravaNavigationEvent> = _navigationEvents.asSharedFlow()
@@ -80,6 +86,43 @@ class StravaActivitiesViewModel(
 
     fun stopSync() {
         stravaRepo.stopSyncActivities()
+    }
+
+    fun importStravaData() {
+        importJob = viewModelScope.launch {
+            try {
+                val zipUri = fileHelper.findFile(listOf("application/zip"))
+                isImporting.value = true
+                sendingFile.value = "Importing Strava Export..."
+                val result = stravaImportService.importFromZip(zipUri) { progress ->
+                    sendingFile.value = progress
+                }
+                sendingFile.value = ""
+                isImporting.value = false
+
+                if (result.isSuccess) {
+                    snackbarHostState.showSnackbar("Import completed successfully")
+                } else {
+                    val error = result.exceptionOrNull()
+                    if (error !is kotlinx.coroutines.CancellationException) {
+                        snackbarHostState.showSnackbar("Import failed: ${error?.message}")
+                    }
+                }
+            } catch (e: Exception) {
+                sendingFile.value = ""
+                isImporting.value = false
+                if (e !is kotlinx.coroutines.CancellationException && e.message?.contains("failed to load file") == false) {
+                    snackbarHostState.showSnackbar("Import failed: ${e.message}")
+                }
+            }
+        }
+    }
+
+    fun stopImport() {
+        importJob?.cancel()
+        importJob = null
+        isImporting.value = false
+        sendingFile.value = ""
     }
     
     fun previewActivity(activity: StravaActivity) {

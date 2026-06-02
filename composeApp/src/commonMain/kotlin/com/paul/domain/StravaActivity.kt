@@ -120,6 +120,35 @@ data class StravaActivity(
 data class StravaMap(
     @SerialName("summary_polyline") val summaryPolyline: String? = null
 ) {
+    companion object {
+        fun encodePolyline(points: List<Point>): String {
+            val result = StringBuilder()
+            var lastLat = 0
+            var lastLng = 0
+
+            for (point in points) {
+                val lat = kotlin.math.round(point.latitude * 1e5).toInt()
+                val lng = kotlin.math.round(point.longitude * 1e5).toInt()
+
+                encodeValue(lat - lastLat, result)
+                encodeValue(lng - lastLng, result)
+
+                lastLat = lat
+                lastLng = lng
+            }
+            return result.toString()
+        }
+
+        private fun encodeValue(valueIn: Int, result: StringBuilder) {
+            var value = if (valueIn < 0) (valueIn shl 1).inv() else valueIn shl 1
+            while (value >= 0x20) {
+                result.append(((0x20 or (value and 0x1f)) + 63).toChar())
+                value = value shr 5
+            }
+            result.append((value + 63).toChar())
+        }
+    }
+
     /**
      * Decodes the Google Encoded Polyline algorithm into a list of Point objects.
      * Summary polylines only contain Latitude and Longitude.

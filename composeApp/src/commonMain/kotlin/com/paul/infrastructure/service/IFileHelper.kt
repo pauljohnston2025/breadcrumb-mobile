@@ -4,12 +4,13 @@ import java.util.UUID
 
 interface IFileHelper {
     suspend fun readFile(filename: String): ByteArray?
+    suspend fun openInputStream(uri: String): java.io.InputStream?
     suspend fun readLocalFile(filename: String): ByteArray?
     suspend fun writeLocalFile(filename: String, data: ByteArray)
     suspend fun writeFile(uriString: String, lines: List<String>): Boolean
     suspend fun getFileName(fullName: String) : String?
     /** returns the file name to open */
-    suspend fun findFile(): String
+    suspend fun findFile(mimeTypes: List<String>? = null): String
 
     /** The size of each item in the given directory, returned in bytes */
     suspend fun localContentsSize(directory: String): Map<String, Long>

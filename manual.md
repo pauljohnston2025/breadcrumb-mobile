@@ -98,9 +98,10 @@ The best way I have found to create a route with directions is komoot, it allows
 
 ### Strava
 
-To use strava integration you will need to obtain a client id and client secret.  
+To use Strava integration via the API, you will need to obtain a client ID and client secret.  
+**Note:** Strava has recently restricted API access for free tier accounts. If you do not have a Strava subscription, you may need to use the **Bulk Export** method described in the [Strava Page](#strava-page) section.
 
-Follow the guide at https://developers.strava.com/docs/getting-started/ to create an ai application.  
+Follow the guide at https://developers.strava.com/docs/getting-started/ to create an API application.  
 
 For info on creating a strava api application see https://developers.strava.com/  
 
@@ -233,6 +234,22 @@ Icons can be clicked to do the following:
 
 First connect your breadcrumb app with strava by setting up [strava](#strava) in the [App Settings Page](#app-settings-page).     
 Once connected you will be able to see and filter all your strava activities, and send them as routes to your watch.  
+
+### API Sync
+If you have a Strava subscription and have configured your API credentials, you can use the **Sync** (refresh icon) button to automatically pull your latest activities and gear.
+
+### Manual Bulk Export Import
+If you do not have a Strava subscription, or wish to import your entire history at once, you can use the **Import** (folder icon) button.
+
+**How to get your Strava Export:**
+1. Log in to [Strava.com](https://www.strava.com/) on a web browser (this cannot be done from the strava app at this stage).
+2. Open your **Settings** (hover over your profile picture in the top right).
+3. Select **My Account** from the left-hand menu.
+4. Scroll down to **Download your account** and click **Get Started**.
+5. A new page will open, click **Request Download**.
+6. Strava will email you a link to download a ZIP file (this can take a few hours).
+7. Once downloaded to your phone, open the Breadcrumb Strava page and tap the **Import** icon.
+8. Select the downloaded `export.zip` file. Breadcrumb will process the archive and import all your activities and gear.
 
 ---
 

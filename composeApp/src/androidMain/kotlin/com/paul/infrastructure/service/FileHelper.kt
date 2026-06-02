@@ -40,6 +40,16 @@ class FileHelper(
         return readUri(Uri.parse(filename))
     }
 
+    override suspend fun openInputStream(uri: String): java.io.InputStream? {
+        return withContext(Dispatchers.IO) {
+            try {
+                context.contentResolver.openInputStream(Uri.parse(uri))
+            } catch (e: Exception) {
+                null
+            }
+        }
+    }
+
     override suspend fun readLocalFile(filename: String): ByteArray? {
         return readUri(Uri.fromFile(File(context.filesDir, filename)))
     }
@@ -93,7 +103,7 @@ class FileHelper(
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    override suspend fun findFile(): String = suspendCancellableCoroutine { continuation ->
+    override suspend fun findFile(mimeTypes: List<String>?): String = suspendCancellableCoroutine { continuation ->
         val launcher = getContentLauncher ?: throw IllegalStateException(
             "findFile() can only be called from an instance of FileHelper registered with an Activity."
         )
@@ -112,7 +122,7 @@ class FileHelper(
             searchCompletion = null
         }
 
-        val mimeTypes = arrayOf(
+        val actualMimeTypes = mimeTypes?.toTypedArray() ?: arrayOf(
             "application/gpx+xml", // The "correct" type
             "application/xml",     // Standard XML
             "text/xml",            // Some older systems use this
@@ -120,7 +130,7 @@ class FileHelper(
             "application/octet-stream" // Last resort for "unknown" binary/data
         )
 
-        launcher.launch(mimeTypes)
+        launcher.launch(actualMimeTypes)
     }
 
     override suspend fun getFileName(fullName: String): String? {

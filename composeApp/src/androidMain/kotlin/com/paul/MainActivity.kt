@@ -36,6 +36,7 @@ import com.paul.infrastructure.service.FileHelper
 import com.paul.infrastructure.service.GpxFileLoader
 import com.paul.infrastructure.service.InMemoryDebugAntilog
 import com.paul.infrastructure.service.IntentHandler
+import com.paul.infrastructure.service.StravaImportService
 import com.paul.ui.App
 import io.github.aakira.napier.DebugAntilog
 import io.github.aakira.napier.Napier
@@ -71,6 +72,10 @@ class MainActivity : ComponentActivity() {
         StravaRepository(BrowserLauncher(this), stravaDao)
     }
 
+    private val stravaImportService by lazy {
+        StravaImportService(stravaDao, fileHelper, gpxFileLoader)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -100,6 +105,7 @@ class MainActivity : ComponentActivity() {
                     intentHandler,
                     locationService,
                     stravaRepository,
+                    stravaImportService,
                 )
             }
         }

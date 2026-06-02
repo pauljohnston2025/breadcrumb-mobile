@@ -67,6 +67,7 @@ kotlin {
             implementation(libs.uuid)
             implementation(libs.skiko.core)
             implementation(libs.play.services.location)
+            implementation(libs.garmin.fit)
 //            implementation(libs.icons.extended)
             implementation(libs.androidx.room.runtime)
             implementation(libs.androidx.sqlite.bundled)

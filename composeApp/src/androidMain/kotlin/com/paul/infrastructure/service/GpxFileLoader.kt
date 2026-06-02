@@ -28,7 +28,7 @@ data class GpxFile(
         return Route.summary(finalPoints)
     }
 
-    suspend fun getPoints(snackbarHostState: SnackbarHostState): List<Point>? {
+    override suspend fun getPoints(snackbarHostState: SnackbarHostState?): List<Point>? {
         var baseGpxPoints = emptyList<GpxPoint>()
 
         // Prioritize tracks, then routes for the base points of the route.
@@ -36,7 +36,7 @@ data class GpxFile(
             val track = gpx.tracks[0]
             Napier.v("loading track points for ${name()}")
             if (track.trackSegments.isEmpty()) {
-                snackbarHostState.showSnackbar("failed to get segments")
+                snackbarHostState?.showSnackbar("failed to get segments")
                 return null
             }
             baseGpxPoints = track.trackSegments[0].trackPoints

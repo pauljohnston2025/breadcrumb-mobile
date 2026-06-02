@@ -43,7 +43,9 @@ abstract class IRoute(var id: String = uuid4().toString()) {
     }
 }
 
-abstract class GpxRoute : IRoute()
+abstract class GpxRoute : IRoute() {
+    abstract suspend fun getPoints(snackbarHostState: SnackbarHostState? = null): List<Point>?
+}
 
 @Serializable
 data class DirectionInfo(val index: Int)
