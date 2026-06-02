@@ -591,28 +591,27 @@ fun DateRangeCard(currentRange: ClosedRange<Instant>, onClick: () -> Unit) {
         shape = RoundedCornerShape(12.dp),
     ) {
         Row(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
                 Icons.Default.DateRange,
                 contentDescription = null,
                 tint = Color.Gray,
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(18.dp)
             )
-            Spacer(Modifier.width(12.dp))
-            Column {
-                val start =
-                    currentRange.start.toLocalDateTime(TimeZone.currentSystemDefault()).date
-                val end =
-                    currentRange.endInclusive.toLocalDateTime(TimeZone.currentSystemDefault()).date
-                Text(
-                    "$start — $end",
-                    color = Color.Gray
-                )
-            }
+            Spacer(Modifier.width(8.dp))
+            val start = currentRange.start.toLocalDateTime(TimeZone.currentSystemDefault()).date
+            val end = currentRange.endInclusive.toLocalDateTime(TimeZone.currentSystemDefault()).date
+            Text(
+                text = "$start — $end",
+                color = Color.Gray,
+                fontSize = 13.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
             Spacer(Modifier.weight(1f))
-            Icon(Icons.Default.ArrowDropDown, null, tint = Color.Gray)
+            Icon(Icons.Default.ArrowDropDown, null, tint = Color.Gray, modifier = Modifier.size(18.dp))
         }
     }
 }

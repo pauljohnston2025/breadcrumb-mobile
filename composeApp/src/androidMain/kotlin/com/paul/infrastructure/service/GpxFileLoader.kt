@@ -223,9 +223,11 @@ class GpxFileLoader() : IGpxFileLoader {
         // world topo map app track creation includes <time></time> sections with no value, this breaks the
         // parse, as it expects a time
         // there are also a few others for waypoints that seem to have empty bodies
+        // Strava also exports a UUID in the <number> tag which breaks the parser's expectation of an Int
         streamContents = streamContents.replace("<time></time>", "")
             .replace("<ele></ele>", "")
             .replace("<desc></desc>", "")
+            .replace("<number>.*?</number>".toRegex(), "")
         val streamContentsAsStream: InputStream =
             ByteArrayInputStream(streamContents.toByteArray(StandardCharsets.UTF_8))
         return Pair(parser.parse(streamContentsAsStream), streamContents)

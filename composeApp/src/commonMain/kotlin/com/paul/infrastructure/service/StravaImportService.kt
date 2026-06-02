@@ -97,19 +97,32 @@ class StravaImportService(
 
             onProgress("Importing $totalToImport new activities...")
 
-            // Create a map for O(1) lookup during second pass
-            val activityMap = newActivities.associateBy { it.filename }
+            // Create maps for O(1) lookup during second pass
+            // Normalize: remove leading slashes and convert to forward slashes
+            fun normalize(path: String) = path.replace("\\", "/").removePrefix("/").lowercase().trim()
+
+            val activityMapFull = newActivities.associateBy { normalize(it.filename) }
+            val activityMapName = newActivities.associateBy { normalize(it.filename).substringAfterLast("/") }
+            
             val gearMap = (bikes + shoes).associate { it.name to it.id }
             var importedCount = 0
+            val matchedIds = mutableSetOf<Long>()
+            
 
             // Second pass: Read activity files
             processZip(zipUri, onScan = { count ->
-                if (count % 50 == 0) {
+                if (count % 100 == 0) {
                     onProgress("Importing: Found $importedCount/$totalToImport. Scanned $count files in ZIP...")
                 }
             }) { entryName, inputStream ->
-                val activityExport = activityMap[entryName]
-                if (activityExport != null) {
+                val normalizedEntry = normalize(entryName)
+                val filenameOnly = normalizedEntry.substringAfterLast("/")
+                
+                // Try to match by full path or just the filename part
+                val activityExport = activityMapFull[normalizedEntry] ?: activityMapName[filenameOnly]
+                
+                if (activityExport != null && !matchedIds.contains(activityExport.id)) {
+                    matchedIds.add(activityExport.id) // Mark as found immediately
                     try {
                         val entryBytes = inputStream.readBytes()
                         var stream: InputStream = ByteArrayInputStream(entryBytes)
@@ -118,8 +131,8 @@ class StravaImportService(
                         }
 
                         val points = if (entryName.contains(".fit")) {
-                            parseFitPoints(stream)
-                        } else if (entryName.contains(".gpx")) {
+                            parseFitPoints(stream, entryName)
+                        } else if (entryName.contains(".gpx") || entryName.contains(".tcx")) {
                             val bytes = stream.readBytes()
                             val gpxRoute = gpxFileLoader.loadGpxFromBytes(bytes)
                             gpxRoute.getPoints() ?: emptyList()
@@ -127,32 +140,46 @@ class StravaImportService(
                             emptyList()
                         }
                         
-                        if (points.isNotEmpty()) {
+                        val summaryPolyline = if (points.isNotEmpty()) {
                             val summaryPoints = Route.summary(points)
-                            val summaryPolyline = StravaMap.encodePolyline(summaryPoints)
+                            StravaMap.encodePolyline(summaryPoints)
+                        } else {
+                            null
+                        }
 
-                            val activity = StravaActivity(
-                                id = activityExport.id,
-                                name = activityExport.name,
-                                startDate = activityExport.startDate,
-                                type = activityExport.type,
-                                gearId = activityExport.gearName?.let { gn ->
-                                    // Match gear name that is contained in the activity's gear field
-                                    gearMap.entries.find { gn.contains(it.key, ignoreCase = true) }?.value
-                                },
-                                map = StravaMap(summaryPolyline)
-                            )
-                            dao.insertActivities(listOf(activity))
+                        val activity = StravaActivity(
+                            id = activityExport.id,
+                            name = activityExport.name,
+                            startDate = activityExport.startDate,
+                            type = activityExport.type,
+                            gearId = activityExport.gearName?.let { gn ->
+                                // Match gear name that is contained in the activity's gear field
+                                gearMap.entries.find { gn.contains(it.key, ignoreCase = true) }?.value
+                            },
+                            map = summaryPolyline?.let { StravaMap(it) }
+                        )
+                        dao.insertActivities(listOf(activity))
+                        if (points.isNotEmpty()) {
                             dao.insertStream(StravaStreamEntity(activityExport.id, points))
-                            importedCount++
-                            onProgress("Imported $importedCount / $totalToImport: ${activity.name}")
+                        }
+                        importedCount++
+                        onProgress("Imported $importedCount / $totalToImport: ${activity.name}")
+
+                        if (points.isEmpty()) {
+                            Napier.w("Activity $entryName imported but contained no GPS points (e.g. swim or manual entry).", tag = TAG)
                         }
                     } catch (e: Exception) {
                         Napier.e("Failed to import activity $entryName", e, tag = TAG)
                     }
                 }
-                // Continue until we've imported all new activities
-                importedCount >= totalToImport
+                // Continue until we've checked every file in the ZIP
+                false 
+            }
+
+            val missingCount = totalToImport - matchedIds.size
+            if (missingCount > 0) {
+                val missing = newActivities.filter { !matchedIds.contains(it.id) }
+                Napier.w("Could not find $missingCount activity files in ZIP. Examples: ${missing.take(10).map { it.filename }.joinToString()}", tag = TAG)
             }
 
             onProgress("Finished! Imported $importedCount activities.")
@@ -193,25 +220,33 @@ class StravaImportService(
 
     private fun parseActivitiesCsv(inputStream: InputStream): List<ActivityExport> {
         val activities = mutableListOf<ActivityExport>()
-        val reader = BufferedReader(InputStreamReader(inputStream))
-        val header = reader.readLine()?.split(",") ?: return emptyList()
+        // Read the whole CSV to handle multi-line fields (like descriptions)
+        val content = inputStream.bufferedReader().readText()
+        val lines = splitCsvLines(content)
+        if (lines.isEmpty()) return emptyList()
+
+        val header = parseCsvLine(lines[0])
         
-        val idIdx = header.indexOf("Activity ID")
-        val dateIdx = header.indexOf("Activity Date")
-        val nameIdx = header.indexOf("Activity Name")
-        val typeIdx = header.indexOf("Activity Type")
-        val gearIdx = header.indexOf("Activity Gear")
-        val filenameIdx = header.indexOf("Filename")
+        val idIdx = header.indexOfFirst { it.contains("Activity ID", ignoreCase = true) }
+        val dateIdx = header.indexOfFirst { it.contains("Activity Date", ignoreCase = true) }
+        val nameIdx = header.indexOfFirst { it.contains("Activity Name", ignoreCase = true) }
+        val typeIdx = header.indexOfFirst { it.contains("Activity Type", ignoreCase = true) }
+        val gearIdx = header.indexOfFirst { it.contains("Activity Gear", ignoreCase = true) }
+        val filenameIdx = header.indexOfFirst { it.contains("Filename", ignoreCase = true) }
 
         if (idIdx == -1 || filenameIdx == -1) return emptyList()
 
-        var line = reader.readLine()
-        while (line != null) {
-            val parts = parseCsvLine(line)
+        for (i in 1 until lines.size) {
+            val parts = parseCsvLine(lines[i])
             if (parts.size > idIdx && parts.size > filenameIdx) {
                 try {
-                    val id = parts[idIdx].toLong()
-                    val filename = parts[filenameIdx]
+                    val idStr = parts[idIdx].trim()
+                    if (idStr.isEmpty()) continue
+                    val id = idStr.toLong()
+                    
+                    val filename = parts[filenameIdx].trim()
+                    if (filename.isEmpty()) continue
+                    
                     val dateStr = parts.getOrNull(dateIdx) ?: ""
                     val name = parts.getOrNull(nameIdx) ?: "Imported Activity"
                     val type = parts.getOrNull(typeIdx)
@@ -224,9 +259,27 @@ class StravaImportService(
                     // skip invalid lines
                 }
             }
-            line = reader.readLine()
         }
         return activities
+    }
+
+    private fun splitCsvLines(content: String): List<String> {
+        val lines = mutableListOf<String>()
+        val cur = StringBuilder()
+        var inQuotes = false
+        for (c in content) {
+            if (c == '\"') {
+                inQuotes = !inQuotes
+            }
+            if (c == '\n' && !inQuotes) {
+                lines.add(cur.toString())
+                cur.setLength(0)
+            } else {
+                cur.append(c)
+            }
+        }
+        if (cur.isNotEmpty()) lines.add(cur.toString())
+        return lines
     }
 
     private fun parseStravaDate(dateStr: String): Instant {
@@ -330,34 +383,44 @@ class StravaImportService(
         val result = mutableListOf<String>()
         val cur = StringBuilder()
         var inQuotes = false
-        for (c in line) {
+        var i = 0
+        while (i < line.length) {
+            val c = line[i]
             if (c == '\"') {
-                inQuotes = !inQuotes
+                if (inQuotes && i + 1 < line.length && line[i + 1] == '\"') {
+                    // Double quote inside quotes means a literal quote
+                    cur.append('\"')
+                    i++
+                } else {
+                    inQuotes = !inQuotes
+                }
             } else if (c == ',' && !inQuotes) {
                 result.add(cur.toString().trim())
                 cur.setLength(0)
             } else {
                 cur.append(c)
             }
+            i++
         }
         result.add(cur.toString().trim())
         return result
     }
 
-    private fun parseFitPoints(inputStream: InputStream): List<Point> {
+    private fun parseFitPoints(inputStream: InputStream, filename: String): List<Point> {
         val points = mutableListOf<Point>()
+        val foundMesgs = mutableSetOf<String>()
         val decode = Decode()
         val mesgBroadcaster = MesgBroadcaster(decode)
         
-        mesgBroadcaster.addListener(object : RecordMesgListener {
+        mesgBroadcaster.addListener(object : com.garmin.fit.RecordMesgListener {
             override fun onMesg(mesg: RecordMesg) {
+                foundMesgs.add("RECORD")
                 val lat = mesg.positionLat
                 val lng = mesg.positionLong
                 val alt = mesg.altitude
                 
                 if (lat != null && lng != null) {
                     // FIT coordinates are in semicircles. Convert to degrees.
-                    // degrees = semicircles * (180 / 2^31)
                     val latDeg = lat.toFloat() * (180f / 2147483648f)
                     val lngDeg = lng.toFloat() * (180f / 2147483648f)
                     points.add(Point(latDeg, lngDeg, alt ?: 0f))
@@ -365,22 +428,26 @@ class StravaImportService(
             }
         })
 
+        // Catch-all to see what's in there if no records
+        mesgBroadcaster.addListener(object : com.garmin.fit.MesgListener {
+            override fun onMesg(mesg: com.garmin.fit.Mesg) {
+                foundMesgs.add(mesg.name)
+            }
+        })
+
         try {
-            // Read all bytes from the provided stream (which may be a GZIPInputStream)
             val bytes = inputStream.readBytes()
-            decode.read(ByteArrayInputStream(bytes), mesgBroadcaster, mesgBroadcaster)
+            if (bytes.isNotEmpty()) {
+                decode.read(ByteArrayInputStream(bytes), mesgBroadcaster, mesgBroadcaster)
+                if (points.isEmpty()) {
+                    Napier.w("FIT $filename contained no GPS points. Message types found: ${foundMesgs.joinToString()}", tag = TAG)
+                }
+            }
         } catch (e: Exception) {
             Napier.e("FIT parse error", e, tag = TAG)
         }
         
         return points
-    }
-
-    private interface RecordMesgListener : MesgListener {
-        fun onMesg(mesg: RecordMesg)
-        override fun onMesg(mesg: com.garmin.fit.Mesg) {
-            if (mesg is RecordMesg) onMesg(mesg)
-        }
     }
 
     private data class ActivityExport(
