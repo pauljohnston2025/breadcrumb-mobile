@@ -202,10 +202,11 @@ class StartViewModel(
 
     fun loadFile(fileName: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            val displayName = fileHelper.getFileName(fileName)?.lowercase() ?: fileName.lowercase()
-            if (displayName.contains(".fit")) {
-                loadFitFile(fileName)
-            } else if (displayName.contains(".gpx")) {
+            val displayName = fileHelper.getFileName(fileName) ?: fileName
+            val lowerName = displayName.lowercase()
+            if (lowerName.contains(".fit")) {
+                loadFitFile(fileName, displayName)
+            } else if (lowerName.contains(".gpx") || lowerName.contains(".tcx") || lowerName.contains(".xml")) {
                 loadGpxFile(fileName)
             } else {
                 snackbarHostState.showSnackbar("Failed to load file $displayName (must end in .gpx or .fit)")
@@ -213,12 +214,13 @@ class StartViewModel(
         }
     }
 
-    fun loadFitFile(fileName: String) {
+    fun loadFitFile(fileName: String, displayName: String? = null) {
         viewModelScope.launch(Dispatchers.IO) {
             sendingMessage("Parsing fit input stream...") {
                 try {
+                    val name = displayName ?: fileHelper.getFileName(fileName) ?: "FIT Route"
                     val fileContents = fileHelper.readFile(fileName)!!
-                    val fitRoute = fitFileLoader.loadFitFromBytes(fileContents)
+                    val fitRoute = fitFileLoader.loadFitFromBytes(fileContents, name.substringBeforeLast("."))
                     sendRoute(fitRoute)
                 } catch (e: SecurityException) {
                     snackbarHostState.showSnackbar("Failed to load fit file (permissions issue)")
