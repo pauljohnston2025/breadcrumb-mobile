@@ -33,6 +33,7 @@ import com.paul.infrastructure.service.AndroidLocationService
 import com.paul.infrastructure.service.BrowserLauncher
 import com.paul.infrastructure.service.ClipboardHandler
 import com.paul.infrastructure.service.FileHelper
+import com.paul.infrastructure.service.FitFileLoader
 import com.paul.infrastructure.service.GpxFileLoader
 import com.paul.infrastructure.service.InMemoryDebugAntilog
 import com.paul.infrastructure.service.IntentHandler
@@ -52,6 +53,7 @@ class MainActivity : ComponentActivity() {
     val connection = Connection(this)
     val deviceList = DeviceList(connection)
     val gpxFileLoader = GpxFileLoader()
+    val fitFileLoader = FitFileLoader()
     val webServerController = WebServerController(this)
     val intentHandler = IntentHandler()
     val tileRepo = ITileRepository(fileHelper)
@@ -73,11 +75,23 @@ class MainActivity : ComponentActivity() {
     }
 
     private val stravaImportService by lazy {
-        StravaImportService(stravaDao, fileHelper, gpxFileLoader)
+        StravaImportService(stravaDao, fileHelper, gpxFileLoader, fitFileLoader)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Register application/octet-stream to your custom manifest group
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) { // Android 11+
+            try {
+                packageManager.setMimeGroup(
+                    "fit_files",
+                    setOf("*/*")
+                )
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
 
         fileHelper.registerLauncher(this)
 
@@ -99,6 +113,7 @@ class MainActivity : ComponentActivity() {
                     connection,
                     deviceList,
                     gpxFileLoader,
+                    fitFileLoader,
                     fileHelper,
                     clipboardHandler,
                     webServerController,
@@ -180,26 +195,15 @@ class MainActivity : ComponentActivity() {
                         return@let null
                     }
 
-                    if (!it.data.toString().contains(".gpx") || !it.data.toString().contains(".xml")) {
-
-                        // For ACTION_SEND, the URI is sometimes in the EXTRA_STREAM extra.
-                        // We need a version check for compatibility with Android 13 (Tiramisu) and newer.
-                        val gpxUri: Uri? =
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
-                            } else {
-                                @Suppress("DEPRECATION")
-                                intent.getParcelableExtra(Intent.EXTRA_STREAM) as? Uri
-                            }
-
-                        if (gpxUri != null) {
-                            return@let gpxUri
+                    val uriFromExtras: Uri? =
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+                        } else {
+                            @Suppress("DEPRECATION")
+                            intent.getParcelableExtra(Intent.EXTRA_STREAM) as? Uri
                         }
 
-                        return@let null
-                    }
-
-                    it.data
+                    uriFromExtras ?: it.data
                 }
 
                 Intent.ACTION_MAIN, Intent.ACTION_VIEW, Intent.ACTION_OPEN_DOCUMENT -> {

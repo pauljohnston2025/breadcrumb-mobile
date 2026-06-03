@@ -157,27 +157,32 @@ fun Start(
 
             Row(
                 Modifier.fillMaxWidth(),
-//                .padding(vertical = 8.dp, horizontal = 16.dp)
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Button(onClick = { viewModel.openDeviceSettings() }) {
+                Button(
+                    onClick = { viewModel.openDeviceSettings() },
+                    modifier = Modifier.weight(3f)
+                ) {
                     Icon(
                         Icons.Default.Settings,
                         contentDescription = null,
                         modifier = Modifier.size(ButtonDefaults.IconSize)
                     )
                     Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-                    Text("Device Settings")
+                    Text("Device Settings", maxLines = 1)
                 }
 
-                Button(onClick = { viewModel.pickRoute() }) {
+                Button(
+                    onClick = { viewModel.pickRoute() },
+                    modifier = Modifier.weight(2f)
+                ) {
                     Icon(
                         Icons.Default.FileOpen,
                         contentDescription = null,
                         modifier = Modifier.size(ButtonDefaults.IconSize)
                     )
                     Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-                    Text("Import GPX")
+                    Text("GPX/FIT", maxLines = 1)
                 }
             }
 

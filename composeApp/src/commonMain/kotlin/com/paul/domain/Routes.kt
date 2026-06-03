@@ -47,6 +47,10 @@ abstract class GpxRoute : IRoute() {
     abstract suspend fun getPoints(snackbarHostState: SnackbarHostState? = null): List<Point>?
 }
 
+abstract class FitRoute : IRoute() {
+    abstract suspend fun getPoints(): List<Point>
+}
+
 @Serializable
 data class DirectionInfo(val index: Int)
 
@@ -98,6 +102,7 @@ data class CoordinatesRoute(
 enum class RouteType {
     COORDINATES,
     GPX,
+    FIT,
 }
 
 @Serializable

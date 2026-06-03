@@ -17,6 +17,7 @@ import com.paul.infrastructure.repositories.KomootRepository
 import com.paul.infrastructure.repositories.RouteRepository
 import com.paul.infrastructure.repositories.StravaRepository
 import com.paul.infrastructure.service.IFileHelper
+import com.paul.infrastructure.service.IFitFileLoader
 import com.paul.infrastructure.service.IGpxFileLoader
 import com.paul.infrastructure.service.SendMessageHelper
 import com.paul.infrastructure.service.SendRoute
@@ -52,6 +53,7 @@ class StartViewModel(
     private val connection: IConnection,
     public val deviceSelector: DeviceSelector,
     private val gpxFileLoader: IGpxFileLoader,
+    private val fitFileLoader: IFitFileLoader,
     private val fileHelper: IFileHelper,
     val snackbarHostState: SnackbarHostState,
     private val mapViewModel: MapViewModel,
@@ -114,7 +116,7 @@ class StartViewModel(
         }
 
         if (fileLoad != null) {
-            loadGpxFile(fileLoad)
+            loadFile(fileLoad)
         }
 
         if (shortGoogleUrl != null) {
@@ -137,7 +139,7 @@ class StartViewModel(
                 return@launch
             }
 
-            loadGpxFile(uri)
+            loadFile(uri)
         }
     }
 
@@ -194,6 +196,37 @@ class StartViewModel(
                 }
 
                 sendRoute(route)
+            }
+        }
+    }
+
+    fun loadFile(fileName: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val displayName = fileHelper.getFileName(fileName)?.lowercase() ?: fileName.lowercase()
+            if (displayName.contains(".fit")) {
+                loadFitFile(fileName)
+            } else if (displayName.contains(".gpx")) {
+                loadGpxFile(fileName)
+            } else {
+                snackbarHostState.showSnackbar("Failed to load file $displayName (must end in .gpx or .fit)")
+            }
+        }
+    }
+
+    fun loadFitFile(fileName: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            sendingMessage("Parsing fit input stream...") {
+                try {
+                    val fileContents = fileHelper.readFile(fileName)!!
+                    val fitRoute = fitFileLoader.loadFitFromBytes(fileContents)
+                    sendRoute(fitRoute)
+                } catch (e: SecurityException) {
+                    snackbarHostState.showSnackbar("Failed to load fit file (permissions issue)")
+                    Napier.e("Security exception loading FIT", e, tag = TAG)
+                } catch (e: Exception) {
+                    snackbarHostState.showSnackbar("Failed to load fit file (possibly invalid format)")
+                    Napier.e("Error loading FIT file", e, tag = TAG)
+                }
             }
         }
     }

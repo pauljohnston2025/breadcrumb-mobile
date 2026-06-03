@@ -3,6 +3,7 @@ package com.paul.infrastructure.repositories
 import androidx.compose.material.SnackbarHostState
 import androidx.compose.runtime.mutableStateListOf
 import com.paul.domain.CoordinatesRoute
+import com.paul.domain.FitRoute
 import com.paul.domain.GpxRoute
 import com.paul.domain.IRoute
 import com.paul.domain.RouteEntry
@@ -10,6 +11,7 @@ import com.paul.domain.RouteSettings
 import com.paul.domain.RouteType
 import com.paul.infrastructure.repositories.TileServerRepo.Companion.settings
 import com.paul.infrastructure.service.IFileHelper
+import com.paul.infrastructure.service.IFitFileLoader
 import com.paul.infrastructure.service.IGpxFileLoader
 import com.paul.protocol.todevice.Point
 import com.paul.protocol.todevice.Route
@@ -25,6 +27,7 @@ import kotlinx.serialization.json.Json
 class RouteRepository(
     private val fileHelper: IFileHelper,
     private val gpxLoader: IGpxFileLoader,
+    private val fitLoader: IFitFileLoader,
 ) {
     companion object {
         private const val TAG = "RouteRepository"
@@ -99,6 +102,23 @@ class RouteRepository(
         return route
     }
 
+    suspend fun getFitRoute(id: String): FitRoute? {
+        val file = fileHelper.readLocalFile("routes/$id")
+        if (file == null) {
+            return null
+        }
+
+        val route = fitLoader.loadFitFromBytes(file)
+        route.id = id
+        // overlay the name we have (users can edit it)
+        var routeEntry = getRouteEntry(id)
+        if (routeEntry == null) {
+            return null
+        }
+        route.setName(routeEntry.name)
+        return route
+    }
+
     suspend fun getCoordinatesRoute(id: String): CoordinatesRoute? {
         val file = fileHelper.readLocalFile("routes/$id")
         if (file == null) {
@@ -128,6 +148,7 @@ class RouteRepository(
         return when (routeEntry.type) {
             RouteType.GPX -> getGpxRoute(routeEntry.id)
             RouteType.COORDINATES -> getCoordinatesRoute(routeEntry.id)
+            RouteType.FIT -> getFitRoute(routeEntry.id)
         }
     }
 
@@ -152,6 +173,7 @@ class RouteRepository(
         val type = when (route) {
             is GpxRoute -> RouteType.GPX
             is CoordinatesRoute -> RouteType.COORDINATES
+            is FitRoute -> RouteType.FIT
             else -> {
                 val error = "unknown route type: ${route::class.simpleName}"
                 Napier.e(error, tag = TAG)

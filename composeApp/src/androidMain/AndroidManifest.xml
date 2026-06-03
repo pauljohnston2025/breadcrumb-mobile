@@ -49,17 +49,56 @@
                 <data android:mimeType="application/gpx+xml" />
                 <data android:mimeType="application/xml" />
                 <data android:mimeType="text/xml" />
+                <data android:mimeType="application/vnd.ant.fit" />
+                <data android:mimeType="application/fit" />
             </intent-filter>
 
-            <!-- Intent filter to VIEW GPX files -->
+            <!-- Intent filter to VIEW GPX/FIT files -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="content" />
+                <data android:scheme="file" />
                 <data android:mimeType="application/gpx+xml" />
                 <data android:mimeType="application/xml" />
                 <data android:mimeType="text/xml" />
+                <data android:mimeType="application/vnd.ant.fit" />
+                <data android:mimeType="application/fit" />
+                <data android:mimeType="application/octet-stream" />
+                <data android:host="*" />
+            </intent-filter>
+
+            <!-- fit files are extremely hard to handle for some reason (samsung file manager), so just accept all "view file"-->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+<!--                <data android:mimeType="*/*" />-->
+<!--                even octet stream does not match it :(-->
+<!--                <data android:mimeType="application/octet-stream" />-->
+<!--                <data android:host="*" />-->
+                <!-- i cant even add the below, or i get 'there are no apps to open this file type' when opening a fit file-->
+                <!-- <data android:pathPattern=".*fit" /> -->
+<!--                -->
+<!--                val uri = intent.data-->
+
+<!--                // 1. Check what the Intent claims the MIME type is-->
+<!--                val intentMimeType = intent.type-->
+<!--                println("DEBUG: Intent MIME Type is: '$intentMimeType'")-->
+<!--                prints ""-->
+
+<!--                // 2. Ask the ContentProvider what it thinks the type is-->
+<!--                val actualMimeType = uri?.let { contentResolver.getType(it) }-->
+<!--                println("DEBUG: ContentResolver MIME Type is: '$actualMimeType'")-->
+<!--                prints "application/octet-stream"-->
+<!--                When an app uses a MIME Group, Android forces the package manager to actively query the ContentResolver to resolve the type before deciding whether to show your app in the menu.-->
+<!--                so use mimeGroup instead of mimeType="*/*"-->
+<!--                requires opening app at least once to register the mime group -->
+<!--                this should let us control the registration of the group dynamically, adding and removing the group if the user wants to turn off the filter-->
+                <data android:mimeGroup="fit_files" />
             </intent-filter>
 
             <!-- this is needed for apps share to (opentopo maps etc.), it doesn't provide extension, so you can't add path  -->

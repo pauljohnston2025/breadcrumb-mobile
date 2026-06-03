@@ -4,7 +4,6 @@ import java.util.UUID
 
 interface IFileHelper {
     suspend fun readFile(filename: String): ByteArray?
-    suspend fun openInputStream(uri: String): java.io.InputStream?
     suspend fun readLocalFile(filename: String): ByteArray?
     suspend fun writeLocalFile(filename: String, data: ByteArray)
     suspend fun writeFile(uriString: String, lines: List<String>): Boolean
@@ -19,6 +18,10 @@ interface IFileHelper {
 
     suspend fun deleteDir(directory: String)
     suspend fun delete(file: String)
+
+    suspend fun openZip(uri: String): IZipArchive?
+
+    fun decompressGzip(data: ByteArray): ByteArray
 
     fun generateRandomFilename(fileExtension: String? = null): String {
         val uuid = UUID.randomUUID().toString()

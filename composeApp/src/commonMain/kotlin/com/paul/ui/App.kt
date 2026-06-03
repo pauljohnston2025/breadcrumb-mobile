@@ -51,6 +51,7 @@ import com.paul.infrastructure.repositories.RouteRepository
 import com.paul.infrastructure.repositories.StravaRepository
 import com.paul.infrastructure.service.IClipboardHandler
 import com.paul.infrastructure.service.IFileHelper
+import com.paul.infrastructure.service.IFitFileLoader
 import com.paul.infrastructure.service.IGpxFileLoader
 import com.paul.infrastructure.service.ILocationService
 import com.paul.infrastructure.service.IntentHandler
@@ -85,6 +86,7 @@ fun App(
     connection: IConnection,
     deviceList: IDeviceList,
     gpxFileLoader: IGpxFileLoader,
+    fitFileLoader: IFitFileLoader,
     fileHelper: IFileHelper,
     clipboardHandler: IClipboardHandler,
     webServerController: WebServerController,
@@ -143,7 +145,7 @@ fun App(
                         scaffoldState.snackbarHostState,
                         webServerController,
                         tileRepo,
-                        RouteRepository(fileHelper, gpxFileLoader),
+                        RouteRepository(fileHelper, gpxFileLoader, fitFileLoader),
                         colourPaletteRepo,
                         stravaRepository,
                     )
@@ -167,6 +169,7 @@ fun App(
                         connection,
                         deviceSelector,
                         gpxFileLoader,
+                        fitFileLoader,
                         fileHelper,
                         scaffoldState.snackbarHostState,
                         mapViewModel,
