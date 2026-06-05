@@ -10,8 +10,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -210,30 +208,6 @@ class FileHelper(
         }
     }
 
-    override suspend fun processZip(uri: String, block: suspend (String, () -> ByteArray) -> Boolean) {
-        withContext(Dispatchers.IO) {
-            try {
-                val inputStream = context.contentResolver.openInputStream(Uri.parse(uri)) ?: return@withContext
-                java.util.zip.ZipInputStream(inputStream).use { zis ->
-                    var entry = zis.nextEntry
-                    while (entry != null) {
-                        currentCoroutineContext().ensureActive()
-                        if (!entry.isDirectory) {
-                            val shouldStop = block(entry.name) {
-                                zis.readBytes()
-                            }
-                            if (shouldStop) break
-                        }
-                        zis.closeEntry()
-                        entry = zis.nextEntry
-                    }
-                }
-            } catch (e: Exception) {
-                Napier.e("Error streaming zip: $uri", e)
-            }
-        }
-    }
-
     override fun decompressGzip(data: ByteArray): ByteArray {
         return java.util.zip.GZIPInputStream(data.inputStream()).use { it.readBytes() }
     }
@@ -294,8 +268,7 @@ class AndroidZipEntry(private val zipFile: java.util.zip.ZipFile, private val en
 class FileChannelZipArchive(private val pfd: ParcelFileDescriptor) : IZipArchive {
     private val fis = FileInputStream(pfd.fileDescriptor)
     private val channel: FileChannel = fis.channel
-    private val entriesMap = mutableMapOf<String, ZipEntryInfo>()
-    private val physicalEntries = mutableListOf<ZipEntryInfo>()
+    private val entries = mutableMapOf<String, ZipEntryInfo>()
 
     data class ZipEntryInfo(
         val name: String, val offset: Long, val compressedSize: Long,
@@ -366,14 +339,12 @@ class FileChannelZipArchive(private val pfd: ParcelFileDescriptor) : IZipArchive
             }
             cdBuffer.position(extraEnd)
             cdBuffer.position(cdBuffer.position() + commentLen)
-            val info = ZipEntryInfo(name, localOffset, compSize, uncompSize, method, name.endsWith("/"))
-            entriesMap[name] = info
-            physicalEntries.add(info)
+            entries[name] = ZipEntryInfo(name, localOffset, compSize, uncompSize, method, name.endsWith("/"))
         }
     }
 
-    override fun getEntry(name: String): IZipEntry? = entriesMap[name]?.let { FileChannelZipEntry(channel, it) }
-    override fun entries(): List<IZipEntry> = physicalEntries.map { FileChannelZipEntry(channel, it) }
+    override fun getEntry(name: String): IZipEntry? = entries[name]?.let { FileChannelZipEntry(channel, it) }
+    override fun entries(): List<IZipEntry> = entries.values.map { FileChannelZipEntry(channel, it) }
     override fun close() { try { fis.close() } finally { pfd.close() } }
 }
 
@@ -384,9 +355,11 @@ class FileChannelZipEntry(private val channel: FileChannel, private val info: Fi
         var currentOffset = info.offset
         val headerBuf = ByteBuffer.allocate(30).order(ByteOrder.LITTLE_ENDIAN)
         channel.readFully(headerBuf, currentOffset)
-        
+
         var sig = headerBuf.getInt(0)
         if (sig != 0x04034b50) {
+            Napier.w("Manual ZIP: Signature mismatch at $currentOffset for ${info.name}. Found 0x${Integer.toHexString(sig)}. Searching...")
+            // Fallback: Some Zip64 implementations have slight offset misalignments. Search nearby.
             val searchBuf = ByteBuffer.allocate(4096).order(ByteOrder.LITTLE_ENDIAN)
             channel.readFully(searchBuf, currentOffset)
             var found = false
@@ -396,26 +369,29 @@ class FileChannelZipEntry(private val channel: FileChannel, private val info: Fi
                     channel.readFully(headerBuf, currentOffset)
                     sig = headerBuf.getInt(0)
                     found = true
+                    Napier.d("Manual ZIP: Found local header for ${info.name} at adjusted offset $currentOffset")
                     break
                 }
             }
-            if (!found) throw IOException("Manual ZIP: Invalid local header for ${info.name}")
+            if (!found) throw IOException("Manual ZIP: Invalid local header for ${info.name} at ${info.offset} (searched nearby). Found: 0x${Integer.toHexString(sig)}")
         }
 
         val nameLen = headerBuf.getShort(26).toInt() and 0xFFFF
         val extraLen = headerBuf.getShort(28).toInt() and 0xFFFF
         val dataOffset = currentOffset + 30 + nameLen + extraLen
-        
+
         val compressedData = ByteBuffer.allocate(info.compressedSize.toInt())
         channel.readFully(compressedData, dataOffset)
         val bytes = compressedData.array()
-        
+
         return if (info.compressionMethod == 8) {
             val inflater = Inflater(true); inflater.setInput(bytes)
             val result = ByteArray(info.uncompressedSize.toInt())
             var offset = 0; while (!inflater.finished() && offset < result.size) {
                 val inflated = inflater.inflate(result, offset, result.size - offset)
-                if (inflated == 0) if (inflater.needsInput()) break
+                if (inflated == 0) {
+                    if (inflater.needsInput()) break
+                }
                 offset += inflated
             }; inflater.end(); result
         } else bytes

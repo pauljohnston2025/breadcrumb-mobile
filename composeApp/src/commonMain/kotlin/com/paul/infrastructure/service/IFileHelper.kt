@@ -21,9 +21,6 @@ interface IFileHelper {
 
     suspend fun openZip(uri: String): IZipArchive?
 
-    /** Streams through a ZIP archive sequentially for performance on large files */
-    suspend fun processZip(uri: String, block: suspend (String, () -> ByteArray) -> Boolean)
-
     fun decompressGzip(data: ByteArray): ByteArray
 
     fun generateRandomFilename(fileExtension: String? = null): String {
