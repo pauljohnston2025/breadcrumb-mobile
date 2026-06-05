@@ -1,5 +1,8 @@
 package com.paul.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import com.paul.infrastructure.connectiq.IConnection
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -47,6 +50,8 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -443,6 +448,58 @@ fun ColourPaletteDialog(
     )
 }
 
+@Composable
+fun CollapsibleSection(
+    title: String,
+    isExpanded: Boolean,
+    onToggle: () -> Unit,
+    trailing: @Composable (() -> Unit)? = null,
+    content: @Composable () -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onToggle() }
+                .padding(vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.subtitle1,
+                color = MaterialTheme.colors.primary,
+                modifier = Modifier.weight(1f)
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (trailing != null) {
+                    trailing()
+                }
+                Icon(
+                    imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = if (isExpanded) "Collapse" else "Expand",
+                    tint = MaterialTheme.colors.primary
+                )
+            }
+        }
+        AnimatedVisibility(
+            visible = isExpanded,
+            enter = expandVertically(),
+            exit = shrinkVertically()
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                content()
+            }
+        }
+        Divider()
+    }
+}
+
 @OptIn(ExperimentalMaterialApi::class)
 @Composable
 fun Settings(
@@ -450,6 +507,12 @@ fun Settings(
     viewModel: SettingsViewModel,
     paletteToCreate: ColourPalette?
 ) {
+    var generalExpanded by remember { mutableStateOf(false) }
+    var tileServerHostExpanded by remember { mutableStateOf(false) }
+    var tileServerConfigExpanded by remember { mutableStateOf(false) }
+    var routesExpanded by remember { mutableStateOf(false) }
+    var stravaExpanded by remember { mutableStateOf(false) }
+
     var expanded by remember { mutableStateOf(false) }
     var tileTypeExpanded by remember { mutableStateOf(false) }
     var colourPaletteExpanded by remember { mutableStateOf(false) }
@@ -566,13 +629,13 @@ fun Settings(
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(0.dp)
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text("Connect IQ App:", style = MaterialTheme.typography.body1)
+            Text("Connect IQ App:", style = MaterialTheme.typography.subtitle1, color = MaterialTheme.colors.primary)
 
             ExposedDropdownMenuBox(
                 expanded = appDropdownExpanded,
@@ -602,13 +665,13 @@ fun Settings(
             }
         }
 
-        Divider(modifier = Modifier.padding(vertical = 8.dp))
+        Divider()
 
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+        CollapsibleSection(
+            title = "General",
+            isExpanded = generalExpanded,
+            onToggle = { generalExpanded = !generalExpanded }
         ) {
-            Text("General:", style = MaterialTheme.typography.body1)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -617,7 +680,7 @@ fun Settings(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Open all files (FIT support):", style = MaterialTheme.typography.body1)
+                    Text("Open all files (FIT support):", style = MaterialTheme.typography.body2)
                     Text(
                         "This allows Breadcrumb to open any file type (including non-FIT files like .mp3, .exe, .mp4). This is required on some devices (e.g. Samsung) that don't correctly identify .fit files, making them impossible to detect otherwise.",
                         style = MaterialTheme.typography.caption,
@@ -633,13 +696,11 @@ fun Settings(
             }
         }
 
-        Divider(modifier = Modifier.padding(vertical = 8.dp))
-
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+        CollapsibleSection(
+            title = "Phone Hosted Tile Server",
+            isExpanded = tileServerHostExpanded,
+            onToggle = { tileServerHostExpanded = !tileServerHostExpanded }
         ) {
-            Text("Phone Hosted Tile Server:", style = MaterialTheme.typography.body1)
             Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                 Text("Tile Server Enabled:", style = MaterialTheme.typography.body2)
                 Switch(
@@ -699,104 +760,100 @@ fun Settings(
                 }
 
                 if (currentTileType == TileType.TILE_DATA_TYPE_64_COLOUR) {
-                    Spacer(Modifier.height(8.dp))
-                    Text("Colour Palette:", style = MaterialTheme.typography.body1)
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        Arrangement.SpaceBetween,
-                        Alignment.CenterVertically
-                    ) {
-                        ExposedDropdownMenuBox(
-                            expanded = colourPaletteExpanded,
-                            onExpandedChange = {
-                                colourPaletteExpanded = !colourPaletteExpanded
-                            },
-                            modifier = Modifier.weight(1f)
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Colour Palette:", style = MaterialTheme.typography.body2)
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            Arrangement.SpaceBetween,
+                            Alignment.CenterVertically
                         ) {
-                            OutlinedTextField(
-                                value = currentColourPalette.name,
-                                onValueChange = {},
-                                readOnly = true,
-                                label = { Text("Select Colour Palette") },
-                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = colourPaletteExpanded) },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            ExposedDropdownMenu(
+                            ExposedDropdownMenuBox(
                                 expanded = colourPaletteExpanded,
-                                onDismissRequest = { colourPaletteExpanded = false }) {
-                                availableColourPalettes.forEach { palette ->
-                                    DropdownMenuItem(onClick = {
-                                        viewModel.onColourPaletteSelected(
-                                            palette
-                                        ); colourPaletteExpanded = false
-                                    }) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text(
-                                                palette.name,
-                                                Modifier.weight(1f),
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                            IconButton(onClick = {
-                                                paletteToEdit = palette.copy(
-                                                    watchAppPaletteId = 0,
-                                                    uniqueId = UUID.randomUUID()
-                                                        .toString(), // Generate new ID for clone
-                                                    name = "Copy of ${palette.name}",
-                                                    isEditable = true
+                                onExpandedChange = {
+                                    colourPaletteExpanded = !colourPaletteExpanded
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                OutlinedTextField(
+                                    value = currentColourPalette.name,
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    label = { Text("Select Colour Palette") },
+                                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = colourPaletteExpanded) },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                ExposedDropdownMenu(
+                                    expanded = colourPaletteExpanded,
+                                    onDismissRequest = { colourPaletteExpanded = false }) {
+                                    availableColourPalettes.forEach { palette ->
+                                        DropdownMenuItem(onClick = {
+                                            viewModel.onColourPaletteSelected(
+                                                palette
+                                            ); colourPaletteExpanded = false
+                                        }) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(
+                                                    palette.name,
+                                                    Modifier.weight(1f),
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
                                                 )
-                                                showPaletteDialog = true; colourPaletteExpanded =
-                                                false
-                                            }, modifier = Modifier.size(24.dp)) {
-                                                Icon(
-                                                    Icons.Default.ContentCopy,
-                                                    "Clone palette"
-                                                )
-                                            }
-                                            if (palette.isEditable) {
                                                 IconButton(onClick = {
-                                                    paletteToEdit =
-                                                        palette; showPaletteDialog =
-                                                    true; colourPaletteExpanded = false
-                                                }, modifier = Modifier.size(24.dp)) {
-                                                    Icon(Icons.Default.Edit, "Edit palette")
-                                                }
-                                                IconButton(onClick = {
-                                                    paletteToDelete =
-                                                        palette; colourPaletteExpanded =
+                                                    paletteToEdit = palette.copy(
+                                                        watchAppPaletteId = 0,
+                                                        uniqueId = UUID.randomUUID()
+                                                            .toString(), // Generate new ID for clone
+                                                        name = "Copy of ${palette.name}",
+                                                        isEditable = true
+                                                    )
+                                                    showPaletteDialog = true; colourPaletteExpanded =
                                                     false
                                                 }, modifier = Modifier.size(24.dp)) {
                                                     Icon(
-                                                        Icons.Default.Delete,
-                                                        "Delete palette",
-                                                        tint = MaterialTheme.colors.error
+                                                        Icons.Default.ContentCopy,
+                                                        "Clone palette"
                                                     )
+                                                }
+                                                if (palette.isEditable) {
+                                                    IconButton(onClick = {
+                                                        paletteToEdit =
+                                                            palette; showPaletteDialog =
+                                                        true; colourPaletteExpanded = false
+                                                    }, modifier = Modifier.size(24.dp)) {
+                                                        Icon(Icons.Default.Edit, "Edit palette")
+                                                    }
+                                                    IconButton(onClick = {
+                                                        paletteToDelete =
+                                                            palette; colourPaletteExpanded =
+                                                        false
+                                                    }, modifier = Modifier.size(24.dp)) {
+                                                        Icon(
+                                                            Icons.Default.Delete,
+                                                            "Delete palette",
+                                                            tint = MaterialTheme.colors.error
+                                                        )
+                                                    }
                                                 }
                                             }
                                         }
                                     }
                                 }
                             }
-                        }
-                        Spacer(Modifier.width(8.dp))
-                        IconButton(onClick = { paletteToEdit = null; showPaletteDialog = true }) {
-                            Icon(Icons.Filled.Add, "Add new blank colour palette")
+                            Spacer(Modifier.width(8.dp))
+                            IconButton(onClick = { paletteToEdit = null; showPaletteDialog = true }) {
+                                Icon(Icons.Filled.Add, "Add new blank colour palette")
+                            }
                         }
                     }
                 }
             }
+        }
 
-
-            Spacer(Modifier.height(8.dp))
-            Text("Tile Server (map view and phone hosted):", style = MaterialTheme.typography.body1)
-
-            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                Text("Add Custom Server:", style = MaterialTheme.typography.body2)
-                IconButton(onClick = { serverToEdit = null; showAddServerDialog = true }) {
-                    Icon(Icons.Filled.Add, "Add custom tile server")
-                }
-            }
-
+        CollapsibleSection(
+            title = "Tile Server (map view and phone hosted)",
+            isExpanded = tileServerConfigExpanded,
+            onToggle = { tileServerConfigExpanded = !tileServerConfigExpanded }
+        ) {
             ExposedDropdownMenuBox(
                 expanded = expanded,
                 onExpandedChange = { expanded = !expanded }) {
@@ -862,14 +919,28 @@ fun Settings(
                 }
             }
 
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Add Custom Server:", style = MaterialTheme.typography.body2)
+                IconButton(onClick = { serverToEdit = null; showAddServerDialog = true }) {
+                    Icon(Icons.Filled.Add, "Add custom tile server")
+                }
+            }
+
             AuthTokenEditor(
                 currentAuthToken = authTokenFlow,
                 onAuthTokenChange = viewModel::onAuthKeyChange
             )
+        }
 
-            Divider(modifier = Modifier.padding(vertical = 8.dp))
-            Text("Routes:", style = MaterialTheme.typography.body1)
-
+        CollapsibleSection(
+            title = "Routes",
+            isExpanded = routesExpanded,
+            onToggle = { routesExpanded = !routesExpanded }
+        ) {
             routeSettings?.let { settings ->
                 OutlinedTextField(
                     value = coordsLimitString,
@@ -910,7 +981,7 @@ fun Settings(
                     Arrangement.SpaceBetween,
                     Alignment.CenterVertically
                 ) {
-                    Text("Mock Directions:", style = MaterialTheme.typography.body1)
+                    Text("Mock Directions:", style = MaterialTheme.typography.body2)
                     Switch(
                         checked = settings.mockDirections,
                         onCheckedChange = {
@@ -927,7 +998,7 @@ fun Settings(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text("Show Route Points On Map:", style = MaterialTheme.typography.body1)
+                    Text("Show Route Points On Map:", style = MaterialTheme.typography.body2)
                     Switch(
                         checked = settings.showRoutePoints,
                         onCheckedChange = { isChecked ->
@@ -945,7 +1016,7 @@ fun Settings(
                 ) {
                     Text(
                         "Reduce Points With Reumann-Witkam:",
-                        style = MaterialTheme.typography.body1
+                        style = MaterialTheme.typography.body2
                     )
                     Switch(
                         checked = settings.useReumannWitkam,
@@ -981,7 +1052,7 @@ fun Settings(
                 ) {
                     Text(
                         "Reduce Points With Douglas-Peucker:",
-                        style = MaterialTheme.typography.body1
+                        style = MaterialTheme.typography.body2
                     )
                     Switch(
                         checked = settings.useDouglasPeucker,
@@ -1017,7 +1088,7 @@ fun Settings(
                 ) {
                     Text(
                         "Reduce Points With Visvalingam-Whyatt:",
-                        style = MaterialTheme.typography.body1
+                        style = MaterialTheme.typography.body2
                     )
                     Switch(
                         checked = settings.useVisvalingamWhyatt,
@@ -1044,8 +1115,13 @@ fun Settings(
                     )
                 }
             }
+        }
 
-            Divider(modifier = Modifier.padding(vertical = 16.dp))
+        CollapsibleSection(
+            title = "Strava Integration",
+            isExpanded = stravaExpanded,
+            onToggle = { stravaExpanded = !stravaExpanded }
+        ) {
             StravaSettings(viewModel = viewModel)
         }
     }
@@ -1122,13 +1198,9 @@ fun StravaSettings(viewModel: com.paul.viewmodels.Settings) {
     }
 
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
+        modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Text("Strava Integration", style = MaterialTheme.typography.h6)
-
         OutlinedTextField(
             value = stravaClientId,
             onValueChange = { viewModel.onStravaClientIdChange(it) },
