@@ -1,65 +1,25 @@
 package com.paul.ui
 
-import androidx.compose.material.icons.filled.DirectionsRun
-import androidx.compose.material.icons.filled.DirectionsBike
-import androidx.compose.material.icons.filled.OpenInNew
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.Send
-import androidx.compose.material.Surface
-import androidx.compose.material.IconButton
-import androidx.compose.material.Divider
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.ClickableText
-import androidx.compose.material.AlertDialog
-import androidx.compose.material.Button
-import androidx.compose.material.ButtonDefaults
-import androidx.compose.material.Card
-import androidx.compose.material.Icon
-import androidx.compose.material.LinearProgressIndicator
-import androidx.compose.material.LocalContentColor
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.Text
+import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ChevronLeft
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Directions
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Downloading
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.MyLocation
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material.icons.filled.Terrain
-import androidx.compose.material.icons.filled.Watch
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -70,41 +30,39 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.ExperimentalTextApi
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.TextMeasurer
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.*
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.unit.TextUnit
-import androidx.compose.ui.unit.coerceAtLeast
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.*
 import androidx.compose.ui.zIndex
 import androidx.navigation.NavController
 import com.paul.composables.LoadingOverlay
 import com.paul.composables.MapTilerComposable
+import com.paul.composables.RouteMiniMap
 import com.paul.composables.mapButtonStyle
 import com.paul.domain.RouteEntry
 import com.paul.domain.ServerType
+import com.paul.domain.StravaActivity
+import com.paul.domain.TileServerInfo
+import com.paul.infrastructure.connectiq.IConnection.Companion.LIGHT_WEIGHT_BREADCRUMB_DATAFIELD_ID
+import com.paul.infrastructure.connectiq.IConnection.Companion.ULTRA_LIGHT_BREADCRUMB_DATAFIELD_ID
+import com.paul.infrastructure.repositories.ITileRepository
+import com.paul.infrastructure.repositories.RouteRepository
+import com.paul.infrastructure.repositories.TileServerRepo
 import com.paul.infrastructure.service.GeoPosition
 import com.paul.infrastructure.service.screenPixelToGeo
 import com.paul.protocol.todevice.Point
+import com.paul.protocol.todevice.RequestLocationLoad
 import com.paul.protocol.todevice.Route
 import com.paul.viewmodels.MapViewModel
 import io.github.aakira.napier.Napier
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.max
@@ -112,40 +70,13 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
-import com.paul.infrastructure.connectiq.IConnection.Companion.LIGHT_WEIGHT_BREADCRUMB_DATAFIELD_ID
-import com.paul.infrastructure.connectiq.IConnection.Companion.ULTRA_LIGHT_BREADCRUMB_DATAFIELD_ID
-import kotlinx.datetime.Instant
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
+
+const val URL_TAG = "URL"
 
 @Composable
-private fun WatchSendDialog(
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit
+fun MapScreen(
+    viewModel: MapViewModel,
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Cache current area to watch") },
-        text = {
-            Text("Note some watches do not support this. The datafield must be open for this to work.")
-        },
-        confirmButton = {
-            Button(
-                onClick = { onConfirm() },
-                enabled = true,
-            ) { Text("Confirm") }
-        },
-        dismissButton = {
-            Button(onClick = onDismiss) { Text("Cancel") }
-        }
-    )
-}
-
-internal const val URL_TAG =
-    "URL_ATTRIBUTION_TAG" // Internal tag for identifying clickable URL parts
-
-@Composable
-fun MapScreen(viewModel: MapViewModel) {
     val isGeneratingPalette by viewModel.isGeneratingPalette.collectAsState()
 
     BackHandler(enabled = viewModel.sendingFile.value != "" && !isGeneratingPalette) {
@@ -163,6 +94,8 @@ fun MapScreen(viewModel: MapViewModel) {
     val seedingError by viewModel.seedingError.collectAsState()
     // Collect the new state for profile visibility
     val isElevationProfileVisible by viewModel.isElevationProfileVisible.collectAsState()
+    val hoveredDistance by viewModel.hoveredDistance.collectAsState()
+
     var viewportSize by remember { mutableStateOf(IntSize.Zero) }
     val watchSendStarted by viewModel.watchSendStarted.collectAsState()
     val connectIqAppId by viewModel.connection.connectIqAppIdFlow().collectAsState()
@@ -208,7 +141,9 @@ fun MapScreen(viewModel: MapViewModel) {
                         .fillMaxWidth()
                         .height(150.dp) // Example height
                         .padding(horizontal = 16.dp),
-                    route = currentRoute!! // Use non-null assertion or smart cast
+                    route = currentRoute!!, // Use non-null assertion or smart cast
+                    hoveredDistance = hoveredDistance,
+                    onHoveredDistanceChange = { viewModel.setHoveredDistance(it) }
                 )
                 Spacer(modifier = Modifier.height(8.dp)) // Padding at the bottom
             }
@@ -225,22 +160,27 @@ fun MapScreen(viewModel: MapViewModel) {
                     viewportSize = viewportSize,
                     onViewportSizeChange = { viewportSize = it }, // Update the state
                     routeToDisplay = currentRoute,
-                    isWatchFeatureDisabled = isWatchFeatureDisabled
+                    isWatchFeatureDisabled = isWatchFeatureDisabled,
+                    hoveredDistance = hoveredDistance
                 )
 
                 if (nearbyActivities.isNotEmpty() || nearbyStoredRoutes.isNotEmpty()) {
+                    val tileServer by viewModel.tileServerRepository.currentServerFlow()
+                        .collectAsState(TileServerRepo.defaultTileServer)
+
                     Surface(
                         modifier = Modifier
                             .align(Alignment.Center) // Change from Alignment.BottomCenter
                             .padding(24.dp)
-                            .fillMaxWidth(0.85f)    // Don't take the full width so it looks like a dialog
+                            .fillMaxWidth(0.95f)    // Take more width for the side-by-side layout
                             .zIndex(100f),
                         shape = RoundedCornerShape(12.dp),
+                        elevation = 8.dp
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    "Nearby Items",
+                                    "Nearby Routes",
                                     style = MaterialTheme.typography.h6,
                                     modifier = Modifier.weight(1f)
                                 )
@@ -248,189 +188,28 @@ fun MapScreen(viewModel: MapViewModel) {
                                     Icon(Icons.Default.Close, contentDescription = "Close")
                                 }
                             }
-                            LazyColumn(modifier = Modifier.heightIn(max = 400.dp)) {
+                            LazyColumn(modifier = Modifier.heightIn(max = 450.dp)) {
                                 items(nearbyActivities) { activity ->
-                                    Card(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(vertical = 4.dp),
-                                        elevation = 2.dp,
-                                        shape = RoundedCornerShape(8.dp)
-                                    ) {
-                                        Column(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(12.dp)
-                                        ) {
-                                            // 1. Activity Title at the top
-                                            Text(
-                                                text = activity.name,
-                                                style = MaterialTheme.typography.subtitle1,
-                                                fontWeight = FontWeight.Bold,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis,
-                                                modifier = Modifier.fillMaxWidth()
-                                            )
-
-                                            Spacer(modifier = Modifier.height(8.dp))
-
-                                            // 2. Bottom section: Icon/Type on left, All Controls on right
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.SpaceBetween
-                                            ) {
-                                                // Left Side: Icon and Type
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Icon(
-                                                        imageVector = activity.getActivityIcon(),
-                                                        contentDescription = null,
-                                                        modifier = Modifier.size(18.dp),
-                                                        tint = MaterialTheme.colors.primary
-                                                    )
-                                                    Spacer(modifier = Modifier.width(8.dp))
-                                                    Text(
-                                                        text = activity.type ?: "Unknown",
-                                                        style = MaterialTheme.typography.caption,
-                                                        color = LocalContentColor.current.copy(alpha = 0.7f)
-                                                    )
-                                                }
-
-                                                // Right Side: Action Buttons (Grouped)
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    // Preview/Location Button
-                                                    IconButton(
-                                                        onClick = {
-                                                            viewModel.previewActivity(
-                                                                activity
-                                                            )
-                                                        },
-                                                        modifier = Modifier.size(32.dp)
-                                                    ) {
-                                                        Icon(
-                                                            Icons.Default.LocationOn,
-                                                            contentDescription = "Preview",
-                                                            modifier = Modifier.size(20.dp),
-                                                            tint = MaterialTheme.colors.primary
-                                                        )
-                                                    }
-
-                                                    // Send to Watch Button
-                                                    IconButton(
-                                                        onClick = {
-                                                            viewModel.sendActivityToDevice(
-                                                                activity
-                                                            )
-                                                        },
-                                                        enabled = !isWatchFeatureDisabled,
-                                                        modifier = Modifier.size(32.dp)
-                                                    ) {
-                                                        Icon(
-                                                            Icons.Default.PlayArrow,
-                                                            contentDescription = "Send to Device",
-                                                            modifier = Modifier.size(20.dp),
-                                                            tint = Color(0xFF4CAF50),
-                                                        )
-                                                    }
-
-                                                    // Strava Link Button (Restored)
-                                                    IconButton(
-                                                        onClick = {
-                                                            viewModel.openActivityInStrava(
-                                                                activity.id
-                                                            )
-                                                        },
-                                                        modifier = Modifier.size(32.dp)
-                                                    ) {
-                                                        Icon(
-                                                            Icons.Default.OpenInNew,
-                                                            contentDescription = "Open in Strava",
-                                                            modifier = Modifier.size(20.dp),
-                                                            tint = MaterialTheme.colors.primary
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
+                                    NearbyActivityListItem(
+                                        activity = activity,
+                                        tileRepository = viewModel.tileRepository,
+                                        tileServer = tileServer,
+                                        onPreviewClick = { viewModel.previewActivity(activity) },
+                                        onSendClick = { viewModel.sendActivityToDevice(activity) },
+                                        onStravaClick = { viewModel.openActivityInStrava(activity.id) }
+                                    )
+                                    Divider(color = Color.LightGray.copy(alpha = 0.2f))
                                 }
                                 items(nearbyStoredRoutes) { routeEntry ->
-                                    Card(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(vertical = 4.dp),
-                                        elevation = 2.dp,
-                                        shape = RoundedCornerShape(8.dp)
-                                    ) {
-                                        Column(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(12.dp)
-                                        ) {
-                                            Text(
-                                                text = routeEntry.name,
-                                                style = MaterialTheme.typography.subtitle1,
-                                                fontWeight = FontWeight.Bold,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis,
-                                                modifier = Modifier.fillMaxWidth()
-                                            )
-
-                                            Spacer(modifier = Modifier.height(8.dp))
-
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.SpaceBetween
-                                            ) {
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Directions,
-                                                        contentDescription = null,
-                                                        modifier = Modifier.size(18.dp),
-                                                        tint = MaterialTheme.colors.primary
-                                                    )
-                                                    Spacer(modifier = Modifier.width(8.dp))
-                                                    Text(
-                                                        text = routeEntry.type.name,
-                                                        style = MaterialTheme.typography.caption,
-                                                        color = LocalContentColor.current.copy(alpha = 0.7f)
-                                                    )
-                                                }
-
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    IconButton(
-                                                        onClick = {
-                                                            viewModel.previewStoredRoute(routeEntry)
-                                                        },
-                                                        modifier = Modifier.size(32.dp)
-                                                    ) {
-                                                        Icon(
-                                                            Icons.Default.LocationOn,
-                                                            contentDescription = "Preview",
-                                                            modifier = Modifier.size(20.dp),
-                                                            tint = MaterialTheme.colors.primary
-                                                        )
-                                                    }
-
-                                                    IconButton(
-                                                        onClick = {
-                                                            viewModel.sendStoredRouteToDevice(routeEntry)
-                                                        },
-                                                        enabled = !isWatchFeatureDisabled,
-                                                        modifier = Modifier.size(32.dp)
-                                                    ) {
-                                                        Icon(
-                                                            Icons.Default.PlayArrow,
-                                                            contentDescription = "Send to Device",
-                                                            modifier = Modifier.size(20.dp),
-                                                            tint = Color(0xFF4CAF50),
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
+                                    NearbyRouteListItem(
+                                        routeEntry = routeEntry,
+                                        routeRepo = viewModel.routeRepository,
+                                        tileRepository = viewModel.tileRepository,
+                                        tileServer = tileServer,
+                                        onPreviewClick = { viewModel.previewStoredRoute(routeEntry) },
+                                        onSendClick = { viewModel.sendStoredRouteToDevice(routeEntry) }
+                                    )
+                                    Divider(color = Color.LightGray.copy(alpha = 0.2f))
                                 }
                             }
                         }
@@ -449,70 +228,127 @@ fun MapScreen(viewModel: MapViewModel) {
                     }
                 )
 
+                // --- Floating Action Buttons (Example layout) ---
                 Column(
                     modifier = Modifier
                         .align(Alignment.BottomStart)
-                        .padding(8.dp),
+                        .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     if (currentRoute != null) {
-                        if (currentRouteI != null) {
-                            Button(
-                                modifier = mapButtonStyle,
-                                onClick = { currentRouteI?.let { viewModel.sendRouteSync(it) } }
-                            ) {
-                                Icon(
-                                    Icons.Default.PlayArrow,
-                                    contentDescription = "Send route to device",
-                                    modifier = Modifier.size(ButtonDefaults.IconSize),
-                                    tint = Color(0xFF4CAF50) // Matching the green used in the list item
-                                )
-                            }
+                        // Play Button: Send route to watch
+                        Button(
+                            modifier = mapButtonStyle,
+                            onClick = { viewModel.sendRouteSync(currentRouteI!!) },
+                            enabled = !isWatchFeatureDisabled
+                        ) {
+                            Icon(Icons.Default.PlayArrow, contentDescription = "Send to Device")
                         }
-                        Button(modifier = mapButtonStyle, onClick = { viewModel.clearRoute() }) {
-                            Icon(
-                                Icons.Default.Close,
-                                contentDescription = "Clear route",
-                                modifier = Modifier.size(ButtonDefaults.IconSize),
-                            )
+
+                        // Close Button: Clear current route
+                        Button(
+                            modifier = mapButtonStyle,
+                            onClick = { viewModel.clearRoute() }
+                        ) {
+                            Icon(Icons.Default.Close, contentDescription = "Clear Route")
                         }
+
+                        // Elevation Profile Toggle Button
                         Button(
                             modifier = mapButtonStyle,
                             onClick = { viewModel.toggleElevationProfileVisibility() },
                         ) {
                             Icon(
-                                Icons.Default.Terrain,
-                                contentDescription = if (isElevationProfileVisible) "Hide Elevation Profile" else "Show Elevation Profile",
-                                modifier = Modifier.size(ButtonDefaults.IconSize),
+                                imageVector = Icons.Default.Terrain,
+                                contentDescription = if (isElevationProfileVisible) "Hide Elevation" else "Show Elevation",
                                 tint = if (isElevationProfileVisible) LocalContentColor.current.copy(
-                                    alpha = 1f
-                                ) else LocalContentColor.current.copy(alpha = 0.5f)
+                                    alpha = 0.5f
+                                ) else LocalContentColor.current
                             )
                         }
                     }
+
+                    // Watch and Crosshair: Return to User Command
                     if (!isWatchFeatureDisabled) {
                         Button(
                             modifier = mapButtonStyle,
-                            onClick = {
-                                viewModel.returnWatchToUsersLocation()
-                            },
-                            enabled = true
+                            onClick = { viewModel.returnWatchToUsersLocation() }
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                // Negative spacing causes overlap. Adjust the value as needed.
-                                // -8.dp means the second icon will be pulled 8.dp to the left.
                                 horizontalArrangement = Arrangement.spacedBy((-2).dp)
                             ) {
                                 Icon(
                                     Icons.Default.Watch,
-                                    contentDescription = "Return Watch To Users Location",
-                                    modifier = Modifier.size(17.dp) // Slightly smaller icon so that the button is the same size as the other ones
+                                    contentDescription = "Return watch to user",
+                                    modifier = Modifier.size(17.dp)
                                 )
                                 Icon(
                                     Icons.Default.MyLocation,
-                                    contentDescription = "Return Watch To Users Location",
-                                    modifier = Modifier.size(17.dp) // Slightly smaller icon so that the button is the same size as the other ones
+                                    contentDescription = "Return watch to user",
+                                    modifier = Modifier.size(17.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    // Crosshair: Center phone map on user
+                    Button(
+                        modifier = mapButtonStyle,
+                        onClick = { viewModel.returnToUsersLocation() }
+                    ) {
+                        Icon(Icons.Default.MyLocation, contentDescription = "Center on My Location")
+                    }
+
+                    if (!isWatchFeatureDisabled) {
+                        Button(
+                            modifier = mapButtonStyle,
+                            onClick = {
+                                if (viewportSize != IntSize.Zero) {
+                                    val topLeftGeo = screenPixelToGeo(
+                                        IntOffset(0, 0),
+                                        GeoPosition(
+                                            viewModel.mapCenter.value.latitude.toDouble(),
+                                            viewModel.mapCenter.value.longitude.toDouble()
+                                        ),
+                                        viewModel.mapZoom.value,
+                                        viewportSize
+                                    )
+                                    val bottomRightGeo = screenPixelToGeo(
+                                        IntOffset(viewportSize.width, viewportSize.height),
+                                        GeoPosition(
+                                            viewModel.mapCenter.value.latitude.toDouble(),
+                                            viewModel.mapCenter.value.longitude.toDouble()
+                                        ),
+                                        viewModel.mapZoom.value,
+                                        viewportSize
+                                    )
+                                    viewModel.startSeedingAreaToWatch(
+                                        centerGeo = GeoPosition(
+                                            viewModel.mapCenter.value.latitude.toDouble(),
+                                            viewModel.mapCenter.value.longitude.toDouble()
+                                        ),
+                                        topLeftGeo = topLeftGeo,
+                                        bottomRightGeo = bottomRightGeo
+                                    )
+                                } else {
+                                    Napier.v("Viewport size not available yet.")
+                                }
+                            }
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy((-2).dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Watch,
+                                    contentDescription = "Download area to watch",
+                                    modifier = Modifier.size(17.dp)
+                                )
+                                Icon(
+                                    Icons.Default.Download,
+                                    contentDescription = "Download area to watch",
+                                    modifier = Modifier.size(17.dp)
                                 )
                             }
                         }
@@ -521,180 +357,333 @@ fun MapScreen(viewModel: MapViewModel) {
                     Button(
                         modifier = mapButtonStyle,
                         onClick = {
-                            viewModel.returnToUsersLocation()
-                        },
-                        enabled = true
-                    ) {
-                        Icon(
-                            Icons.Default.MyLocation,
-                            contentDescription = "Return To Users Location",
-                        )
-                    }
-                }
-            } // --- End of Map Box ---
-
-
-            // --- Seeding Controls / Status ---
-            // This is the start of the corrected section
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween // This will push the items to the edges
-            ) {
-                // This Column will contain the part of the UI that changes based on isSeeding
-                Column(
-                    modifier = Modifier.weight(
-                        1f,
-                        fill = false
-                    ) // Use weight to allow the watch button to have its own space
-                ) {
-                    if (isSeeding) {
-                        // --- Seeding is in Progress ---
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                Icons.Default.Downloading,
-                                contentDescription = "Caching map area",
-                                modifier = Modifier.size(ButtonDefaults.IconSize),
-                            )
-                            Spacer(modifier = Modifier.size(8.dp))
-                            Text("Caching (z: $zSeedingProgress)...", maxLines = 1)
-                        }
-
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            LinearProgressIndicator(
-                                progress = seedingProgress,
-                                modifier = Modifier.weight(1f)
-                            )
-                            Button(
-                                onClick = { viewModel.cancelSeedingArea() },
-                                colors = ButtonDefaults.buttonColors(
-                                    backgroundColor = MaterialTheme.colors.error,
-                                    contentColor = Color.White
-                                )
-                            ) {
-                                Icon(
-                                    Icons.Default.Stop,
-                                    contentDescription = "Stop Caching"
-                                )
-                            }
-                        }
-                    } else {
-                        // --- Seeding is NOT in progress ---
-                        Button(
-                            onClick = {
-                                if (viewportSize != IntSize.Zero) {
-                                    val centerGeo = GeoPosition(
-                                        viewModel.mapCenter.value.latitude.toDouble(),
-                                        viewModel.mapCenter.value.longitude.toDouble()
-                                    )
-                                    val currentZoom = viewModel.mapZoom.value
-                                    val topLeftGeo = screenPixelToGeo(
-                                        IntOffset(0, 0),
-                                        centerGeo,
-                                        currentZoom,
-                                        viewportSize
-                                    )
-                                    val bottomRightGeo = screenPixelToGeo(
-                                        IntOffset(
-                                            viewportSize.width,
-                                            viewportSize.height
-                                        ), centerGeo, currentZoom, viewportSize
-                                    )
-                                    val tilServer =
-                                        viewModel.tileServerRepository.currentServerFlow().value
-                                    val minSeedZoom = viewModel.mapZoom.value.roundToInt()
-                                        .coerceIn(tilServer.tileLayerMin, tilServer.tileLayerMax)
-                                    val maxSeedZoom = tilServer.tileLayerMax
-
-                                    viewModel.startSeedingArea(
-                                        minLat = bottomRightGeo.latitude.toFloat(),
-                                        maxLat = topLeftGeo.latitude.toFloat(),
-                                        minLon = topLeftGeo.longitude.toFloat(),
-                                        maxLon = bottomRightGeo.longitude.toFloat(),
-                                        minZoom = minSeedZoom,
-                                        maxZoom = maxSeedZoom
-                                    )
-                                } else {
-                                    Napier.v("Viewport size not available yet for seeding.")
-                                }
-                            },
-                        ) {
-                            Icon(
-                                Icons.Default.Download,
-                                contentDescription = "Download map area",
-                                modifier = Modifier.size(ButtonDefaults.IconSize),
-                            )
-                            Text("Download Current Map Area")
-                        }
-                    }
-                }
-
-                if (!isWatchFeatureDisabled) {
-                    Button(
-                        onClick = {
                             if (viewportSize != IntSize.Zero) {
-                                val centerGeo = GeoPosition(
+                                val currentCenter = GeoPosition(
                                     viewModel.mapCenter.value.latitude.toDouble(),
                                     viewModel.mapCenter.value.longitude.toDouble()
                                 )
                                 val currentZoom = viewModel.mapZoom.value
                                 val topLeftGeo = screenPixelToGeo(
-                                    IntOffset(0, 0),
-                                    centerGeo,
-                                    currentZoom,
-                                    viewportSize
+                                    IntOffset(0, 0), currentCenter, currentZoom, viewportSize
                                 )
                                 val bottomRightGeo = screenPixelToGeo(
                                     IntOffset(viewportSize.width, viewportSize.height),
-                                    centerGeo,
+                                    currentCenter,
                                     currentZoom,
                                     viewportSize
                                 )
-                                viewModel.startSeedingAreaToWatch(
-                                    centerGeo = centerGeo,
-                                    topLeftGeo = topLeftGeo,
-                                    bottomRightGeo = bottomRightGeo,
+
+                                viewModel.startSeedingArea(
+                                    minLat = min(
+                                        topLeftGeo.latitude.toFloat(),
+                                        bottomRightGeo.latitude.toFloat()
+                                    ),
+                                    maxLat = max(
+                                        topLeftGeo.latitude.toFloat(),
+                                        bottomRightGeo.latitude.toFloat()
+                                    ),
+                                    minLon = min(
+                                        topLeftGeo.longitude.toFloat(),
+                                        bottomRightGeo.longitude.toFloat()
+                                    ),
+                                    maxLon = max(
+                                        topLeftGeo.longitude.toFloat(),
+                                        bottomRightGeo.longitude.toFloat()
+                                    ),
+                                    minZoom = viewModel.currentTileServer.value.tileLayerMin,
+                                    maxZoom = viewModel.currentTileServer.value.tileLayerMax
                                 )
-                            } else {
-                                Napier.d("Viewport size not available yet.")
                             }
-                        },
+                        }
                     ) {
-                        Icon(
-                            Icons.Default.Watch,
-                            contentDescription = "Download map area on watch",
-                            modifier = Modifier.size(ButtonDefaults.IconSize),
-                        )
-                        Icon(
-                            Icons.Default.Download,
-                            contentDescription = "Download map area on watch",
-                            modifier = Modifier.size(ButtonDefaults.IconSize),
-                        )
+                        Icon(Icons.Default.Download, contentDescription = "Download Area")
                     }
                 }
             }
         }
 
-        SendingFileOverlay(
-            sendingMessage = viewModel.sendingFile
-        )
+        if (isSeeding) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(24.dp)
+                    .fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                elevation = 8.dp
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text("Downloading Map Area", style = MaterialTheme.typography.h6)
+                    Text(
+                        "Downloading zoom level $zSeedingProgress",
+                        style = MaterialTheme.typography.body2
+                    )
+
+                    LinearProgressIndicator(
+                        progress = seedingProgress,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Text(
+                        "${(seedingProgress * 100).roundToInt()}% Complete",
+                        style = MaterialTheme.typography.caption
+                    )
+
+                    Button(onClick = { viewModel.cancelSeedingArea() }) {
+                        Icon(Icons.Default.Stop, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Cancel")
+                    }
+                }
+            }
+        }
+
+        if (isGeneratingPalette) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = Color.Black.copy(alpha = 0.5f)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator(color = Color.White)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text("Extracting Palette...", color = Color.White)
+                    }
+                }
+            }
+        }
 
         LoadingOverlay(
-            isLoading = isGeneratingPalette,
-            loadingText = "Generating Color Palette..."
+            isLoading = viewModel.sendingFile.value.isNotEmpty(),
+            loadingText = viewModel.sendingFile.value
         )
     }
 }
 
+@Composable
+fun WatchSendDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Download to Watch") },
+        text = { Text("Are you sure you want to start caching map tiles for this area on your Garmin device? This process can take a significant amount of time and uses device battery.") },
+        confirmButton = {
+            Button(onClick = onConfirm) {
+                Text("Start")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
 
-// Data class to hold calculated chart bounds and data
+@Composable
+private fun NearbyActivityListItem(
+    activity: StravaActivity,
+    tileRepository: ITileRepository,
+    tileServer: TileServerInfo,
+    onPreviewClick: () -> Unit,
+    onSendClick: () -> Unit,
+    onStravaClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(64.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(Color.Gray.copy(alpha = 0.1f))
+        ) {
+            RouteMiniMap(
+                route = activity.summaryToRoute(),
+                tileRepository = tileRepository,
+                modifier = Modifier.fillMaxSize(),
+                tileServer,
+            )
+        }
+
+        Spacer(Modifier.width(12.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = activity.name,
+                style = MaterialTheme.typography.subtitle2,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = activity.getActivityIcon(),
+                    contentDescription = null,
+                    modifier = Modifier.size(12.dp),
+                    tint = Color.Gray
+                )
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    text = (activity.type ?: "Activity").uppercase(),
+                    style = MaterialTheme.typography.overline,
+                    color = Color.Gray
+                )
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = activity.startDate.toLocalDateTime(TimeZone.currentSystemDefault())
+                        .toString().substringBefore("T"),
+                    style = MaterialTheme.typography.caption,
+                    color = Color.Gray.copy(0.7f)
+                )
+
+                Spacer(Modifier.weight(1f))
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onPreviewClick, modifier = Modifier.size(28.dp)) {
+                        Icon(
+                            Icons.Default.LocationOn,
+                            null,
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colors.primary.copy(0.7f)
+                        )
+                    }
+                    IconButton(onClick = onSendClick, modifier = Modifier.size(28.dp)) {
+                        Icon(
+                            Icons.Default.PlayArrow,
+                            null,
+                            modifier = Modifier.size(20.dp),
+                            tint = Color(0xFF4CAF50)
+                        )
+                    }
+                    IconButton(onClick = onStravaClick, modifier = Modifier.size(28.dp)) {
+                        Icon(
+                            Icons.Default.OpenInNew,
+                            null,
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colors.primary
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun NearbyRouteListItem(
+    routeEntry: RouteEntry,
+    routeRepo: RouteRepository,
+    tileRepository: ITileRepository,
+    tileServer: TileServerInfo,
+    onPreviewClick: () -> Unit,
+    onSendClick: () -> Unit
+) {
+    val snackbarHostState = remember { SnackbarHostState() }
+    val routeDetail by produceState<Route?>(initialValue = null, routeEntry.id) {
+        value = routeRepo.getRouteEntrySummary(routeEntry, snackbarHostState)
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(64.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(Color.Gray.copy(alpha = 0.1f)),
+            contentAlignment = Alignment.Center
+        ) {
+            routeDetail?.let { activeRoute ->
+                RouteMiniMap(
+                    route = activeRoute,
+                    tileRepository = tileRepository,
+                    modifier = Modifier.fillMaxSize(),
+                    tileServer,
+                )
+            } ?: run {
+                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+            }
+        }
+
+        Spacer(Modifier.width(12.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = routeEntry.name.ifBlank { "<No Name>" },
+                style = MaterialTheme.typography.subtitle2,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Directions,
+                    contentDescription = null,
+                    modifier = Modifier.size(12.dp),
+                    tint = Color.Gray
+                )
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    text = routeEntry.type.name,
+                    style = MaterialTheme.typography.overline,
+                    color = Color.Gray
+                )
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = routeEntry.createdAt.toLocalDateTime(TimeZone.currentSystemDefault())
+                        .toString().substringBefore("T"),
+                    style = MaterialTheme.typography.caption,
+                    color = Color.Gray.copy(0.7f)
+                )
+
+                Spacer(Modifier.weight(1f))
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onPreviewClick, modifier = Modifier.size(28.dp)) {
+                        Icon(
+                            Icons.Default.LocationOn,
+                            null,
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colors.primary.copy(0.7f)
+                        )
+                    }
+                    IconButton(onClick = onSendClick, modifier = Modifier.size(28.dp)) {
+                        Icon(
+                            Icons.Default.PlayArrow,
+                            null,
+                            modifier = Modifier.size(20.dp),
+                            tint = Color(0xFF4CAF50)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 private data class ChartData(
     val points: List<Pair<Float, Float>> = emptyList(), // (distance, altitude)
     val minAltitude: Float = 0f,
@@ -702,11 +691,13 @@ private data class ChartData(
     val totalDistance: Float = 0f
 )
 
-@OptIn(ExperimentalTextApi::class) // Still needed for TextMeasurer/drawText at the top level
+@OptIn(ExperimentalTextApi::class)
 @Composable
 fun ElevationProfileChart(
     modifier: Modifier = Modifier,
     route: Route,
+    hoveredDistance: Float? = null,
+    onHoveredDistanceChange: (Float?) -> Unit = {},
     lineColor: Color = MaterialTheme.colors.primary,
     strokeWidth: Float = 4f,
     gridColor: Color = Color.Gray,
@@ -737,6 +728,43 @@ fun ElevationProfileChart(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
+                .pointerInput(chartData, horizontalPaddingPx) {
+                    detectDragGestures(
+                        onDragStart = { offset ->
+                            val availableWidth = size.width - 2 * horizontalPaddingPx
+                            if (availableWidth > 0) {
+                                val distance = ((offset.x - horizontalPaddingPx) / availableWidth) * chartData.totalDistance
+                                onHoveredDistanceChange(distance.coerceIn(0f, chartData.totalDistance))
+                            }
+                        },
+                        onDrag = { change, _ ->
+                            val availableWidth = size.width - 2 * horizontalPaddingPx
+                            if (availableWidth > 0) {
+                                val currentX = change.position.x
+                                val distance = ((currentX - horizontalPaddingPx) / availableWidth) * chartData.totalDistance
+                                onHoveredDistanceChange(distance.coerceIn(0f, chartData.totalDistance))
+                            }
+                        },
+                        onDragEnd = { onHoveredDistanceChange(null) },
+                        onDragCancel = { onHoveredDistanceChange(null) }
+                    )
+                }
+                .pointerInput(chartData, horizontalPaddingPx) {
+                    detectTapGestures(
+                        onPress = { offset ->
+                            val availableWidth = size.width - 2 * horizontalPaddingPx
+                            if (availableWidth > 0) {
+                                val distance = ((offset.x - horizontalPaddingPx) / availableWidth) * chartData.totalDistance
+                                onHoveredDistanceChange(distance.coerceIn(0f, chartData.totalDistance))
+                            }
+                            try {
+                                awaitRelease()
+                            } finally {
+                                onHoveredDistanceChange(null)
+                            }
+                        }
+                    )
+                }
         ) { // Canvas lambda provides DrawScope
             if (chartData.points.size >= 2 && chartData.totalDistance > 0f) {
                 // Pass the textMeasurer instance to drawGridLines
@@ -764,6 +792,74 @@ fun ElevationProfileChart(
                     horizontalPadding = horizontalPaddingPx,
                     verticalPadding = verticalPaddingPx
                 )
+
+                // Draw Hover indicator
+                hoveredDistance?.let { dist ->
+                    val availableWidth = size.width - 2 * horizontalPaddingPx
+                    val xScale = availableWidth / chartData.totalDistance
+                    val x = horizontalPaddingPx + (dist * xScale)
+
+                    // Find elevation at this distance (interpolate)
+                    val elevation = interpolateElevation(chartData.points, dist)
+
+                    val altitudeRange = chartData.maxAltitude - chartData.minAltitude
+                    val availableHeight = size.height - 2 * verticalPaddingPx
+                    val yScale = if (altitudeRange > 0) availableHeight / altitudeRange else 0f
+                    val y = if (altitudeRange > 0) {
+                        size.height - verticalPaddingPx - ((elevation - chartData.minAltitude) * yScale)
+                    } else {
+                        verticalPaddingPx + availableHeight / 2f
+                    }
+
+                    // Draw vertical line
+                    drawLine(
+                        color = lineColor.copy(alpha = 0.5f),
+                        start = Offset(x, verticalPaddingPx),
+                        end = Offset(x, size.height - verticalPaddingPx),
+                        strokeWidth = 2f
+                    )
+
+                    // Draw dot at elevation
+                    drawCircle(
+                        color = lineColor,
+                        radius = 6f,
+                        center = Offset(x, y)
+                    )
+
+                    // Draw tooltip
+                    val tooltipText = "${formatDistance(dist)} / ${formatAltitude(elevation)}"
+                    val textLayoutResult = textMeasurer.measure(
+                        AnnotatedString(tooltipText),
+                        style = TextStyle(
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
+
+                    val tooltipPadding = 8f
+                    val tooltipWidth = textLayoutResult.size.width + tooltipPadding * 2
+                    val tooltipHeight = textLayoutResult.size.height + tooltipPadding * 2
+                    
+                    var tooltipX = x - tooltipWidth / 2
+                    var tooltipY = y - tooltipHeight - 16f
+                    
+                    // Keep tooltip on screen
+                    tooltipX = tooltipX.coerceIn(0f, size.width - tooltipWidth)
+                    if (tooltipY < 0) tooltipY = y + 16f
+
+                    drawRoundRect(
+                        color = Color.Black.copy(alpha = 0.7f),
+                        topLeft = Offset(tooltipX, tooltipY),
+                        size = androidx.compose.ui.geometry.Size(tooltipWidth, tooltipHeight),
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f)
+                    )
+
+                    drawText(
+                        textLayoutResult,
+                        topLeft = Offset(tooltipX + tooltipPadding, tooltipY + tooltipPadding)
+                    )
+                }
             }
         }
 
@@ -789,6 +885,23 @@ fun ElevationProfileChart(
             }
         }
     }
+}
+
+private fun interpolateElevation(points: List<Pair<Float, Float>>, distance: Float): Float {
+    if (points.isEmpty()) return 0f
+    if (distance <= points.first().first) return points.first().second
+    if (distance >= points.last().first) return points.last().second
+
+    // Find the two points to interpolate between
+    for (i in 0 until points.size - 1) {
+        val p1 = points[i]
+        val p2 = points[i + 1]
+        if (distance >= p1.first && distance <= p2.first) {
+            val fraction = (distance - p1.first) / (p2.first - p1.first)
+            return p1.second + fraction * (p2.second - p1.second)
+        }
+    }
+    return points.last().second
 }
 
 // Helper function to format distance (e.g., to km)

@@ -87,6 +87,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
 import kotlin.math.abs
+import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.ln
 import kotlin.math.max
@@ -94,6 +95,7 @@ import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sin
+import kotlin.math.sqrt
 
 private const val OVERZOOM_LEVELS = 3f
 val mapButtonStyle = Modifier.size(width = 60.dp, height = 35.dp)
@@ -108,7 +110,8 @@ fun MapTilerComposable(
     routeColor: Color = Color.Blue,
     routeStrokeWidth: Float = 8f,
     fitToBoundsPaddingPercent: Float = 0.1f,
-    isWatchFeatureDisabled: Boolean
+    isWatchFeatureDisabled: Boolean,
+    hoveredDistance: Float? = null
 ) {
     val isStravaEnabled by viewModel.isStravaEnabled.collectAsState()
     val stravaRoutes by viewModel.stravaRoutes.collectAsState()
@@ -479,6 +482,31 @@ fun MapTilerComposable(
                             }
                         }
 
+                        // Draw hovered distance cursor
+                        hoveredDistance?.let { dist ->
+                            // Find the point on the route for this distance
+                            findPointAtDistance(route.route, dist)?.let { point ->
+                                val screenPos = geoToScreenPixel(
+                                    GeoPosition(point.latitude.toDouble(), point.longitude.toDouble()),
+                                    localCenterGeo,
+                                    integerZoom.toFloat(),
+                                    viewportSize
+                                )
+                                val cursorOffset = Offset(screenPos.x.toFloat(), screenPos.y.toFloat())
+                                
+                                drawCircle(
+                                    color = Color.White,
+                                    radius = 12f / scale,
+                                    center = cursorOffset
+                                )
+                                drawCircle(
+                                    color = routeColor,
+                                    radius = 8f / scale,
+                                    center = cursorOffset
+                                )
+                            }
+                        }
+
                         // ... inside the Canvas composable, after drawing the blue route path ...
 
                         routeToDisplay?.let { route ->
@@ -788,6 +816,43 @@ fun MapTilerComposable(
             }
         }
     }
+}
+
+private fun findPointAtDistance(points: List<Point>, targetDistance: Float): Point? {
+    if (points.isEmpty()) return null
+    if (targetDistance <= 0) return points.first()
+
+    var cumulativeDistance = 0f
+    for (i in 0 until points.size - 1) {
+        val p1 = points[i]
+        val p2 = points[i + 1]
+        val dist = haversineDistance(p1.latitude, p1.longitude, p2.latitude, p2.longitude)
+        if (cumulativeDistance + dist >= targetDistance) {
+            val fraction = (targetDistance - cumulativeDistance) / dist
+            return Point(
+                p1.latitude + fraction * (p2.latitude - p1.latitude),
+                p1.longitude + fraction * (p2.longitude - p1.longitude),
+                p1.altitude + fraction * (p2.altitude - p1.altitude)
+            )
+        }
+        cumulativeDistance += dist
+    }
+    return points.last()
+}
+
+private fun haversineDistance(lat1: Float, lon1: Float, lat2: Float, lon2: Float): Float {
+    val R = 6371e3 // Earth radius in meters
+    val phi1 = Math.toRadians(lat1.toDouble())
+    val phi2 = Math.toRadians(lat2.toDouble())
+    val deltaPhi = Math.toRadians((lat2 - lat1).toDouble())
+    val deltaLambda = Math.toRadians((lon2 - lon1).toDouble())
+
+    val a = sin(deltaPhi / 2) * sin(deltaPhi / 2) +
+            cos(phi1) * cos(phi2) *
+            sin(deltaLambda / 2) * sin(deltaLambda / 2)
+    val c = 2 * atan2(sqrt(a), sqrt(1 - a))
+
+    return (R * c).toFloat()
 }
 
 @Composable

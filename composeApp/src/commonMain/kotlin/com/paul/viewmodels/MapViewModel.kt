@@ -81,7 +81,7 @@ sealed class MapViewNavigationEvent {
 class MapViewModel(
     public val connection: IConnection,
     private val deviceSelector: DeviceSelector,
-    private val tileRepository: ITileRepository,
+    val tileRepository: ITileRepository,
     val tileServerRepository: TileServerRepo,
     private val snackbarHostState: SnackbarHostState,
     private val locationService: ILocationService,
@@ -130,6 +130,14 @@ class MapViewModel(
     // --- Elevation Profile State ---
     private val _isElevationProfileVisible = MutableStateFlow(false) // Initially hidden
     val isElevationProfileVisible: StateFlow<Boolean> = _isElevationProfileVisible
+
+    // --- Elevation Profile Interactivity ---
+    private val _hoveredDistance = MutableStateFlow<Float?>(null) // Distance in meters along the route
+    val hoveredDistance: StateFlow<Float?> = _hoveredDistance.asStateFlow()
+
+    fun setHoveredDistance(distance: Float?) {
+        _hoveredDistance.value = distance
+    }
 
     // --- Seeding / Offline State ---
     private val _isSeeding = MutableStateFlow(false)
