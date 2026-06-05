@@ -12,6 +12,7 @@ import com.paul.domain.RouteSettings
 import com.paul.domain.TileServerInfo
 import com.paul.infrastructure.connectiq.IConnection
 import com.paul.infrastructure.repositories.ColourPaletteRepository
+import com.paul.infrastructure.repositories.GeneralSettingsRepository
 import com.paul.infrastructure.repositories.ITileRepository
 import com.paul.infrastructure.repositories.RouteRepository
 import com.paul.infrastructure.repositories.StravaRepository
@@ -35,6 +36,7 @@ class Settings(
     webServerController: WebServerController,
     tileRepo: ITileRepository,
     public val routesRepo: RouteRepository,
+    public val generalSettingsRepo: GeneralSettingsRepository,
     private val colourPaletteRepository: ColourPaletteRepository,
     public val stravaRepo: StravaRepository,
 ) : ViewModel() {
@@ -129,8 +131,17 @@ class Settings(
             } catch (t: Throwable) {
                 Napier.e("Failed to save route settings", t, tag = TAG)
                 snackbarHostState.showSnackbar("Error saving route settings")
-                // Optional: You could roll back the change here if saving fails
-                // _routeSettings.value = routesRepo.getSettings()
+            }
+        }
+    }
+
+    fun onGeneralSettingsChanged(newSettings: com.paul.domain.GeneralSettings) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                generalSettingsRepo.saveSettings(newSettings)
+            } catch (t: Throwable) {
+                Napier.e("Failed to save general settings", t, tag = TAG)
+                snackbarHostState.showSnackbar("Error saving general settings")
             }
         }
     }

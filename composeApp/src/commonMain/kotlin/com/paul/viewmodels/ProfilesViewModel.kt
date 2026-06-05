@@ -14,6 +14,7 @@ import com.paul.domain.Profile
 import com.paul.domain.ProfileSettings
 import com.paul.infrastructure.connectiq.IConnection
 import com.paul.infrastructure.repositories.ColourPaletteRepository
+import com.paul.infrastructure.repositories.GeneralSettingsRepository
 import com.paul.infrastructure.repositories.ProfileRepo
 import com.paul.infrastructure.repositories.RouteRepository
 import com.paul.infrastructure.repositories.StravaRepository
@@ -46,6 +47,7 @@ class ProfilesViewModel(
     val profileRepo: ProfileRepo,
     val clipboardHandler: IClipboardHandler,
     val routeRepo: RouteRepository,
+    val generalSettingsRepo: GeneralSettingsRepository,
     private val colourPaletteRepo: ColourPaletteRepository,
     private val stravaRepo: StravaRepository,
 ) : ViewModel() {
@@ -225,6 +227,7 @@ class ProfilesViewModel(
             tileServerRepo.updateAuthToken(profile.appSettings.authToken)
             tileServerRepo.updateCurrentTileType(profile.appSettings.tileType)
             routeRepo.saveSettings(profile.appSettings.routeSettings)
+            generalSettingsRepo.saveSettings(profile.appSettings.generalSettings)
             if (profile.appSettings.colourPaletteUniqueId != null) {
                 val colourPallet =
                     colourPaletteRepo.getPaletteByUUID(profile.appSettings.colourPaletteUniqueId)
@@ -342,6 +345,7 @@ class ProfilesViewModel(
             tileServerRepo.currentTokenFlow().value,
             tileServerRepo.currentServerFlow().value.id,
             routeRepo.currentSettingsFlow().value,
+            generalSettingsRepo.currentSettingsFlow().value,
             colourPaletteRepo.currentColourPaletteFlow.value.uniqueId,
             connection.connectIqAppIdFlow().value,
             tileServerRepo.webServerPortFlow().value,

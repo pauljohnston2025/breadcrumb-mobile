@@ -46,6 +46,10 @@ Configure the app settings. Note some of the tile server settings will clear the
 ![](images/manual/appsettings.png)
 ![](images/manual/appsettings-custom.png)
 
+### General
+
+**Open all files (FIT support)** - Enable this to allow the app to be listed as a handler for all file types. This is a workaround for some file managers (e.g. Samsung File Explorer) that do not correctly identify .fit files, causing them to have no MIME type. When a file manager like Samsung's doesn't know what a `.fit` file is, it sends it with an empty MIME type, which usually prevents Breadcrumb from being shown in the "Open with" menu. Enabling this tells Android that Breadcrumb can try to open *anything*, ensuring `.fit` files can be selected. Note: This will cause Breadcrumb to appear as an option for opening many unrelated file types (mp3, exe, etc.). Requires the app to be opened at least once after enabling to register the setting.
+
 ### Connect IQ App
 
 You must set the connect iq app you wish to talk to (this is the app/datafield installed on the watch)

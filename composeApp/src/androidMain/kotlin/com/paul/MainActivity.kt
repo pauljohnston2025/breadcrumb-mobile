@@ -21,6 +21,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import com.paul.infrastructure.connectiq.Connection
 import com.paul.infrastructure.connectiq.DeviceList
 import com.paul.infrastructure.getDatabaseBuilder
@@ -28,6 +29,8 @@ import com.paul.infrastructure.getRoomDatabase
 import com.paul.infrastructure.initAndroidDatabase
 import com.paul.infrastructure.repositories.ColourPaletteRepository
 import com.paul.infrastructure.repositories.ITileRepository
+import com.paul.infrastructure.repositories.RouteRepository
+import com.paul.infrastructure.repositories.GeneralSettingsRepository
 import com.paul.infrastructure.repositories.StravaRepository
 import com.paul.infrastructure.service.AndroidLocationService
 import com.paul.infrastructure.service.BrowserLauncher
@@ -41,6 +44,7 @@ import com.paul.infrastructure.service.StravaImportService
 import com.paul.ui.App
 import io.github.aakira.napier.DebugAntilog
 import io.github.aakira.napier.Napier
+import kotlinx.coroutines.launch
 
 
 class MainActivity : ComponentActivity() {
@@ -78,18 +82,37 @@ class MainActivity : ComponentActivity() {
         StravaImportService(stravaDao, fileHelper, gpxFileLoader, fitFileLoader)
     }
 
+    private val routeRepository by lazy {
+        RouteRepository(fileHelper, gpxFileLoader, fitFileLoader)
+    }
+
+    private val generalSettingsRepository by lazy {
+        GeneralSettingsRepository()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         // Register application/octet-stream to your custom manifest group
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) { // Android 11+
-            try {
-                packageManager.setMimeGroup(
-                    "fit_files",
-                    setOf("*/*")
-                )
-            } catch (e: Exception) {
-                e.printStackTrace()
+            lifecycleScope.launch {
+                generalSettingsRepository.currentSettingsFlow().collect { settings ->
+                    try {
+                        if (settings.fitMimeGroupEnabled) {
+                            packageManager.setMimeGroup(
+                                "fit_files",
+                                setOf("*/*")
+                            )
+                        } else {
+                            packageManager.setMimeGroup(
+                                "fit_files",
+                                emptySet()
+                            )
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
             }
         }
 
@@ -121,6 +144,8 @@ class MainActivity : ComponentActivity() {
                     locationService,
                     stravaRepository,
                     stravaImportService,
+                    routeRepository,
+                    generalSettingsRepository,
                 )
             }
         }

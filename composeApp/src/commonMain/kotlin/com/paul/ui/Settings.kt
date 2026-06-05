@@ -491,6 +491,8 @@ fun Settings(
 
     val routeSettings by viewModel.routesRepo.currentSettingsFlow()
         .collectAsState(RouteSettings.default)
+    val generalSettings by viewModel.generalSettingsRepo.currentSettingsFlow()
+        .collectAsState(com.paul.domain.GeneralSettings.default)
     var coordsLimitString by remember { mutableStateOf("") }
     var dirsLimitString by remember { mutableStateOf("") }
 
@@ -597,6 +599,37 @@ fun Settings(
                         }
                     }
                 }
+            }
+        }
+
+        Divider(modifier = Modifier.padding(vertical = 8.dp))
+
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text("General:", style = MaterialTheme.typography.body1)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Open all files (FIT support):", style = MaterialTheme.typography.body1)
+                    Text(
+                        "This allows Breadcrumb to open any file type (including non-FIT files like .mp3, .exe, .mp4). This is required on some devices (e.g. Samsung) that don't correctly identify .fit files, making them impossible to detect otherwise.",
+                        style = MaterialTheme.typography.caption,
+                        color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f)
+                    )
+                }
+                Switch(
+                    checked = generalSettings.fitMimeGroupEnabled,
+                    onCheckedChange = { isChecked ->
+                        viewModel.onGeneralSettingsChanged(generalSettings.copy(fitMimeGroupEnabled = isChecked))
+                    }
+                )
             }
         }
 
@@ -873,11 +906,11 @@ fun Settings(
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .padding(top = 8.dp),
+                        .padding(vertical = 8.dp),
                     Arrangement.SpaceBetween,
                     Alignment.CenterVertically
                 ) {
-                    Text("Mock Directions:", style = MaterialTheme.typography.body2)
+                    Text("Mock Directions:", style = MaterialTheme.typography.body1)
                     Switch(
                         checked = settings.mockDirections,
                         onCheckedChange = {
@@ -906,13 +939,13 @@ fun Settings(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 4.dp),
+                        .padding(vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
                         "Reduce Points With Reumann-Witkam:",
-                        style = MaterialTheme.typography.body2
+                        style = MaterialTheme.typography.body1
                     )
                     Switch(
                         checked = settings.useReumannWitkam,
@@ -942,13 +975,13 @@ fun Settings(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 4.dp),
+                        .padding(vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
                         "Reduce Points With Douglas-Peucker:",
-                        style = MaterialTheme.typography.body2
+                        style = MaterialTheme.typography.body1
                     )
                     Switch(
                         checked = settings.useDouglasPeucker,
@@ -978,13 +1011,13 @@ fun Settings(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 4.dp),
+                        .padding(vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
                         "Reduce Points With Visvalingam-Whyatt:",
-                        style = MaterialTheme.typography.body2
+                        style = MaterialTheme.typography.body1
                     )
                     Switch(
                         checked = settings.useVisvalingamWhyatt,

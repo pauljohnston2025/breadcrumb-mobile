@@ -45,6 +45,7 @@ import androidx.navigation.compose.rememberNavController
 import com.paul.infrastructure.connectiq.IConnection
 import com.paul.infrastructure.connectiq.IDeviceList
 import com.paul.infrastructure.repositories.ColourPaletteRepository
+import com.paul.infrastructure.repositories.GeneralSettingsRepository
 import com.paul.infrastructure.repositories.ITileRepository
 import com.paul.infrastructure.repositories.ProfileRepo
 import com.paul.infrastructure.repositories.RouteRepository
@@ -94,7 +95,9 @@ fun App(
     locationService: ILocationService,
     stravaRepository: StravaRepository,
     stravaImportService: StravaImportService,
-    ) {
+    routeRepository: RouteRepository,
+    generalSettingsRepository: GeneralSettingsRepository,
+) {
     // Inside the App composable:
     var updateVersion by remember { mutableStateOf<String?>(null) }
     val currentVersion = versionName()
@@ -145,7 +148,8 @@ fun App(
                         scaffoldState.snackbarHostState,
                         webServerController,
                         tileRepo,
-                        RouteRepository(fileHelper, gpxFileLoader, fitFileLoader),
+                        routeRepository,
+                        generalSettingsRepository,
                         colourPaletteRepo,
                         stravaRepository,
                     )
@@ -400,6 +404,7 @@ fun App(
                                             ProfileRepo(), // needs to be a singleton if anything else uses it
                                             clipboardHandler,
                                             settingsViewModel.routesRepo,
+                                            generalSettingsRepository,
                                             colourPaletteRepo,
                                             settingsViewModel.stravaRepo
                                         )

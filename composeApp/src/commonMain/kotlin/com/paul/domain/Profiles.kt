@@ -3,6 +3,7 @@ package com.paul.domain
 import com.paul.infrastructure.repositories.ColourPaletteRepository
 import com.paul.infrastructure.repositories.TileServerRepo
 import com.paul.infrastructure.web.TileType
+import com.paul.domain.GeneralSettings
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
@@ -24,6 +25,7 @@ data class AppSettings(
     val authToken: String,
     val tileServerId: String,
     val routeSettings: RouteSettings = RouteSettings.default,
+    val generalSettings: GeneralSettings = GeneralSettings.default,
     val colourPaletteUniqueId: String? = null,
     val connectIqAppId: String? = null,
     val webServerPort: Int? = null,
