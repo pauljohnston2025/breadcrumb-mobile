@@ -9,6 +9,7 @@ import com.paul.protocol.todevice.Point
 import com.paul.protocol.todevice.Route
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.Instant
@@ -27,101 +28,100 @@ class StravaImportService(
     suspend fun importFromZip(zipUri: String, onProgress: (String) -> Unit): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             onProgress("Opening ZIP archive...")
-            val zipArchive = fileHelper.openZip(zipUri) ?: return@withContext Result.failure(Exception("Failed to open ZIP archive"))
             
+            val activitiesMetadata = mutableListOf<ActivityExport>()
+            val bikes = mutableListOf<StravaGear>()
+            val shoes = mutableListOf<StravaGear>()
+
+            // Pass 1: Random Access for Metadata
+            val zipArchive = fileHelper.openZip(zipUri) ?: return@withContext Result.failure(Exception("Failed to open ZIP archive"))
             zipArchive.use { zip ->
-                val allEntries = zip.entries()
-                Napier.d("ZIP opened. Total entries: ${allEntries.size}", tag = TAG)
-                
-                // Index entries by name (suffix-only for fast lookup of metadata and files)
-                // This converts O(N) entry searches to O(1)
-                val entryMap = allEntries.associateBy { it.name.lowercase().replace("\\", "/") }
-                val suffixMap = allEntries.associateBy { it.name.substringAfterLast("/").lowercase() }
-
                 onProgress("Reading metadata...")
-                val activitiesMetadata = mutableListOf<ActivityExport>()
-                val bikes = mutableListOf<StravaGear>()
-                val shoes = mutableListOf<StravaGear>()
+                val allEntries = zip.entries()
+                fun findEntry(suffix: String) = allEntries.find { it.name.endsWith(suffix, ignoreCase = true) }
 
-                fun getEntry(suffix: String) = entryMap[suffix.lowercase()] ?: suffixMap[suffix.substringAfterLast("/").lowercase()]
+                findEntry("activities.csv")?.let { activitiesMetadata.addAll(parseActivitiesCsv(it.readBytes().decodeToString())) }
+                findEntry("bikes.csv")?.let { bikes.addAll(parseBikesCsv(it.readBytes().decodeToString())) }
+                findEntry("shoes.csv")?.let { shoes.addAll(parseShoesCsv(it.readBytes().decodeToString())) }
+            }
 
-                getEntry("activities.csv")?.let { activitiesMetadata.addAll(parseActivitiesCsv(it.readBytes().decodeToString())) }
-                getEntry("bikes.csv")?.let { bikes.addAll(parseBikesCsv(it.readBytes().decodeToString())) }
-                getEntry("shoes.csv")?.let { shoes.addAll(parseShoesCsv(it.readBytes().decodeToString())) }
+            if (bikes.isNotEmpty() || shoes.isNotEmpty()) dao.insertGear(bikes + shoes)
 
-                if (bikes.isNotEmpty() || shoes.isNotEmpty()) dao.insertGear(bikes + shoes)
+            if (activitiesMetadata.isEmpty()) {
+                Napier.w("No activities found in metadata!", tag = TAG)
+                return@withContext Result.success(Unit)
+            }
 
-                if (activitiesMetadata.isEmpty()) {
-                    Napier.w("No activities found in metadata!", tag = TAG)
-                    return@use
-                }
+            val totalExisting = dao.size()
+            val newActivitiesMeta = if (totalExisting == 0L) activitiesMetadata else activitiesMetadata.filter { dao.getActivity(it.id) == null }
 
-                val totalExisting = dao.size()
-                val newActivitiesMeta = if (totalExisting == 0L) activitiesMetadata else activitiesMetadata.filter { dao.getActivity(it.id) == null }
+            val totalToImport = newActivitiesMeta.size
+            if (totalToImport == 0) {
+                onProgress("No new activities to import.")
+                return@withContext Result.success(Unit)
+            }
 
-                val totalToImport = newActivitiesMeta.size
-                if (totalToImport == 0) {
-                    onProgress("No new activities to import.")
-                    return@use
-                }
+            // Create O(1) lookup for Pass 2
+            val activitiesToProcess = newActivitiesMeta.associateBy { it.filename.replace("\\", "/").lowercase() }
+            val activitiesByBaseName = newActivitiesMeta.associateBy { it.filename.substringAfterLast("/").lowercase() }
+            val gearMap = (bikes + shoes).associate { it.name to it.id }
 
-                val gearMap = (bikes + shoes).associate { it.name to it.id }
-                var importedCount = 0
+            onProgress("Importing $totalToImport activities...")
+            var importedCount = 0
 
-                for (activityMeta in newActivitiesMeta) {
-                    // Check for cancellation (fixes Cancel button)
-                    ensureActive()
-                    
-                    val entry = getEntry(activityMeta.filename)
-                    
-                    if (entry != null) {
-                        try {
-                            var bytes = entry.readBytes()
-                            if (entry.name.endsWith(".gz", ignoreCase = true)) {
-                                bytes = fileHelper.decompressGzip(bytes)
-                            }
-
-                            val points = if (entry.name.contains(".fit", ignoreCase = true)) {
-                                fitFileLoader.loadFitFromBytes(bytes, activityMeta.name).getPoints()
-                            } else if (entry.name.contains(".gpx", ignoreCase = true) || entry.name.contains(".tcx", ignoreCase = true)) {
-                                gpxFileLoader.loadGpxFromBytes(bytes).getPoints() ?: emptyList()
-                            } else emptyList()
-                            
-                            val summaryPolyline = if (points.isNotEmpty()) {
-                                StravaMap.encodePolyline(Route.summary(points))
-                            } else null
-
-                            val activity = StravaActivity(
-                                id = activityMeta.id,
-                                name = activityMeta.name,
-                                startDate = activityMeta.startDate,
-                                type = activityMeta.type,
-                                gearId = activityMeta.gearName?.let { gn -> 
-                                    gearMap.entries.find { gn.contains(it.key, ignoreCase = true) }?.value 
-                                },
-                                map = summaryPolyline?.let { StravaMap(it) }
-                            )
-                            
-                            // Insert one by one for lively progress and immediate availability
-                            dao.insertActivities(listOf(activity))
-                            if (points.isNotEmpty()) {
-                                dao.insertStream(StravaStreamEntity(activityMeta.id, points))
-                            }
-                            
-                            importedCount++
-                            onProgress("Imported $importedCount / $totalToImport\n${activity.name}")
-                        } catch (e: Exception) {
-                            Napier.e("Failed to import ${entry.name}", e, tag = TAG)
+            // Pass 2: Sequential Linear Stream for Data
+            fileHelper.processZip(zipUri) { entryName, readBytes ->
+                currentCoroutineContext().ensureActive()
+                val normalizedName = entryName.replace("\\", "/").lowercase()
+                val baseName = normalizedName.substringAfterLast("/")
+                
+                val activityMeta = activitiesToProcess[normalizedName] ?: activitiesByBaseName[baseName]
+                
+                if (activityMeta != null) {
+                    try {
+                        var bytes = readBytes()
+                        if (entryName.endsWith(".gz", ignoreCase = true)) {
+                            bytes = fileHelper.decompressGzip(bytes)
                         }
-                    } else {
-                        // Skip if file not found, but count it as processed
+
+                        val points = if (entryName.contains(".fit", ignoreCase = true)) {
+                            fitFileLoader.loadFitFromBytes(bytes, activityMeta.name).getPoints()
+                        } else if (entryName.contains(".gpx", ignoreCase = true) || entryName.contains(".tcx", ignoreCase = true)) {
+                            gpxFileLoader.loadGpxFromBytes(bytes).getPoints() ?: emptyList()
+                        } else emptyList()
+                        
+                        val summaryPolyline = if (points.isNotEmpty()) {
+                            StravaMap.encodePolyline(Route.summary(points))
+                        } else null
+
+                        val activity = StravaActivity(
+                            id = activityMeta.id,
+                            name = activityMeta.name,
+                            startDate = activityMeta.startDate,
+                            type = activityMeta.type,
+                            gearId = activityMeta.gearName?.let { gn -> 
+                                gearMap.entries.find { gn.contains(it.key, ignoreCase = true) }?.value 
+                            },
+                            map = summaryPolyline?.let { StravaMap(it) }
+                        )
+                        
+                        dao.insertActivities(listOf(activity))
+                        if (points.isNotEmpty()) {
+                            dao.insertStream(StravaStreamEntity(activityMeta.id, points))
+                        }
+                        
                         importedCount++
-                        Napier.w("File not found in ZIP: ${activityMeta.filename}", tag = TAG)
+                        onProgress("Imported $importedCount / $totalToImport\n${activity.name}")
+                    } catch (e: Exception) {
+                        Napier.e("Failed to import $entryName", e, tag = TAG)
                     }
                 }
-
-                onProgress("Finished! Imported $importedCount activities.")
+                
+                // Stop pass 2 early if we found everything
+                importedCount >= totalToImport
             }
+
+            onProgress("Finished! Imported $importedCount activities.")
             Result.success(Unit)
         } catch (e: Exception) {
             Napier.e("Import failed", e, tag = TAG)
