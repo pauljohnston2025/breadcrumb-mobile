@@ -69,6 +69,7 @@ import com.paul.infrastructure.repositories.ITileRepository
 import com.paul.infrastructure.repositories.RouteRepository
 import com.paul.infrastructure.repositories.StravaRepository
 import com.paul.infrastructure.repositories.TileServerRepo
+import com.paul.infrastructure.service.formatDistance
 import com.paul.protocol.todevice.Route
 import com.paul.viewmodels.StartViewModel
 import kotlinx.datetime.TimeZone.Companion.currentSystemDefault
@@ -473,8 +474,16 @@ private fun HistoryListItem(
                 )
             }
 
+            val distance = if (stravaActivity != null) stravaActivity!!.distance else if (localRoute != null) localRoute.distanceMeters else null
+            if (distance != null) {
+                Text(
+                    text = "Dist: ${formatDistance(distance)}",
+                    style = MaterialTheme.typography.caption,
+                    color = Color.Gray
+                )
+            }
             Text(
-                text = item.timestamp.toLocalDateTime(currentSystemDefault()).toString(),
+                text = item.timestamp.toLocalDateTime(currentSystemDefault()).toString().replace("T", " ").substring(0, 16),
                 style = MaterialTheme.typography.caption,
                 color = Color.Gray
             )

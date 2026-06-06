@@ -180,6 +180,12 @@ class RouteRepository(
                 throw RuntimeException(error)
             }
         }
+        val distance = when (route) {
+            is CoordinatesRoute -> Route.calculateTotalDistance(route.coordinates())
+            is GpxRoute -> Route.calculateTotalDistance(route.getPoints() ?: emptyList())
+            is FitRoute -> Route.calculateTotalDistance(route.getPoints())
+            else -> 0f
+        }
         routes.add(
             RouteEntry(
                 route.id,
@@ -187,7 +193,8 @@ class RouteRepository(
                 type,
                 Clock.System.now(),
                 route.rawBytes().size.toLong(),
-                route.hasDirectionInfo()
+                route.hasDirectionInfo(),
+                distanceMeters = distance
             )
         )
         saveRoutes()
@@ -203,14 +210,14 @@ class RouteRepository(
         saveRoutes()
     }
 
-    fun updateRouteSummary(id: String, summary: List<Point>) {
+    fun updateRouteSummary(id: String, summary: List<Point>, distanceMeters: Float) {
         val current = getRouteEntry(id)
         if (current == null) {
             return
         }
 
         routes.removeIf { it.id == id }
-        routes.add(current.copy(summary = summary, summaryVersion = ROUTE_SUMMARY_VERSION))
+        routes.add(current.copy(summary = summary, summaryVersion = ROUTE_SUMMARY_VERSION, distanceMeters = distanceMeters))
         saveRoutes()
     }
 
@@ -223,7 +230,18 @@ class RouteRepository(
                 val iRoute = getRouteI(route.id)
                 if (iRoute != null) {
                     val summaryLine = iRoute.toSummary(snackbarHostState)
-                    updateRouteSummary(route.id, summaryLine)
+                    val points = if (iRoute is CoordinatesRoute) {
+                        iRoute.coordinates()
+                    } else if (iRoute is GpxRoute) {
+                        iRoute.getPoints(snackbarHostState) ?: emptyList()
+                    } else if (iRoute is FitRoute) {
+                        iRoute.getPoints()
+                    } else {
+                        emptyList()
+                    }
+                    val distance = Route.calculateTotalDistance(points)
+
+                    updateRouteSummary(route.id, summaryLine, distance)
                     summary = Route(route.name, summaryLine, emptyList())
                 }
             }

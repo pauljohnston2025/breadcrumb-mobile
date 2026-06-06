@@ -99,7 +99,8 @@ class StravaImportService(
                                 gearId = activityMeta.gearName?.let { gn -> 
                                     gearMap.entries.find { gn.contains(it.key, ignoreCase = true) }?.value 
                                 },
-                                map = summaryPolyline?.let { StravaMap(it) }
+                                map = summaryPolyline?.let { StravaMap(it) },
+                                distance = activityMeta.distance
                             )
                             
                             // Insert one by one for lively progress and immediate availability
@@ -140,6 +141,8 @@ class StravaImportService(
         val typeIdx = header.indexOfFirst { it.contains("Activity Type", ignoreCase = true) }
         val gearIdx = header.indexOfFirst { it.contains("Activity Gear", ignoreCase = true) }
         val filenameIdx = header.indexOfFirst { it.contains("Filename", ignoreCase = true) }
+        val distanceIdx = header.indexOfFirst { it.contains("Distance", ignoreCase = true) }
+
         if (idIdx == -1 || filenameIdx == -1) return emptyList()
         for (i in 1 until lines.size) {
             val parts = parseCsvLine(lines[i])
@@ -148,7 +151,22 @@ class StravaImportService(
                     val id = parts[idIdx].trim().toLong()
                     val filename = parts[filenameIdx].trim()
                     if (filename.isEmpty()) continue
-                    activities.add(ActivityExport(id, parts.getOrNull(nameIdx) ?: "Imported Activity", parseStravaDate(parts.getOrNull(dateIdx) ?: ""), parts.getOrNull(typeIdx), parts.getOrNull(gearIdx), filename))
+                    
+                    val distance = if (distanceIdx != -1 && distanceIdx < parts.size) {
+                        parts[distanceIdx].trim().toFloatOrNull() ?: 0f
+                    } else 0f
+
+                    activities.add(
+                        ActivityExport(
+                            id,
+                            parts.getOrNull(nameIdx) ?: "Imported Activity",
+                            parseStravaDate(parts.getOrNull(dateIdx) ?: ""),
+                            parts.getOrNull(typeIdx),
+                            parts.getOrNull(gearIdx),
+                            filename,
+                            distance
+                        )
+                    )
                 } catch (e: Exception) { }
             }
         }
@@ -230,5 +248,13 @@ class StravaImportService(
         res.add(cur.toString().trim()); return res
     }
 
-    private data class ActivityExport(val id: Long, val name: String, val startDate: Instant, val type: String?, val gearName: String?, val filename: String)
+    private data class ActivityExport(
+        val id: Long,
+        val name: String,
+        val startDate: Instant,
+        val type: String?,
+        val gearName: String?,
+        val filename: String,
+        val distance: Float
+    )
 }

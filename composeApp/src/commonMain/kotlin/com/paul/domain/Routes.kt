@@ -115,6 +115,7 @@ data class RouteEntry(
     val hasDirectionInfo: Boolean = false,
     val summary: List<Point>? = null,
     val summaryVersion: Int = -1,
+    val distanceMeters: Float = 0f,
 ) {
     fun summaryToRoute(): Route? {
         if (summary == null) return null

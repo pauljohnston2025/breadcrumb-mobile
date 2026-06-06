@@ -70,6 +70,7 @@ import com.paul.infrastructure.repositories.ITileRepository
 import com.paul.infrastructure.repositories.RouteRepository
 import com.paul.infrastructure.repositories.TileServerRepo
 import com.paul.infrastructure.service.formatBytes
+import com.paul.infrastructure.service.formatDistance
 import com.paul.protocol.todevice.Route
 import com.paul.viewmodels.RoutesViewModel
 import kotlinx.datetime.TimeZone.Companion.currentSystemDefault
@@ -435,14 +436,19 @@ private fun RouteListItem(
             )
 
             Row(
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment = Alignment.Bottom,
                 modifier = Modifier.padding(top = 4.dp)
             ) {
-                Text(
-                    "Size: ${formatBytes(route.sizeBytes)}",
-                    style = MaterialTheme.typography.caption
-                )
-                Spacer(Modifier.weight(1f))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "Dist: ${formatDistance(route.distanceMeters)}",
+                        style = MaterialTheme.typography.caption
+                    )
+                    Text(
+                        "Size: ${formatBytes(route.sizeBytes)}",
+                        style = MaterialTheme.typography.caption
+                    )
+                }
 
                 // Action Buttons
                 ActionButton(Icons.Default.Edit, onClick = { onEditClick(route) })

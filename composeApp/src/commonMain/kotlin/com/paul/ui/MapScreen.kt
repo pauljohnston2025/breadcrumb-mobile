@@ -55,6 +55,7 @@ import com.paul.infrastructure.repositories.ITileRepository
 import com.paul.infrastructure.repositories.RouteRepository
 import com.paul.infrastructure.repositories.TileServerRepo
 import com.paul.infrastructure.service.GeoPosition
+import com.paul.infrastructure.service.formatDistance
 import com.paul.infrastructure.service.screenPixelToGeo
 import com.paul.protocol.todevice.Point
 import com.paul.protocol.todevice.RequestLocationLoad
@@ -534,6 +535,12 @@ private fun NearbyActivityListItem(
                     style = MaterialTheme.typography.overline,
                     color = Color.Gray
                 )
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    text = " • ${formatDistance(activity.distance)}",
+                    style = MaterialTheme.typography.overline,
+                    color = Color.Gray
+                )
             }
 
             Row(
@@ -641,6 +648,12 @@ private fun NearbyRouteListItem(
                 Spacer(Modifier.width(4.dp))
                 Text(
                     text = routeEntry.type.name,
+                    style = MaterialTheme.typography.overline,
+                    color = Color.Gray
+                )
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    text = " • ${formatDistance(routeEntry.distanceMeters)}",
                     style = MaterialTheme.typography.overline,
                     color = Color.Gray
                 )
@@ -902,15 +915,6 @@ private fun interpolateElevation(points: List<Pair<Float, Float>>, distance: Flo
         }
     }
     return points.last().second
-}
-
-// Helper function to format distance (e.g., to km)
-private fun formatDistance(distanceMeters: Float): String {
-    return if (distanceMeters < 1000) {
-        "${distanceMeters.roundToInt()} m"
-    } else {
-        "${"%.1f".format(distanceMeters / 1000f)} km"
-    }
 }
 
 // Helper function to format altitude

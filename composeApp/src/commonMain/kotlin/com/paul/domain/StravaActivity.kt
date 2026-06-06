@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.Pool
 import androidx.compose.material.icons.filled.QuestionMark
 import androidx.compose.material.icons.filled.Water
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.room.ColumnInfo
 import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.Index
@@ -77,6 +78,8 @@ data class StravaActivity(
     @Embedded
     val map: StravaMap? = null,
     val type: String? = null,
+    @ColumnInfo(defaultValue = "0")
+    val distance: Float = 0f,
     @SerialName("gear_id") val gearId: String? = null,
 ) {
     companion object {

@@ -154,7 +154,7 @@ private fun calculateBearing(start: Point, end: Point): Double {
  * Calculates the great-circle distance between two points on Earth using the Haversine formula.
  * @return The distance in meters.
  */
-private fun calculateDistanceInMeters(
+fun calculateDistanceInMeters(
     start: Point,
     end: Point
 ): Double {
@@ -370,7 +370,16 @@ class Route(
 
     companion object {
         // change every time the below changes
-        const val ROUTE_SUMMARY_VERSION = 1
+        const val ROUTE_SUMMARY_VERSION = 2
+
+        fun calculateTotalDistance(points: List<Point>): Float {
+            var totalDistance = 0.0
+            for (i in 0 until points.size - 1) {
+                totalDistance += calculateDistanceInMeters(points[i], points[i + 1])
+            }
+            return totalDistance.toFloat()
+        }
+
         fun summary(route: List<Point>): List<Point> {
             // hack: should lift out to better methods
             return prepareForDevice(

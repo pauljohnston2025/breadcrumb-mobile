@@ -40,6 +40,7 @@ import com.paul.domain.StravaActivity
 import com.paul.domain.StravaGear
 import com.paul.infrastructure.repositories.ITileRepository
 import com.paul.infrastructure.repositories.TileServerRepo.Companion.defaultTileServer
+import com.paul.infrastructure.service.formatDistance
 import com.paul.viewmodels.StravaActivitiesViewModel
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
@@ -484,21 +485,26 @@ private fun StravaActivityListItem(
                 }
             }
 
-            // Bottom Row: Date on left, Actions on right
+            // Bottom Row: Date/Distance on left, Actions on right
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 2.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.Bottom
             ) {
-                Text(
-                    text = activity.startDate.toLocalDateTime(TimeZone.currentSystemDefault())
-                        .toString(),
-                    style = MaterialTheme.typography.caption,
-                    color = Color.Gray.copy(0.7f)
-                )
-
-                Spacer(Modifier.weight(1f))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Dist: ${formatDistance(activity.distance)}",
+                        style = MaterialTheme.typography.caption,
+                        color = Color.Gray.copy(0.7f)
+                    )
+                    Text(
+                        text = activity.startDate.toLocalDateTime(TimeZone.currentSystemDefault())
+                            .toString().replace("T", " ").substring(0, 16),
+                        style = MaterialTheme.typography.caption,
+                        color = Color.Gray.copy(0.7f)
+                    )
+                }
 
                 // Action Icons
                 Row(verticalAlignment = Alignment.CenterVertically) {
