@@ -77,7 +77,7 @@ class StravaImportService(
                 val gearMap = discoveredGears.values.associate { it.name to it.id }
                 val newActivitiesMeta = mutableListOf<ActivityExport>()
 
-                onProgress("Syncing activity gear info...")
+                onProgress("Syncing activity info...")
                 for (activityMeta in activitiesMetadata) {
                     ensureActive()
                     val existing = dao.getActivity(activityMeta.id)
@@ -89,10 +89,33 @@ class StravaImportService(
                         }?.value
                     }
 
+                    // activityMeta.distance is already in meters (converted during CSV parsing)
+                    val metaDistanceMeters = activityMeta.distance
+
                     if (existing == null) {
                         newActivitiesMeta.add(activityMeta)
-                    } else if (targetGearId != null && existing.gearId != targetGearId) {
-                        dao.insertActivities(listOf(existing.copy(gearId = targetGearId)))
+                    } else {
+                        var updated = false
+                        var activityToUpdate = existing
+
+                        if (targetGearId != null && existing.gearId != targetGearId) {
+                            activityToUpdate = activityToUpdate.copy(gearId = targetGearId)
+                            updated = true
+                        }
+
+                        // If the existing distance is exactly the KM value (or close to it), update it to meters
+                        // We check if it's roughly 1000x different to avoid overwriting correct API data with slightly different CSV data
+                        if (existing.distance > 0 && metaDistanceMeters > 0) {
+                            val ratio = metaDistanceMeters / existing.distance
+                            if (ratio > 500f && ratio < 1500f) {
+                                activityToUpdate = activityToUpdate.copy(distance = metaDistanceMeters)
+                                updated = true
+                            }
+                        }
+
+                        if (updated) {
+                            dao.insertActivities(listOf(activityToUpdate))
+                        }
                     }
                 }
 
@@ -197,7 +220,9 @@ class StravaImportService(
                     if (filename.isEmpty()) continue
                     
                     val distance = if (distanceIdx != -1 && distanceIdx < parts.size) {
-                        parts[distanceIdx].trim().toFloatOrNull() ?: 0f
+                        // Strava CSV export uses kilometers, but API uses meters.
+                        // We convert to meters to maintain consistency.
+                        (parts[distanceIdx].trim().toFloatOrNull() ?: 0f) * 1000f
                     } else 0f
 
                     val bikeId = if (bikeIdIdx != -1 && bikeIdIdx < parts.size) parts[bikeIdIdx].trim() else ""
