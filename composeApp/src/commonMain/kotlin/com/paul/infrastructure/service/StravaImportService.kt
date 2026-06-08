@@ -40,32 +40,68 @@ class StravaImportService(
 
                 onProgress("Reading metadata...")
                 val activitiesMetadata = mutableListOf<ActivityExport>()
-                val bikes = mutableListOf<StravaGear>()
-                val shoes = mutableListOf<StravaGear>()
+                val bikeNames = mutableListOf<String>()
+                val shoeNames = mutableListOf<String>()
 
                 fun getEntry(suffix: String) = entryMap[suffix.lowercase()] ?: suffixMap[suffix.substringAfterLast("/").lowercase()]
 
                 getEntry("activities.csv")?.let { activitiesMetadata.addAll(parseActivitiesCsv(it.readBytes().decodeToString())) }
-                getEntry("bikes.csv")?.let { bikes.addAll(parseBikesCsv(it.readBytes().decodeToString())) }
-                getEntry("shoes.csv")?.let { shoes.addAll(parseShoesCsv(it.readBytes().decodeToString())) }
-
-                if (bikes.isNotEmpty() || shoes.isNotEmpty()) dao.insertGear(bikes + shoes)
+                getEntry("bikes.csv")?.let { bikeNames.addAll(parseBikesCsv(it.readBytes().decodeToString())) }
+                getEntry("shoes.csv")?.let { shoeNames.addAll(parseShoesCsv(it.readBytes().decodeToString())) }
 
                 if (activitiesMetadata.isEmpty()) {
                     Napier.w("No activities found in metadata!", tag = TAG)
                     return@use
                 }
 
-                val totalExisting = dao.size()
-                val newActivitiesMeta = if (totalExisting == 0L) activitiesMetadata else activitiesMetadata.filter { dao.getActivity(it.id) == null }
+                // Discovered gear from activities (since bikes/shoes.csv don't have IDs)
+                val discoveredGears = mutableMapOf<String, StravaGear>()
+                for (activityMeta in activitiesMetadata) {
+                    val gId = activityMeta.gearId
+                    val gName = activityMeta.gearName
+                    if (gId != null && gName != null && !discoveredGears.containsKey(gId)) {
+                        val isBike = bikeNames.any { gName.contains(it, ignoreCase = true) || it.contains(gName, ignoreCase = true) }
+                        val isShoe = shoeNames.any { gName.contains(it, ignoreCase = true) || it.contains(gName, ignoreCase = true) }
+
+                        val type = when {
+                            isBike -> StravaGear.TYPE_BIKE
+                            isShoe -> StravaGear.TYPE_SHOE
+                            activityMeta.type == "Run" || activityMeta.type == "Walk" || activityMeta.type == "Hike" -> StravaGear.TYPE_SHOE
+                            else -> StravaGear.TYPE_BIKE
+                        }
+                        discoveredGears[gId] = StravaGear(gId, gName, false, type)
+                    }
+                }
+                if (discoveredGears.isNotEmpty()) dao.insertGear(discoveredGears.values.toList())
+
+                val gearMap = discoveredGears.values.associate { it.name to it.id }
+                val newActivitiesMeta = mutableListOf<ActivityExport>()
+
+                onProgress("Syncing activity gear info...")
+                for (activityMeta in activitiesMetadata) {
+                    ensureActive()
+                    val existing = dao.getActivity(activityMeta.id)
+                    val targetGearId = activityMeta.gearId ?: activityMeta.gearName?.let { gn ->
+                        gearMap.entries.find { entry ->
+                            gn.equals(entry.key, ignoreCase = true) ||
+                                    gn.contains(entry.key, ignoreCase = true) ||
+                                    entry.key.contains(gn, ignoreCase = true)
+                        }?.value
+                    }
+
+                    if (existing == null) {
+                        newActivitiesMeta.add(activityMeta)
+                    } else if (targetGearId != null && existing.gearId != targetGearId) {
+                        dao.insertActivities(listOf(existing.copy(gearId = targetGearId)))
+                    }
+                }
 
                 val totalToImport = newActivitiesMeta.size
                 if (totalToImport == 0) {
-                    onProgress("No new activities to import.")
+                    onProgress("Finished updating metadata.")
                     return@use
                 }
 
-                val gearMap = (bikes + shoes).associate { it.name to it.id }
                 var importedCount = 0
 
                 for (activityMeta in newActivitiesMeta) {
@@ -91,14 +127,20 @@ class StravaImportService(
                                 StravaMap.encodePolyline(Route.summary(points))
                             } else null
 
+                            val targetGearId = activityMeta.gearId ?: activityMeta.gearName?.let { gn ->
+                                gearMap.entries.find { entry ->
+                                    gn.equals(entry.key, ignoreCase = true) ||
+                                            gn.contains(entry.key, ignoreCase = true) ||
+                                            entry.key.contains(gn, ignoreCase = true)
+                                }?.value
+                            }
+
                             val activity = StravaActivity(
                                 id = activityMeta.id,
                                 name = activityMeta.name,
                                 startDate = activityMeta.startDate,
                                 type = activityMeta.type,
-                                gearId = activityMeta.gearName?.let { gn -> 
-                                    gearMap.entries.find { gn.contains(it.key, ignoreCase = true) }?.value 
-                                },
+                                gearId = targetGearId,
                                 map = summaryPolyline?.let { StravaMap(it) },
                                 distance = activityMeta.distance
                             )
@@ -139,7 +181,9 @@ class StravaImportService(
         val dateIdx = header.indexOfFirst { it.contains("Activity Date", ignoreCase = true) }
         val nameIdx = header.indexOfFirst { it.contains("Activity Name", ignoreCase = true) }
         val typeIdx = header.indexOfFirst { it.contains("Activity Type", ignoreCase = true) }
-        val gearIdx = header.indexOfFirst { it.contains("Activity Gear", ignoreCase = true) }
+        val bikeIdIdx = header.indexOfFirst { it.equals("Bike", ignoreCase = true) || it.equals("Bike ID", ignoreCase = true) }
+        val gearIdIdx = header.indexOfFirst { it.equals("Gear", ignoreCase = true) || it.equals("Gear ID", ignoreCase = true) }
+        val gearNameIdx = header.indexOfFirst { it.contains("Activity Gear", ignoreCase = true) }
         val filenameIdx = header.indexOfFirst { it.contains("Filename", ignoreCase = true) }
         val distanceIdx = header.indexOfFirst { it.contains("Distance", ignoreCase = true) }
 
@@ -156,13 +200,18 @@ class StravaImportService(
                         parts[distanceIdx].trim().toFloatOrNull() ?: 0f
                     } else 0f
 
+                    val bikeId = if (bikeIdIdx != -1 && bikeIdIdx < parts.size) parts[bikeIdIdx].trim() else ""
+                    val gearId = if (gearIdIdx != -1 && gearIdIdx < parts.size) parts[gearIdIdx].trim() else ""
+                    val gearName = if (gearNameIdx != -1 && gearNameIdx < parts.size) parts[gearNameIdx].trim() else ""
+
                     activities.add(
                         ActivityExport(
                             id,
                             parts.getOrNull(nameIdx) ?: "Imported Activity",
                             parseStravaDate(parts.getOrNull(dateIdx) ?: ""),
                             parts.getOrNull(typeIdx),
-                            parts.getOrNull(gearIdx),
+                            if (bikeId.isNotEmpty()) bikeId else if (gearId.isNotEmpty()) gearId else null,
+                            if (gearName.isNotEmpty()) gearName else null,
                             filename,
                             distance
                         )
@@ -203,38 +252,38 @@ class StravaImportService(
         }
     }
 
-    private fun parseBikesCsv(content: String): List<StravaGear> {
-        val gear = mutableListOf<StravaGear>(); val lines = content.lines()
-        if (lines.isEmpty()) return emptyList(); val header = lines[0].split(",")
-        val idIdx = header.indexOf("ID")
-        val nameIdx = header.indexOf("Bike Name").let { if (it == -1) header.indexOf("Name") else it }
-        val priIdx = header.indexOf("Primary")
+    private fun parseBikesCsv(content: String): List<String> {
+        val names = mutableListOf<String>(); val lines = splitCsvLines(content)
+        if (lines.isEmpty()) return emptyList(); val header = parseCsvLine(lines[0])
+        val nameIdx = header.indexOfFirst { it.contains("Bike Name", ignoreCase = true) }
+        val brandIdx = header.indexOfFirst { it.contains("Bike Brand", ignoreCase = true) }
+        val modelIdx = header.indexOfFirst { it.contains("Bike Model", ignoreCase = true) }
         for (i in 1 until lines.size) {
             val parts = parseCsvLine(lines[i])
-            val name = if (nameIdx != -1) parts.getOrNull(nameIdx)?.trim() ?: "" else ""
-            if (name.isNotEmpty()) {
-                val id = if (idIdx != -1 && idIdx < parts.size) parts[idIdx] else "b_${name.replace(" ", "_").lowercase()}"
-                gear.add(StravaGear(id, name, parts.getOrNull(priIdx)?.lowercase() == "true", StravaGear.TYPE_BIKE))
-            }
+            val name = parts.getOrNull(nameIdx)?.trim() ?: ""
+            val brand = parts.getOrNull(brandIdx)?.trim() ?: ""
+            val model = parts.getOrNull(modelIdx)?.trim() ?: ""
+            if (name.isNotEmpty()) names.add(name)
+            if (brand.isNotEmpty() || model.isNotEmpty()) names.add("$brand $model".trim())
         }
-        return gear
+        return names
     }
 
-    private fun parseShoesCsv(content: String): List<StravaGear> {
-        val gear = mutableListOf<StravaGear>(); val lines = content.lines()
-        if (lines.isEmpty()) return emptyList(); val header = lines[0].split(",")
-        val idIdx = header.indexOf("ID")
-        val brandIdx = header.indexOf("Brand"); val modelIdx = header.indexOf("Model")
-        val descIdx = header.indexOf("Description"); val priIdx = header.indexOf("Primary")
+    private fun parseShoesCsv(content: String): List<String> {
+        val names = mutableListOf<String>(); val lines = splitCsvLines(content)
+        if (lines.isEmpty()) return emptyList(); val header = parseCsvLine(lines[0])
+        val nameIdx = header.indexOfFirst { it.contains("Shoe Name", ignoreCase = true) }
+        val brandIdx = header.indexOfFirst { it.contains("Shoe Brand", ignoreCase = true) }
+        val modelIdx = header.indexOfFirst { it.contains("Shoe Model", ignoreCase = true) }
         for (i in 1 until lines.size) {
             val parts = parseCsvLine(lines[i])
-            val name = "${parts.getOrNull(brandIdx) ?: ""} ${parts.getOrNull(modelIdx) ?: ""} ${parts.getOrNull(descIdx) ?: ""}".trim().replace("\\s+".toRegex(), " ")
-            if (name.isNotEmpty()) {
-                val id = if (idIdx != -1 && idIdx < parts.size) parts[idIdx] else "s_${name.replace(" ", "_").lowercase()}"
-                gear.add(StravaGear(id, name, parts.getOrNull(priIdx)?.lowercase() == "true", StravaGear.TYPE_SHOE))
-            }
+            val name = parts.getOrNull(nameIdx)?.trim() ?: ""
+            val brand = parts.getOrNull(brandIdx)?.trim() ?: ""
+            val model = parts.getOrNull(modelIdx)?.trim() ?: ""
+            if (name.isNotEmpty()) names.add(name)
+            if (brand.isNotEmpty() || model.isNotEmpty()) names.add("$brand $model".trim())
         }
-        return gear
+        return names
     }
 
     private fun parseCsvLine(line: String): List<String> {
@@ -253,6 +302,7 @@ class StravaImportService(
         val name: String,
         val startDate: Instant,
         val type: String?,
+        val gearId: String?,
         val gearName: String?,
         val filename: String,
         val distance: Float

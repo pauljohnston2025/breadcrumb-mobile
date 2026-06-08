@@ -312,7 +312,7 @@ fun DeviceSettings(
 
                 item {
                     // The routes property needs to be passed to the specific RoutesArrayEditor
-                    CollapsibleSectionWithProperties("Route Configuration", routeConfigProps)
+                    CollapsibleSectionWithProperties("Routes", routeConfigProps)
                 }
 
                 item {

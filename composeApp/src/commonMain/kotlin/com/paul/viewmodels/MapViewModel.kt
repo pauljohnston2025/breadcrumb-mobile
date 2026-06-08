@@ -928,6 +928,7 @@ class MapViewModel(
                     return@launch
                 }
                 displayRoute(route.toSummary(snackbarHostState).let { Route(route.name(), it, emptyList()) }, route)
+                clearNearbyActivities()
             } catch (t: Throwable) {
                 snackbarHostState.showSnackbar("Failed to load route preview")
                 Napier.e("Preview failed", t, tag = TAG)
@@ -944,6 +945,7 @@ class MapViewModel(
                     return@launch
                 }
                 sendRoute(route)
+                clearNearbyActivities()
             } catch (t: Throwable) {
                 snackbarHostState.showSnackbar("Failed to send route")
                 Napier.e("Send route failed", t, tag = TAG)
@@ -973,7 +975,7 @@ class MapViewModel(
                     return@launch
                 }
                 displayRoute(stream.toRouteForDevice(activity.name), StaveIRoute(activity, stream))
-
+                clearNearbyActivities()
             } catch (t: Throwable) {
                 snackbarHostState.showSnackbar("Failed to load activity preview")
                 Napier.e("Preview failed", t, tag = TAG)
@@ -990,7 +992,7 @@ class MapViewModel(
                     return@launch
                 }
                 sendRoute(StaveIRoute(activity, stream))
-
+                clearNearbyActivities()
             } catch (t: Throwable) {
                 snackbarHostState.showSnackbar("Failed to send activity route")
                 Napier.e("Send route failed", t, tag = TAG)

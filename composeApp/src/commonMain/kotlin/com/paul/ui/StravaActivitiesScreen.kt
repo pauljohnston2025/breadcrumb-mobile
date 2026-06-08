@@ -72,10 +72,11 @@ fun StravaActivitiesScreen(viewModel: StravaActivitiesViewModel, tileRepository:
     val totalCount by viewModel.totalActivityCount.collectAsState(0)
     val allGear by viewModel.allGear.collectAsState(emptyList())
     val gearLookup = remember(allGear) { allGear.associateBy { it.id } }
+    val groupedGear = remember(allGear) { allGear.groupBy { it.name } }
 
     var searchQuery by remember { mutableStateOf("") }
     var selectedType by remember { mutableStateOf("All") }
-    var selectedGearId by remember { mutableStateOf<String?>(null) } // New: State for filtering
+    var selectedGearName by remember { mutableStateOf<String?>(null) } // Changed to name-based filtering
     var showDatePicker by remember { mutableStateOf(false) }
 
     val sortOptions = listOf("Newest", "Oldest", "A-Z")
@@ -84,9 +85,13 @@ fun StravaActivitiesScreen(viewModel: StravaActivitiesViewModel, tileRepository:
         .collectAsState(TileServerRepo.defaultTileServer)
 
     val filteredActivities =
-        remember(rawActivities, searchQuery, selectedType, selectedGearId, sortOrder) {
+        remember(rawActivities, searchQuery, selectedType, selectedGearName, sortOrder, gearLookup, groupedGear) {
+            val selectedGearIds = selectedGearName?.let { name -> groupedGear[name]?.map { it.id } }
             rawActivities
-                .filter { it.name.contains(searchQuery, ignoreCase = true) }
+                .filter { 
+                    it.name.contains(searchQuery, ignoreCase = true) || 
+                    gearLookup[it.gearId]?.name?.contains(searchQuery, ignoreCase = true) == true
+                }
                 .filter {
                     if (selectedType == "All") {
                         true
@@ -96,7 +101,7 @@ fun StravaActivitiesScreen(viewModel: StravaActivitiesViewModel, tileRepository:
                         it.type == selectedType
                     }
                 }.filter {
-                    selectedGearId == null || it.gearId == selectedGearId
+                    selectedGearIds == null || selectedGearIds.contains(it.gearId)
                 }
                 .sortedWith { a, b ->
                     when (sortOrder) {
@@ -303,7 +308,7 @@ fun StravaActivitiesScreen(viewModel: StravaActivitiesViewModel, tileRepository:
                 }
             }
 
-            if (allGear.isNotEmpty()) {
+            if (groupedGear.isNotEmpty()) {
                 LazyRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -314,15 +319,17 @@ fun StravaActivitiesScreen(viewModel: StravaActivitiesViewModel, tileRepository:
                         FilterChip(
                             label = "All Gear",
                             icon = Icons.Default.AllInclusive,
-                            isSelected = selectedGearId == null
-                        ) { selectedGearId = null }
+                            isSelected = selectedGearName == null
+                        ) { selectedGearName = null }
                     }
-                    items(allGear) { gear ->
+                    items(groupedGear.keys.toList()) { gearName ->
+                        val gearList = groupedGear[gearName] ?: emptyList()
+                        val firstGear = gearList.first()
                         FilterChip(
-                            label = gear.name,
-                            icon = StravaGear.getGearIcon(gear.type),
-                            isSelected = selectedGearId == gear.id
-                        ) { selectedGearId = gear.id }
+                            label = gearName,
+                            icon = StravaGear.getGearIcon(firstGear.type),
+                            isSelected = selectedGearName == gearName
+                        ) { selectedGearName = gearName }
                     }
                 }
             }
