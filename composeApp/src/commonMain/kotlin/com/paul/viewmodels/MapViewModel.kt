@@ -250,14 +250,21 @@ class MapViewModel(
             initialValue = emptyMap()
         )
 
+    private var stravaToggleJob: Job? = null
     fun toggleStrava(enabled: Boolean) {
-        if (enabled && (stravaRepo.getClientId().isBlank() || stravaRepo.getClientSecret().isBlank())) {
-            viewModelScope.launch {
-                snackbarHostState.showSnackbar("Please set Strava Client ID and Secret in Settings")
+        if (enabled) {
+            stravaToggleJob?.cancel()
+            stravaToggleJob = viewModelScope.launch {
+                if (stravaRepo.getTotalCount() == 0L) {
+                    snackbarHostState.showSnackbar("Please sync or import some Strava activities first")
+                } else {
+                    _isStravaEnabled.value = true
+                }
             }
-            return
+        } else {
+            stravaToggleJob?.cancel()
+            _isStravaEnabled.value = false
         }
-        _isStravaEnabled.value = enabled
     }
 
     fun toggleStoredRoutes(enabled: Boolean) {

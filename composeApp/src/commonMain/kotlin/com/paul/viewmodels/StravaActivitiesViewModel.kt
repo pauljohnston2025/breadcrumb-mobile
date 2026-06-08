@@ -81,6 +81,12 @@ class StravaActivitiesViewModel(
     }
 
     fun sync() {
+        if (stravaRepo.getClientId().isBlank() || stravaRepo.getClientSecret().isBlank()) {
+            viewModelScope.launch {
+                snackbarHostState.showSnackbar("Please set Strava Client ID and Secret in Settings")
+            }
+            return
+        }
         stravaRepo.startSyncActivities()
     }
 

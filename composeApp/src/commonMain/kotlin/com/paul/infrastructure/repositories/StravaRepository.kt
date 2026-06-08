@@ -123,6 +123,7 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
     val currentPageSize: StateFlow<Long> = _currentPageSize.asStateFlow()
 
     fun getTotalCountFlow() = dao.sizeFlow()
+    suspend fun getTotalCount(): Long = dao.size()
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val activitiesByDateRange: Flow<List<StravaActivity>> = _currentRange.flatMapLatest { range ->
@@ -454,10 +455,10 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
 
         when (e) {
             is io.ktor.client.plugins.ClientRequestException -> {
-                if (e.response.status.value == 429) {
-                    _syncErrorStatus.value = "Rate limit hit. Try Again in 15 mins..."
-                } else {
-                    _syncErrorStatus.value = "Strava error: ${e.response.status.value}"
+                when (e.response.status.value) {
+                    401 -> _syncErrorStatus.value = "Unauthorized. Please connect to Strava first."
+                    429 -> _syncErrorStatus.value = "Rate limit hit. Try Again in 15 mins..."
+                    else -> _syncErrorStatus.value = "Strava error: ${e.response.status.value}"
                 }
             }
 
