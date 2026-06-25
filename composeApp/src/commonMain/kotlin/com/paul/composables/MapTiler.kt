@@ -385,60 +385,51 @@ fun MapTilerComposable(
 
                 if (isStravaEnabled) {
                     stravaRoutes.values.forEach { route ->
-                        val path = Path()
-                        route.route.forEachIndexed { index, pt ->
-                            val geo = GeoPosition(pt.latitude.toDouble(), pt.longitude.toDouble())
-
-                            val pos = geoToScreenPixel(
-                                geo,
+                        var prevPos: Offset? = null
+                        route.route.forEach { pt ->
+                            val currentPos = geoToScreenPixel(
+                                GeoPosition(pt.latitude.toDouble(), pt.longitude.toDouble()),
                                 localCenterGeo,
                                 integerZoom.toFloat(),
                                 viewportSize
-                            )
+                            ).let { Offset(it.x.toFloat(), it.y.toFloat()) }
 
-                            if (index == 0) path.moveTo(pos.x.toFloat(), pos.y.toFloat())
-                            else path.lineTo(pos.x.toFloat(), pos.y.toFloat())
+                            prevPos?.let { lastPos ->
+                                drawLine(
+                                    color = Color(0xFFFC4C02).copy(alpha = 0.7f), // Strava Orange
+                                    start = lastPos,
+                                    end = currentPos,
+                                    strokeWidth = routeStrokeWidth / scale,
+                                    cap = StrokeCap.Round
+                                )
+                            }
+                            prevPos = currentPos
                         }
-
-                        drawPath(
-                            path = path,
-                            color = Color(0xFFFC4C02).copy(alpha = 0.7f), // Strava Orange
-                            style = Stroke(
-                                // Divide by scale so the line width stays consistent while zooming
-                                width = routeStrokeWidth / scale,
-                                cap = StrokeCap.Round,
-                                join = StrokeJoin.Round
-                            )
-                        )
                     }
                 }
 
                 if (isRoutesEnabled) {
                     storedRoutes.values.forEach { route ->
-                        val path = Path()
-                        route.route.forEachIndexed { index, pt ->
-                            val geo = GeoPosition(pt.latitude.toDouble(), pt.longitude.toDouble())
-
-                            val pos = geoToScreenPixel(
-                                geo,
+                        var prevPos: Offset? = null
+                        route.route.forEach { pt ->
+                            val currentPos = geoToScreenPixel(
+                                GeoPosition(pt.latitude.toDouble(), pt.longitude.toDouble()),
                                 localCenterGeo,
                                 integerZoom.toFloat(),
                                 viewportSize
-                            )
+                            ).let { Offset(it.x.toFloat(), it.y.toFloat()) }
 
-                            if (index == 0) path.moveTo(pos.x.toFloat(), pos.y.toFloat())
-                            else path.lineTo(pos.x.toFloat(), pos.y.toFloat())
+                            prevPos?.let { lastPos ->
+                                drawLine(
+                                    color = Color(0xFFD01E18),
+                                    start = lastPos,
+                                    end = currentPos,
+                                    strokeWidth = routeStrokeWidth / scale,
+                                    cap = StrokeCap.Round
+                                )
+                            }
+                            prevPos = currentPos
                         }
-
-                        drawPath(
-                            path = path,
-                            color = Color(0xFFD01E18),
-                            style = Stroke(
-                                width = routeStrokeWidth / scale,
-                                cap = StrokeCap.Round,
-                                join = StrokeJoin.Round
-                            )
-                        )
                     }
                 }
 
