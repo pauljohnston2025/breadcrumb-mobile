@@ -5,6 +5,7 @@ import com.paul.domain.StravaGear
 import com.paul.domain.StravaMap
 import com.paul.domain.StravaStreamEntity
 import com.paul.infrastructure.dao.StravaDao
+import com.paul.infrastructure.repositories.SpatialIndexRepository
 import com.paul.protocol.todevice.Point
 import com.paul.protocol.todevice.Route
 import io.github.aakira.napier.Napier
@@ -21,6 +22,7 @@ class StravaImportService(
     private val fileHelper: IFileHelper,
     private val gpxFileLoader: IGpxFileLoader,
     private val fitFileLoader: IFitFileLoader,
+    private val spatialIndexRepository: SpatialIndexRepository,
 ) {
     private val TAG = "StravaImportService"
 
@@ -172,6 +174,13 @@ class StravaImportService(
                             dao.insertActivities(listOf(activity))
                             if (points.isNotEmpty()) {
                                 dao.insertStream(StravaStreamEntity(activityMeta.id, points))
+                                spatialIndexRepository.indexStravaActivity(activityMeta.id, points)
+                            } else {
+                                activity.summaryToRoute().route.let { summaryPoints ->
+                                    if (summaryPoints.isNotEmpty()) {
+                                        spatialIndexRepository.indexStravaActivity(activityMeta.id, summaryPoints)
+                                    }
+                                }
                             }
                             
                             importedCount++

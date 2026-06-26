@@ -44,6 +44,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.paul.infrastructure.connectiq.IConnection
 import com.paul.infrastructure.connectiq.IDeviceList
+import com.paul.infrastructure.dao.SpatialIndexDao
+import com.paul.infrastructure.service.MigrationService
 import com.paul.infrastructure.repositories.ColourPaletteRepository
 import com.paul.infrastructure.repositories.GeneralSettingsRepository
 import com.paul.infrastructure.repositories.ITileRepository
@@ -97,6 +99,8 @@ fun App(
     stravaImportService: StravaImportService,
     routeRepository: RouteRepository,
     generalSettingsRepository: GeneralSettingsRepository,
+    spatialIndexDao: SpatialIndexDao,
+    migrationService: MigrationService,
 ) {
     // Inside the App composable:
     var updateVersion by remember { mutableStateOf<String?>(null) }
@@ -165,6 +169,8 @@ fun App(
                         locationService = locationService,
                         stravaRepo = stravaRepository,
                         routeRepository = settingsViewModel.routesRepo,
+                        spatialIndexDao = spatialIndexDao,
+                        migrationService = migrationService,
                     )
                 }
 

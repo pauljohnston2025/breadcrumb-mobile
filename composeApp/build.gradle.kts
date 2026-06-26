@@ -145,6 +145,13 @@ android {
             manifestPlaceholders.put("appIcon", "@mipmap/iconlargedebug")
             manifestPlaceholders.put("appIconRound", "@mipmap/iconlargedebug")
         }
+        create("debugOptimized") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".debug"
+            signingConfig = signingConfigs.getByName("debug")
+            manifestPlaceholders.put("appIcon", "@mipmap/iconlargedebug")
+            manifestPlaceholders.put("appIconRound", "@mipmap/iconlargedebug")
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11

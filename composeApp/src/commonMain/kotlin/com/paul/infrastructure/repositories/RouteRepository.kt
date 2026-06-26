@@ -10,6 +10,7 @@ import com.paul.domain.RouteEntry
 import com.paul.domain.RouteSettings
 import com.paul.domain.RouteType
 import com.paul.infrastructure.repositories.TileServerRepo.Companion.settings
+import com.paul.domain.SegmentType
 import com.paul.infrastructure.service.IFileHelper
 import com.paul.infrastructure.service.IFitFileLoader
 import com.paul.infrastructure.service.IGpxFileLoader
@@ -28,6 +29,7 @@ class RouteRepository(
     private val fileHelper: IFileHelper,
     private val gpxLoader: IGpxFileLoader,
     private val fitLoader: IFitFileLoader,
+    private val spatialIndexRepository: SpatialIndexRepository,
 ) {
     companion object {
         private const val TAG = "RouteRepository"
@@ -156,6 +158,7 @@ class RouteRepository(
         fileHelper.delete("routes/${routeId}")
         routes.removeIf { it.id == routeId }
         saveRoutes()
+        spatialIndexRepository.deleteRoute(routeId)
     }
 
     fun updateRoute(routeId: String, newName: String) {
@@ -180,12 +183,14 @@ class RouteRepository(
                 throw RuntimeException(error)
             }
         }
-        val distance = when (route) {
-            is CoordinatesRoute -> Route.calculateTotalDistance(route.coordinates())
-            is GpxRoute -> Route.calculateTotalDistance(route.getPoints() ?: emptyList())
-            is FitRoute -> Route.calculateTotalDistance(route.getPoints())
-            else -> 0f
+        val points = when (route) {
+            is CoordinatesRoute -> route.coordinates()
+            is GpxRoute -> route.getPoints() ?: emptyList()
+            is FitRoute -> route.getPoints()
+            else -> emptyList()
         }
+        val distance = Route.calculateTotalDistance(points)
+
         routes.add(
             RouteEntry(
                 route.id,
@@ -198,6 +203,7 @@ class RouteRepository(
             )
         )
         saveRoutes()
+        spatialIndexRepository.indexRoute(route.id, points)
     }
 
     private fun saveRoutes() {
@@ -208,9 +214,10 @@ class RouteRepository(
         fileHelper.deleteDir("routes")
         routes.clear()
         saveRoutes()
+        spatialIndexRepository.clear(SegmentType.ROUTE)
     }
 
-    fun updateRouteSummary(id: String, summary: List<Point>, distanceMeters: Float) {
+    suspend fun updateRouteSummary(id: String, summary: List<Point>, distanceMeters: Float) {
         val current = getRouteEntry(id)
         if (current == null) {
             return
@@ -219,6 +226,7 @@ class RouteRepository(
         routes.removeIf { it.id == id }
         routes.add(current.copy(summary = summary, summaryVersion = ROUTE_SUMMARY_VERSION, distanceMeters = distanceMeters))
         saveRoutes()
+        spatialIndexRepository.indexRoute(id, summary)
     }
 
     suspend fun getRouteEntrySummary(route: RouteEntry?, snackbarHostState: SnackbarHostState): Route?

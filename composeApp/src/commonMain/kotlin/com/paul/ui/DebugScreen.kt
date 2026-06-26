@@ -130,7 +130,9 @@ fun DebugScreen(viewModel: DebugViewModel, fileHelper: IFileHelper) {
                     isDescending = isDescending,
                     onSortToggle = { viewModel.toggleSort() },
                     onClear = { viewModel.clear() },
-                    onExport = { saveLauncher.launch("logs_${System.currentTimeMillis()}.txt") }
+                    onExport = { saveLauncher.launch("logs_${System.currentTimeMillis()}.txt") },
+                    spatialVersion = viewModel.spatialIndexVersion,
+                    targetVersion = viewModel.targetSpatialIndexVersion
                 )
             }
 
@@ -253,11 +255,24 @@ fun HeaderSection(
     isDescending: Boolean,
     onSortToggle: () -> Unit,
     onClear: () -> Unit,
-    onExport: () -> Unit
+    onExport: () -> Unit,
+    spatialVersion: Int,
+    targetVersion: Int
 ) {
     val levels = listOf("VERBOSE", "DEBUG", "INFO", "WARNING", "ERROR")
 
     Column(modifier = Modifier.padding(vertical = 8.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+        ) {
+            Text(
+                text = "Spatial Index: v$spatialVersion / v$targetVersion",
+                style = MaterialTheme.typography.overline,
+                color = if (spatialVersion < targetVersion) MaterialTheme.colors.error else Color.Gray
+            )
+        }
+
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(horizontal = 16.dp)

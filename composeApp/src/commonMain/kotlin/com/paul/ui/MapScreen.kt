@@ -97,6 +97,9 @@ fun MapScreen(
     val isElevationProfileVisible by viewModel.isElevationProfileVisible.collectAsState()
     val hoveredDistance by viewModel.hoveredDistance.collectAsState()
 
+    val migrationStatus by viewModel.migrationService.migrationStatus.collectAsState()
+    val isMigrating by viewModel.migrationService.isMigrating.collectAsState()
+
     var viewportSize by remember { mutableStateOf(IntSize.Zero) }
     val watchSendStarted by viewModel.watchSendStarted.collectAsState()
     val connectIqAppId by viewModel.connection.connectIqAppIdFlow().collectAsState()
@@ -122,6 +125,18 @@ fun MapScreen(
 
         Column(modifier = Modifier.fillMaxSize()) {
             StravaMapFilterSection(viewModel)
+
+            if (isMigrating || migrationStatus != null) {
+                Text(
+                    text = migrationStatus ?: "",
+                    style = MaterialTheme.typography.caption.copy(color = MaterialTheme.colors.primary),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colors.primary.copy(alpha = 0.1f))
+                        .padding(vertical = 4.dp)
+                )
+            }
 
             if (currentRoute != null) {
                 Text(

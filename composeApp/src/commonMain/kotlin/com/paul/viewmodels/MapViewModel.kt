@@ -10,10 +10,8 @@ import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.unit.IntSize
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.benasher44.uuid.uuid4
 import com.paul.composables.byteArrayToImageBitmap
 import com.paul.domain.ColourPalette
-import com.paul.domain.GpxRoute
 import com.paul.domain.IRoute
 import com.paul.domain.StaveIRoute
 import com.paul.domain.StravaActivity
@@ -27,14 +25,12 @@ import com.paul.infrastructure.repositories.TileServerRepo
 import com.paul.infrastructure.service.ColourPaletteConverter
 import com.paul.infrastructure.service.GeoPosition
 import com.paul.infrastructure.service.ILocationService
-import com.paul.infrastructure.service.SendMessageHelper
 import com.paul.infrastructure.service.SendMessageHelper.Companion.sendingMessage
 import com.paul.infrastructure.service.SendRoute
 import com.paul.infrastructure.service.TileId
 import com.paul.infrastructure.service.UserLocation
 import com.paul.protocol.todevice.CacheCurrentArea
 import com.paul.protocol.todevice.Point
-import com.paul.protocol.todevice.RectPoint
 import com.paul.protocol.todevice.RequestLocationLoad
 import com.paul.protocol.todevice.ReturnToUser
 import com.paul.protocol.todevice.Route
@@ -42,6 +38,10 @@ import com.paul.ui.Screen
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.unit.IntOffset
 import com.paul.domain.RouteEntry
+import com.paul.domain.SegmentType
+import com.paul.infrastructure.dao.SpatialIndexDao
+import com.paul.infrastructure.service.MigrationService
+import com.paul.infrastructure.repositories.SpatialIndexRepository.Companion.SPATIAL_INDEX_ZOOM
 import com.paul.infrastructure.service.geoToScreenPixel
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
@@ -67,6 +67,7 @@ import kotlinx.datetime.Instant
 import kotlin.collections.toMap
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.abs
+import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
@@ -87,6 +88,8 @@ class MapViewModel(
     private val locationService: ILocationService,
     val stravaRepo: StravaRepository,
     val routeRepository: RouteRepository,
+    val spatialIndexDao: SpatialIndexDao,
+    val migrationService: MigrationService,
 ) : ViewModel() {
 
     companion object {
@@ -157,6 +160,9 @@ class MapViewModel(
     private val _loadingTiles = mutableSetOf<TileId>() // Track loading IDs
 // private val _loadingTilesState = MutableStateFlow<Set<TileId>>(emptySet()) // Optionally expose loading state too
 // val loadingTilesState: StateFlow<Set<TileId>> = _loadingTilesState
+
+    private val _visibleSegments = MutableStateFlow<List<com.paul.domain.SegmentInfo>>(emptyList())
+    val visibleSegments: StateFlow<List<com.paul.domain.SegmentInfo>> = _visibleSegments.asStateFlow()
 
     private val loadingJobs = mutableMapOf<TileId, Job>() // Still needed for cancellation
     val isActive = true
@@ -282,55 +288,47 @@ class MapViewModel(
 
         val currentZoom = _mapZoom.value
         val currentCenter = GeoPosition(_mapCenter.value.latitude.toDouble(), _mapCenter.value.longitude.toDouble())
-
-        // Convert the tapped location to a screen pixel point (x, y)
         val tappedScreenPx = geoToScreenPixel(tappedGeo, currentCenter, currentZoom, viewportSize)
-
-        // Define your "Hit Box" in pixels.
-        // This stays 24px whether you're looking at a street or a continent.
         val HIT_THRESHOLD_PIXELS = 24.0
 
         viewModelScope.launch(Dispatchers.Default) {
-            // Helper to check proximity in screen space
-            fun isNearby(route: Route): Boolean {
-                val geoPoints = route.route // Assuming this is List<Point> or List<GeoPosition>
-                if (geoPoints.size < 2) return false
+            val n = 1 shl SPATIAL_INDEX_ZOOM
+            val latRad = tappedGeo.latitude * kotlin.math.PI / 180.0
+            val tx = ((tappedGeo.longitude + 180.0) / 360.0 * n).toInt()
+            val ty = ((1.0 - kotlin.math.ln(kotlin.math.tan(latRad) + 1.0 / kotlin.math.cos(latRad)) / kotlin.math.PI) / 2.0 * n).toInt()
 
-                for (i in 0 until geoPoints.size - 1) {
-                    // 1. Convert route segment points to screen pixels
-                    val p1 = geoToScreenPixel(
-                        GeoPosition(geoPoints[i].latitude.toDouble(), geoPoints[i].longitude.toDouble()),
-                        currentCenter, currentZoom, viewportSize
-                    )
-                    val p2 = geoToScreenPixel(
-                        GeoPosition(geoPoints[i+1].latitude.toDouble(), geoPoints[i+1].longitude.toDouble()),
-                        currentCenter, currentZoom, viewportSize
-                    )
+            val searchRadiusTiles = kotlin.math.ceil((HIT_THRESHOLD_PIXELS * 2.0.pow((SPATIAL_INDEX_ZOOM - currentZoom).toDouble())) / 256.0).toInt().coerceAtLeast(1)
 
-                    // 2. Simple AABB (Bounding Box) check in pixels for speed
-                    val minX = min(p1.x, p2.x) - HIT_THRESHOLD_PIXELS
-                    val maxX = max(p1.x, p2.x) + HIT_THRESHOLD_PIXELS
-                    val minY = min(p1.y, p2.y) - HIT_THRESHOLD_PIXELS
-                    val maxY = max(p1.y, p2.y) + HIT_THRESHOLD_PIXELS
+            val segments = spatialIndexDao.getSegmentsInTiles(
+                tx - searchRadiusTiles, tx + searchRadiusTiles,
+                ty - searchRadiusTiles, ty + searchRadiusTiles,
+                SPATIAL_INDEX_ZOOM
+            )
 
-                    if (tappedScreenPx.x in minX.toInt()..maxX.toInt() &&
-                        tappedScreenPx.y in minY.toInt()..maxY.toInt()) {
+            val nearbyStravaIds = mutableSetOf<String>()
+            val nearbyRouteIds = mutableSetOf<String>()
 
-                        // 3. Precise segment distance check in pixels
-                        if (distToSegmentPixels(tappedScreenPx, p1, p2) <= HIT_THRESHOLD_PIXELS) {
-                            return true
-                        }
-                    }
+            segments.forEach { seg ->
+                if (seg.type == SegmentType.STRAVA && !_isStravaEnabled.value) return@forEach
+                if (seg.type == SegmentType.ROUTE && !_isRoutesEnabled.value) return@forEach
+
+                val p1 = geoToScreenPixel(
+                    GeoPosition(seg.lat1.toDouble(), seg.lon1.toDouble()),
+                    currentCenter, currentZoom, viewportSize
+                )
+                val p2 = geoToScreenPixel(
+                    GeoPosition(seg.lat2.toDouble(), seg.lon2.toDouble()),
+                    currentCenter, currentZoom, viewportSize
+                )
+
+                if (distToSegmentPixels(tappedScreenPx, p1, p2) <= HIT_THRESHOLD_PIXELS) {
+                    if (seg.type == SegmentType.STRAVA) nearbyStravaIds.add(seg.ownerId)
+                    else nearbyRouteIds.add(seg.ownerId)
                 }
-                return false
             }
 
-            if (_isStravaEnabled.value) {
-                _nearbyActivities.value = stravaRoutes.value.filter { isNearby(it.value) }.keys.toList()
-            }
-            if (_isRoutesEnabled.value) {
-                _nearbyStoredRoutes.value = storedRoutes.value.filter { isNearby(it.value) }.keys.toList()
-            }
+            _nearbyActivities.value = stravaRoutes.value.filter { nearbyStravaIds.contains(it.key.id.toString()) }.keys.toList()
+            _nearbyStoredRoutes.value = storedRoutes.value.filter { nearbyRouteIds.contains(it.key.id) }.keys.toList()
         }
     }
 
@@ -452,9 +450,44 @@ class MapViewModel(
         requestTilesForViewport(currentVisibleTiles)
     }
 
+    private fun updateVisibleSegments(visibleTileIds: Set<TileId>) {
+        if (visibleTileIds.isEmpty()) {
+            _visibleSegments.value = emptyList()
+            return
+        }
+
+        // Optimization: Don't fetch segments if zoomed out too far
+        if (_mapZoom.value < 10f) {
+            _visibleSegments.value = emptyList()
+            return
+        }
+
+        viewModelScope.launch(Dispatchers.Default) {
+            val first = visibleTileIds.first()
+            var minX = first.x; var maxX = first.x; var minY = first.y; var maxY = first.y
+            val zoom = first.z
+
+            visibleTileIds.forEach {
+                minX = min(minX, it.x); maxX = max(maxX, it.x)
+                minY = min(minY, it.y); maxY = max(maxY, it.y)
+            }
+
+            // Convert bounds from zoom to SPATIAL_INDEX_ZOOM
+            val scale = 2.0.pow((SPATIAL_INDEX_ZOOM - zoom).toDouble())
+            val ixMin = floor(minX * scale).toInt()
+            val ixMax = floor((maxX + 1) * scale - 1).toInt()
+            val iyMin = floor(minY * scale).toInt()
+            val iyMax = floor((maxY + 1) * scale - 1).toInt()
+
+            val segments = spatialIndexDao.getSegmentsInTiles(ixMin, ixMax, iyMin, iyMax, SPATIAL_INDEX_ZOOM)
+            _visibleSegments.value = segments
+        }
+    }
+
     // Function called by Composable
     fun requestTilesForViewport(visibleTileIds: Set<TileId>) {
         currentVisibleTiles = visibleTileIds
+        updateVisibleSegments(visibleTileIds)
         // 1. Cancel jobs for tiles no longer needed
         val jobsToCancel = loadingJobs.filterKeys { it !in visibleTileIds }
         jobsToCancel.forEach { (_, job) -> job.cancel() }

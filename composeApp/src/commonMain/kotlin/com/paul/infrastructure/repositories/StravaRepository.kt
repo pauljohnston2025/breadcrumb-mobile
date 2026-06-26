@@ -40,7 +40,11 @@ import kotlinx.datetime.toLocalDateTime
 import kotlin.math.ceil
 import kotlin.time.Duration.Companion.days
 
-class StravaRepository(private val browserLauncher: IBrowserLauncher, private val dao: StravaDao) {
+class StravaRepository(
+    private val browserLauncher: IBrowserLauncher,
+    private val dao: StravaDao,
+    private val spatialIndexRepository: SpatialIndexRepository
+) {
     private val settings = Settings()
 
     private val _clientId = MutableStateFlow(getClientId())
@@ -318,6 +322,12 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
 
                         // 2. Save activity header
                         dao.insertActivities(listOf(activity))
+
+                        // 3. Index segments
+                        val pointsToIndex = fullPoints.ifEmpty { activity.summaryToRoute().route }
+                        if (pointsToIndex.isNotEmpty()) {
+                            spatialIndexRepository.indexStravaActivity(activity.id, pointsToIndex)
+                        }
                     }
 
                     // Update anchor for next batch
@@ -361,6 +371,7 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
                 val points = getActivityStreams(id)
                 if (points.isNotEmpty()) {
                     dao.insertStream(StravaStreamEntity(id, points))
+                    spatialIndexRepository.indexStravaActivity(id, points)
                 }
             }
             _loginStatus.value = "Stream repair complete."
@@ -376,6 +387,7 @@ class StravaRepository(private val browserLauncher: IBrowserLauncher, private va
         dao.clearAll()
         dao.clearAllStreams()
         dao.deleteAllGear()
+        spatialIndexRepository.clear(com.paul.domain.SegmentType.STRAVA)
         _loginStatus.value = "Local cache cleared."
     }
 

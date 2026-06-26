@@ -71,6 +71,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import breadcrumb.composeapp.generated.resources.Res
 import breadcrumb.composeapp.generated.resources.strava
 import com.paul.domain.PaletteMappingMode
+import com.paul.domain.SegmentType
 import com.paul.infrastructure.service.GeoPosition
 import com.paul.infrastructure.service.TileId
 import com.paul.infrastructure.service.TileInfo
@@ -117,6 +118,7 @@ fun MapTilerComposable(
     val stravaRoutes by viewModel.stravaRoutes.collectAsState()
     val isRoutesEnabled by viewModel.isRoutesEnabled.collectAsState()
     val storedRoutes by viewModel.storedRoutes.collectAsState()
+    val visibleSegments by viewModel.visibleSegments.collectAsState()
 
     // Create and remember Paint objects for drawing the angle text
     val textPaint = remember {
@@ -383,54 +385,55 @@ fun MapTilerComposable(
                     }
                 }
 
-                if (isStravaEnabled) {
-                    stravaRoutes.values.forEach { route ->
-                        var prevPos: Offset? = null
-                        route.route.forEach { pt ->
-                            val currentPos = geoToScreenPixel(
-                                GeoPosition(pt.latitude.toDouble(), pt.longitude.toDouble()),
+                if (isStravaEnabled || isRoutesEnabled) {
+                    val stravaColor = Color(0xFFFC4C02).copy(alpha = 0.7f)
+                    val routeColorStored = Color(0xFFD01E18)
+                    
+                    var lastOwnerId: String? = null
+                    var lastType: SegmentType? = null
+                    var lastIndex: Int = -1
+                    val currentPath = Path()
+
+                    fun drawCurrentPath() {
+                        if (!currentPath.isEmpty) {
+                            drawPath(
+                                path = currentPath,
+                                color = if (lastType == SegmentType.STRAVA) stravaColor else routeColorStored,
+                                style = Stroke(width = routeStrokeWidth / scale, cap = StrokeCap.Round, join = StrokeJoin.Round)
+                            )
+                            currentPath.reset()
+                        }
+                    }
+
+                    visibleSegments.forEach { seg ->
+                        val isStrava = seg.type == SegmentType.STRAVA
+                        if (isStrava && !isStravaEnabled) return@forEach
+                        if (!isStrava && !isRoutesEnabled) return@forEach
+
+                        if (seg.ownerId != lastOwnerId || seg.type != lastType || seg.segmentIndex != lastIndex + 1) {
+                            drawCurrentPath()
+                            val p1 = geoToScreenPixel(
+                                GeoPosition(seg.lat1.toDouble(), seg.lon1.toDouble()),
                                 localCenterGeo,
                                 integerZoom.toFloat(),
                                 viewportSize
-                            ).let { Offset(it.x.toFloat(), it.y.toFloat()) }
-
-                            prevPos?.let { lastPos ->
-                                drawLine(
-                                    color = Color(0xFFFC4C02).copy(alpha = 0.7f), // Strava Orange
-                                    start = lastPos,
-                                    end = currentPos,
-                                    strokeWidth = routeStrokeWidth / scale,
-                                    cap = StrokeCap.Round
-                                )
-                            }
-                            prevPos = currentPos
+                            )
+                            currentPath.moveTo(p1.x.toFloat(), p1.y.toFloat())
                         }
-                    }
-                }
 
-                if (isRoutesEnabled) {
-                    storedRoutes.values.forEach { route ->
-                        var prevPos: Offset? = null
-                        route.route.forEach { pt ->
-                            val currentPos = geoToScreenPixel(
-                                GeoPosition(pt.latitude.toDouble(), pt.longitude.toDouble()),
-                                localCenterGeo,
-                                integerZoom.toFloat(),
-                                viewportSize
-                            ).let { Offset(it.x.toFloat(), it.y.toFloat()) }
+                        val p2 = geoToScreenPixel(
+                            GeoPosition(seg.lat2.toDouble(), seg.lon2.toDouble()),
+                            localCenterGeo,
+                            integerZoom.toFloat(),
+                            viewportSize
+                        )
+                        currentPath.lineTo(p2.x.toFloat(), p2.y.toFloat())
 
-                            prevPos?.let { lastPos ->
-                                drawLine(
-                                    color = Color(0xFFD01E18),
-                                    start = lastPos,
-                                    end = currentPos,
-                                    strokeWidth = routeStrokeWidth / scale,
-                                    cap = StrokeCap.Round
-                                )
-                            }
-                            prevPos = currentPos
-                        }
+                        lastOwnerId = seg.ownerId
+                        lastType = seg.type
+                        lastIndex = seg.segmentIndex
                     }
+                    drawCurrentPath()
                 }
 
                 routeToDisplay?.let { route ->

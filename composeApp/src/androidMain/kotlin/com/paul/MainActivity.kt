@@ -32,7 +32,10 @@ import com.paul.infrastructure.repositories.ITileRepository
 import com.paul.infrastructure.repositories.RouteRepository
 import com.paul.infrastructure.repositories.GeneralSettingsRepository
 import com.paul.infrastructure.repositories.StravaRepository
+import com.paul.infrastructure.dao.StravaDao
+import com.paul.infrastructure.repositories.SpatialIndexRepository
 import com.paul.infrastructure.service.AndroidLocationService
+import com.paul.infrastructure.service.MigrationService
 import com.paul.infrastructure.service.BrowserLauncher
 import com.paul.infrastructure.service.ClipboardHandler
 import com.paul.infrastructure.service.FileHelper
@@ -71,19 +74,25 @@ class MainActivity : ComponentActivity() {
     }
 
     private val stravaDao by lazy { database.stravaDao() }
+    private val spatialIndexDao by lazy { database.spatialIndexDao() }
+    private val spatialIndexRepository by lazy { SpatialIndexRepository(spatialIndexDao) }
 
     // Use 'by lazy' so it doesn't crash on startup
     // It will wait until initAndroidDatabase(this) has been called in onCreate
     private val stravaRepository by lazy {
-        StravaRepository(BrowserLauncher(this), stravaDao)
+        StravaRepository(BrowserLauncher(this), stravaDao, spatialIndexRepository)
     }
 
     private val stravaImportService by lazy {
-        StravaImportService(stravaDao, fileHelper, gpxFileLoader, fitFileLoader)
+        StravaImportService(stravaDao, fileHelper, gpxFileLoader, fitFileLoader, spatialIndexRepository)
     }
 
     private val routeRepository by lazy {
-        RouteRepository(fileHelper, gpxFileLoader, fitFileLoader)
+        RouteRepository(fileHelper, gpxFileLoader, fitFileLoader, spatialIndexRepository)
+    }
+
+    private val migrationService by lazy {
+        MigrationService(spatialIndexRepository, stravaDao, routeRepository)
     }
 
     private val generalSettingsRepository by lazy {
@@ -122,6 +131,8 @@ class MainActivity : ComponentActivity() {
         Napier.base(InMemoryDebugAntilog())
         initAndroidDatabase(this)
 
+        migrationService.checkAndRunMigrations(lifecycleScope)
+
         addOnNewIntentListener({
             handleIntent(it)
         })
@@ -146,6 +157,8 @@ class MainActivity : ComponentActivity() {
                     stravaImportService,
                     routeRepository,
                     generalSettingsRepository,
+                    spatialIndexDao,
+                    migrationService,
                 )
             }
         }

@@ -6,10 +6,14 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.sqlite.driver.AndroidSQLiteDriver
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
+import com.paul.domain.MapSegmentTile
+import com.paul.domain.SegmentInfo
 import com.paul.domain.StravaActivity
 import com.paul.domain.StravaGear
 import com.paul.domain.StravaStreamEntity
+import com.paul.infrastructure.converters.SegmentTypeConverter
 import com.paul.infrastructure.converters.TimestampConverter
+import com.paul.infrastructure.dao.SpatialIndexDao
 import com.paul.infrastructure.dao.StravaDao
 import com.paul.infrastructure.persistence.PointListConverter
 import kotlinx.coroutines.Dispatchers
@@ -22,23 +26,26 @@ fun getRoomDatabase(builder: RoomDatabase.Builder<AppDatabase>): AppDatabase {
     return builder
         // You likely tried to use AndroidSQLiteDriver() in a Room KMP project. In the current version of Room KMP, if you use the standard Android driver, it conflicts with the coroutine-based connection pool Room uses internally for Multiplatform, leading to that SupportSQLiteConnection error.
         .setDriver(BundledSQLiteDriver()) // Use bundled driver to work on device (kmp oroitines)
-        // .setDriver(AndroidSQLiteDriver()) // Use system driver for Android Studio support
+//         .setDriver(AndroidSQLiteDriver()) // Use system driver for Android Studio support
         .setQueryCoroutineContext(Dispatchers.IO)
         .build()
 }
 
 @Database(
-    entities = [StravaActivity::class, StravaStreamEntity::class, StravaGear::class],
-    version = 6,
+    entities = [StravaActivity::class, StravaStreamEntity::class, StravaGear::class, SegmentInfo::class, MapSegmentTile::class],
+    version = 8,
     autoMigrations = [
         AutoMigration(from = 1, to = 2),
         AutoMigration(from = 2, to = 3),
         AutoMigration(from = 3, to = 4),
         AutoMigration(from = 4, to = 5),
         AutoMigration(from = 5, to = 6),
+        AutoMigration(from = 6, to = 7),
+        AutoMigration(from = 7, to = 8),
     ]
 )
-@TypeConverters(TimestampConverter::class, PointListConverter::class)
+@TypeConverters(TimestampConverter::class, PointListConverter::class, SegmentTypeConverter::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun stravaDao(): StravaDao
+    abstract fun spatialIndexDao(): SpatialIndexDao
 }

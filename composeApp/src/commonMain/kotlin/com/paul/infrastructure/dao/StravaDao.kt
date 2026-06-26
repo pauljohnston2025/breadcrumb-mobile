@@ -72,6 +72,12 @@ interface StravaDao {
     @Query("SELECT * FROM strava_activities WHERE id = :id")
     suspend fun getActivity(id: Long): StravaActivity?
 
+    @Query("SELECT * FROM strava_activities")
+    suspend fun getAllActivities(): List<StravaActivity>
+
+    @Query("SELECT * FROM strava_activities LIMIT :pageSize OFFSET :page * :pageSize")
+    suspend fun getAllActivitiesPaged(page: Long, pageSize: Long): List<StravaActivity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertGear(gear: List<StravaGear>)
 

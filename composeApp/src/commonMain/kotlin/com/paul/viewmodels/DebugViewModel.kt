@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CoroutineScope
 import com.paul.infrastructure.repositories.DebugLogRepository
 import com.paul.infrastructure.repositories.LogEntry
+import com.paul.infrastructure.repositories.SpatialIndexRepository
+import com.russhwolf.settings.Settings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -16,12 +18,20 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 
 class DebugViewModel : ViewModel() {
+    private val settings = Settings()
+    private val SPATIAL_INDEX_VERSION_KEY = "SPATIAL_INDEX_VERSION"
+
     private val _logs = MutableStateFlow<List<LogEntry>>(emptyList())
     val logs = _logs.asStateFlow()
 
     // UI State for Sorting
     private val _isDescending = MutableStateFlow(true)
     val isDescending = _isDescending.asStateFlow()
+
+    val spatialIndexVersion: Int
+        get() = settings.getInt(SPATIAL_INDEX_VERSION_KEY, 0)
+
+    val targetSpatialIndexVersion: Int = SpatialIndexRepository.SPATIAL_INDEX_VERSION
 
     init {
         // 1. Collect New Logs
