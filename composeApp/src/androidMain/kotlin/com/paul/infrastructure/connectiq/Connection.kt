@@ -173,75 +173,60 @@ class Connection(private val context: Context) : IConnection() {
         awaitClose { connectIQ.unregisterForApplicationEvents(cd.device, app) }
     }
 
-    override suspend fun appInfo(device: IqDevice): AppInfo =
-        suspendCancellableCoroutine { continuation ->
-            val cd = device as CommonDeviceImpl
-            val currentApp = connectIqAppIdFlow().value
-            connectIQ.getApplicationInfo(
-                currentApp,
-                cd.device,
-                object : ConnectIQ.IQApplicationInfoListener {
-                    // workaround to avoid double call of onMessageStatus
-                    var completed = false
+    override suspend fun appInfo(device: IqDevice): AppInfo {
+        val cd = device as CommonDeviceImpl
+        val currentApp = connectIqAppIdFlow().value
+        val deferred = CompletableDeferred<AppInfo>()
+        
+        connectIQ.getApplicationInfo(
+            currentApp,
+            cd.device,
+            object : ConnectIQ.IQApplicationInfoListener {
+                override fun onApplicationInfoReceived(iqApp: IQApp) {
+                    Napier.i(
+                        "Application info received: ver=${iqApp.version()}, name=${iqApp.displayName}, status=${iqApp.status}, id=${iqApp.applicationId}",
+                        tag = TAG
+                    )
+                    deferred.complete(AppInfo(iqApp.version()))
+                }
 
-                    override fun onApplicationInfoReceived(
-                        iqApp: IQApp,
-                    ) {
-                        Napier.i(
-                            "Application info received: ver=${iqApp.version()}, name=${iqApp.displayName}, status=${iqApp.status}, id=${iqApp.applicationId}",
-                            tag = TAG
-                        )
-
-                        continuation.resume(AppInfo(iqApp.version())) { cause, _, _ ->
-                            Napier.v("cancelled whilst resuming", tag = TAG)
-                        }
-                    }
-
-                    override fun onApplicationNotInstalled(var1: String) {
-                        Napier.w("Application not installed: $var1", tag = TAG)
-                        continuation.resumeWithException(RuntimeException(var1))
-                    }
-                })
-        }
+                override fun onApplicationNotInstalled(var1: String) {
+                    Napier.w("Application not installed: $var1", tag = TAG)
+                    deferred.completeExceptionally(RuntimeException(var1))
+                }
+            })
+        return deferred.await()
+    }
 
     // does not seem to work with data fields
     // get PROMPT_SHOWN_ON_DEVICE if we do not have an activity open (but not running), but no prompt is shown
     // get PROMPT_NOT_SHOWN_ON_DEVICE is the activity is open (but not started/running)
-    private suspend fun openApp(device: IqDevice): Unit =
-        suspendCancellableCoroutine { continuation ->
-            val cd = device as CommonDeviceImpl
-            val app = IQApp(connectIqAppIdFlow().value)
+    private suspend fun openApp(device: IqDevice): Unit {
+        val cd = device as CommonDeviceImpl
+        val app = IQApp(connectIqAppIdFlow().value)
+        val deferred = CompletableDeferred<Unit>()
 
-            connectIQ.openApplication(
-                cd.device,
-                app,
-                object : ConnectIQ.IQOpenApplicationListener {
-                    // workaround to avoid double call of onMessageStatus
-                    var completed = false
+        connectIQ.openApplication(
+            cd.device,
+            app,
+            object : ConnectIQ.IQOpenApplicationListener {
+                override fun onOpenApplicationResponse(
+                    var1: IQDevice,
+                    var2: IQApp,
+                    status: ConnectIQ.IQOpenApplicationStatus
+                ) {
+                    Napier.i("Open application response: device=$var1, app=$var2, status=$status", tag = TAG)
 
-                    override fun onOpenApplicationResponse(
-                        var1: IQDevice,
-                        var2: IQApp,
-                        status: ConnectIQ.IQOpenApplicationStatus
-                    ) {
-                        Napier.i("Open application response: device=$var1, app=$var2, status=$status", tag = TAG)
-
-                        // garmin likes to double complete things
-                        if (!completed) {
-                            // we get PROMPT_NOT_SHOWN_ON_DEVICE if the app is already open, so mark it as success
-                            if (status == ConnectIQ.IQOpenApplicationStatus.PROMPT_SHOWN_ON_DEVICE || status == ConnectIQ.IQOpenApplicationStatus.PROMPT_NOT_SHOWN_ON_DEVICE) {
-                                continuation.resume(Unit) { cause, _, _ ->
-                                    Napier.v("cancelled whilst resuming", tag = TAG)
-                                }
-                            } else {
-                                continuation.resumeWithException(RuntimeException("failed to open app $status"))
-                            }
-                        }
-
-                        completed = true
+                    // we get PROMPT_NOT_SHOWN_ON_DEVICE if the app is already open, so mark it as success
+                    if (status == ConnectIQ.IQOpenApplicationStatus.PROMPT_SHOWN_ON_DEVICE || status == ConnectIQ.IQOpenApplicationStatus.PROMPT_NOT_SHOWN_ON_DEVICE) {
+                        deferred.complete(Unit)
+                    } else {
+                        deferred.completeExceptionally(RuntimeException("failed to open app $status"))
                     }
-                })
-        }
+                }
+            })
+        return deferred.await()
+    }
 
     // todo add correlation ids to these requests
     // think we ned to buffer any responses that come back
@@ -289,8 +274,9 @@ class Connection(private val context: Context) : IConnection() {
     private suspend fun sendInternal(
         device: IQDevice,
         payload: Protocol,
-    ): Unit = suspendCancellableCoroutine { continuation ->
+    ): Unit {
         val app = IQApp(connectIqAppIdFlow().value)
+        val deferred = CompletableDeferred<Unit>()
 
         val toSend = payload.payload().toMutableList()
         toSend.add(0, payload.type().value.toInt())
@@ -300,9 +286,6 @@ class Connection(private val context: Context) : IConnection() {
             app,
             toSend,
             object : IQSendMessageListener {
-                // workaround to avoid double call of onMessageStatus
-                var completed = false
-
                 override fun onMessageStatus(
                     device: IQDevice,
                     app: IQApp,
@@ -312,21 +295,16 @@ class Connection(private val context: Context) : IConnection() {
                         "onMessageStatus(): device=$device, app=$app, status=${status.name}",
                         tag = TAG
                     )
-                    if (completed) {
-                        return
-                    }
 
                     if (status != IQMessageStatus.SUCCESS) {
-                        continuation.resumeWithException(Exception(status.name))
+                        deferred.completeExceptionally(Exception(status.name))
                         return
                     }
 
-                    completed = true
-                    Napier.v("onMessageStatus(): SUCCESS, resuming continuation", tag = TAG)
-                    continuation.resume(Unit) { cause, _, _ ->
-                        Napier.v("cancelled whilst resuming", tag = TAG)
-                    }
+                    Napier.v("onMessageStatus(): SUCCESS", tag = TAG)
+                    deferred.complete(Unit)
                 }
             })
+        return deferred.await()
     }
 }

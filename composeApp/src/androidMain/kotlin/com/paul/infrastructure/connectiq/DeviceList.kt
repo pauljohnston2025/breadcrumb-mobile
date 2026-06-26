@@ -72,9 +72,16 @@ class DeviceList(private val connection: Connection) : IDeviceList {
         // battery performance of calling this in a tight loop?
         if (job == null) {
             job = CoroutineScope(Dispatchers.IO).launch(Dispatchers.IO) {
+                var backoff = 1000L
                 while (true) {
-                    loadDevices()
-                    delay(1000)
+                    try {
+                        loadDevices()
+                        backoff = 1000L // Reset on success
+                    } catch (e: Exception) {
+                        Napier.e("loadDevices failed, backing off", e, tag = TAG)
+                        backoff = (backoff * 2).coerceAtMost(30000L) // Exponential backoff up to 30s
+                    }
+                    delay(backoff)
                 }
             }
         }
@@ -152,6 +159,7 @@ class DeviceList(private val connection: Connection) : IDeviceList {
             // could be because Garmin Connect Mobile is not installed or needs to
             // be upgraded.
             Napier.e("service unavailable", e, tag = TAG)
+            throw e // Re-throw to trigger backoff in loop
         }
     }
 }

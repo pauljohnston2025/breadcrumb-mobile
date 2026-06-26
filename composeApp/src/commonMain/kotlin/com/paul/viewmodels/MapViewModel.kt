@@ -506,11 +506,12 @@ class MapViewModel(
             }
 
             // Convert bounds from viewport zoom to indexLevel
+            // Add a 1-tile buffer to ensure segments spanning across tile edges are included
             val scale = 2.0.pow((indexLevel - zoom).toDouble())
-            val ixMin = floor(minX * scale).toInt()
-            val ixMax = floor((maxX + 1) * scale - 0.0001).toInt()
-            val iyMin = floor(minY * scale).toInt()
-            val iyMax = floor((maxY + 1) * scale - 0.0001).toInt()
+            val ixMin = floor(minX * scale).toInt() - 1
+            val ixMax = floor((maxX + 1) * scale - 0.0001).toInt() + 1
+            val iyMin = floor(minY * scale).toInt() - 1
+            val iyMax = floor((maxY + 1) * scale - 0.0001).toInt() + 1
 
             try {
                 // Get filtered owner IDs for Strava
@@ -546,7 +547,18 @@ class MapViewModel(
         jobsToCancel.keys.forEach { loadingJobs.remove(it) }
         _loadingTiles.removeAll(jobsToCancel.keys)
 
-        // 2. Request missing tiles
+        // 2. Cleanup cache - prevent infinite growth
+        // Keep visible tiles + a buffer of others. 
+        // 100 tiles is roughly 25MB of bitmap data.
+        if (_tileBitmapCache.size > 150) {
+            val toRemove = _tileBitmapCache.keys.filter { it !in visibleTileIds }.take(50)
+            if (toRemove.isNotEmpty()) {
+                toRemove.forEach { _tileBitmapCache.remove(it) }
+                _tileCacheState.value = _tileBitmapCache.toMap()
+            }
+        }
+
+        // 3. Request missing tiles
         visibleTileIds.forEach { tileId ->
             if (!_tileBitmapCache.containsKey(tileId) && !loadingJobs.containsKey(tileId)) {
                 // Launch within viewModelScope - won't be cancelled by recomposition
