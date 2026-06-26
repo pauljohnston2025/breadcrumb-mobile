@@ -508,9 +508,9 @@ class MapViewModel(
             // Convert bounds from viewport zoom to indexLevel
             val scale = 2.0.pow((indexLevel - zoom).toDouble())
             val ixMin = floor(minX * scale).toInt()
-            val ixMax = floor((maxX + 1) * scale - 1).toInt()
+            val ixMax = floor((maxX + 1) * scale - 0.0001).toInt()
             val iyMin = floor(minY * scale).toInt()
-            val iyMax = floor((maxY + 1) * scale - 1).toInt()
+            val iyMax = floor((maxY + 1) * scale - 0.0001).toInt()
 
             try {
                 // Get filtered owner IDs for Strava

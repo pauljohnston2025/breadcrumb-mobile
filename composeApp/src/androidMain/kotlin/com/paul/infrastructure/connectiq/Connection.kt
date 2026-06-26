@@ -43,45 +43,53 @@ class Connection(private val context: Context) : IConnection() {
 
     private var isConnected = false
     private var connectIQ: ConnectIQ = ConnectIqBuilder(context).getInstance()
+    private var initializationDeferred: Deferred<Unit>? = null
 
     fun getInstance(): ConnectIQ = connectIQ
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    override suspend fun start(): Unit = suspendCancellableCoroutine { continuation ->
-        if (isConnected) {
-            // we are already connected, todo handle the case where 2 callers call connect at the same time (before onSdkReady is called)
-            // need to make an outstanding task that gets returned?
-            continuation.resume(Unit) { cause, _, _ ->
-                Napier.v("cancelled whilst resuming", tag = TAG)
+    override suspend fun start(): Unit {
+        if (isConnected) return
+
+        val deferred = synchronized(this) {
+            if (initializationDeferred == null) {
+                val newDeferred = CompletableDeferred<Unit>()
+                initializationDeferred = newDeferred
+                
+                connectIQ.initialize(context, true, object : ConnectIQListener {
+                    override fun onInitializeError(errStatus: IQSdkErrorStatus) {
+                        Napier.e("Failed to initialise ConnectIQ: ${errStatus.name}", tag = TAG)
+                        val exception = when (errStatus) {
+                            IQSdkErrorStatus.GCM_NOT_INSTALLED -> ConnectIqNeedsInstall()
+                            IQSdkErrorStatus.GCM_UPGRADE_NEEDED -> ConnectIqNeedsUpdate()
+                            else -> Exception(errStatus.name)
+                        }
+                        newDeferred.completeExceptionally(exception)
+                        synchronized(this@Connection) {
+                            initializationDeferred = null
+                        }
+                    }
+
+                    override fun onSdkReady() {
+                        Napier.i("ConnectIQ SDK ready", tag = TAG)
+                        isConnected = true
+                        newDeferred.complete(Unit)
+                    }
+
+                    override fun onSdkShutDown() {
+                        Napier.i("ConnectIQ SDK shut down", tag = TAG)
+                        isConnected = false
+                        synchronized(this@Connection) {
+                            initializationDeferred = null
+                        }
+                    }
+                })
+                newDeferred
+            } else {
+                initializationDeferred!!
             }
-        } else {
-            connectIQ.initialize(context, true, object : ConnectIQListener {
-                override fun onInitializeError(errStatus: IQSdkErrorStatus) {
-                    Napier.e("Failed to initialise ConnectIQ: ${errStatus.name}", tag = TAG)
-                    if (errStatus == IQSdkErrorStatus.GCM_NOT_INSTALLED) {
-                        continuation.resumeWithException(ConnectIqNeedsInstall())
-                        return
-                    } else if (errStatus == IQSdkErrorStatus.GCM_UPGRADE_NEEDED) {
-                        continuation.resumeWithException(ConnectIqNeedsUpdate())
-                        return
-                    }
-                    continuation.resumeWithException(Exception(errStatus.name))
-                }
-
-                override fun onSdkReady() {
-                    Napier.i("ConnectIQ SDK ready", tag = TAG)
-                    isConnected = true
-                    continuation.resume(Unit) { cause, _, _ ->
-                        Napier.v("cancelled whilst resuming", tag = TAG)
-                    }
-                }
-
-                override fun onSdkShutDown() {
-                    Napier.i("ConnectIQ SDK shut down", tag = TAG)
-                    isConnected = false
-                }
-            })
         }
+        deferred.await()
     }
 
     override suspend fun send(device: CommonDevice, payload: Protocol): Unit {

@@ -13,8 +13,8 @@ import kotlin.math.*
 
 class SpatialIndexRepository(public val dao: SpatialIndexDao) {
     companion object {
-        val SPATIAL_INDEX_ZOOM_LEVELS = listOf(4, 7, 10, 14)
-        const val SPATIAL_INDEX_VERSION = 11
+        val SPATIAL_INDEX_ZOOM_LEVELS = listOf(4, 7, 10, 14, 18)
+        const val SPATIAL_INDEX_VERSION = 12
     }
 
     suspend fun indexStravaActivity(activityId: Long, points: List<Point>) {
@@ -60,10 +60,11 @@ class SpatialIndexRepository(public val dao: SpatialIndexDao) {
 
         for (z in SPATIAL_INDEX_ZOOM_LEVELS) {
             // Simplify points for this zoom level
-            // epsilon = 10.0 meters at zoom 14 is ~1 pixel. Let's use 20.0 (~2 pixels).
-            val epsilon = 20.0 * 2.0.pow((14 - z).toDouble())
-            // Also scale point limit down as we zoom out
-            val pointLimit = (500 / 2.0.pow((14 - z).toDouble() / 2.0)).toInt().coerceAtLeast(50)
+            // Aggressive simplification: use a larger epsilon.
+            // 50.0 meters at zoom 14 is ~5 pixels.
+            val epsilon = 50.0 * 2.0.pow((14 - z).toDouble())
+            // Lower point limit to reduce complexity
+            val pointLimit = (300 / 2.0.pow((14 - z).toDouble() / 2.0)).toInt().coerceAtLeast(30)
             
             val simplifiedPoints = Route.simplify(points, pointLimit, epsilon)
             if (simplifiedPoints.size < 2) continue
