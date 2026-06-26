@@ -381,18 +381,22 @@ class Route(
         }
 
         fun summary(route: List<Point>): List<Point> {
+            return simplify(route, 500, 30.0)
+        }
+
+        fun simplify(route: List<Point>, pointLimit: Int, epsilon: Double): List<Point> {
             // hack: should lift out to better methods
             return prepareForDevice(
                 "ignored",
                 route,
                 listOf(),
                 RouteSettings(
-                    coordinatesPointLimit = 500,
+                    coordinatesPointLimit = pointLimit,
                     directionsPointLimit = 0,
                     mockDirections = false,
                     showRoutePoints = false,
                     useDouglasPeucker = true,
-                    douglasPeuckerEpsilon = 30.0,
+                    douglasPeuckerEpsilon = epsilon,
                 )
             ).route
         }

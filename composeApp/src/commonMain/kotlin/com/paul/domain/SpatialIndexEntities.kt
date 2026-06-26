@@ -8,8 +8,10 @@ enum class SegmentType {
     ROUTE, STRAVA
 }
 
-@Entity(tableName = "segment_info", primaryKeys = ["type", "ownerId", "segmentIndex"])
+@Entity(tableName = "segment_info", primaryKeys = ["z", "type", "ownerId", "segmentIndex"])
 data class SegmentInfo(
+    @ColumnInfo(defaultValue = "0")
+    val z: Int,
     val type: SegmentType,
     val ownerId: String, // route id or activity id (as string)
     val segmentIndex: Int,

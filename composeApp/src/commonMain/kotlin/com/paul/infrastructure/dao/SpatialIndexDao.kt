@@ -53,8 +53,21 @@ interface SpatialIndexDao {
             SELECT DISTINCT type, ownerId, segmentIndex 
             FROM map_segment_tile 
             WHERE z = :z AND x BETWEEN :xMin AND :xMax AND y BETWEEN :yMin AND :yMax
-        ) mst ON si.type = mst.type AND si.ownerId = mst.ownerId AND si.segmentIndex = mst.segmentIndex
+        ) mst ON si.type = mst.type AND si.ownerId = mst.ownerId AND si.segmentIndex = mst.segmentIndex AND si.z = :z
+        WHERE si.z = :z
         ORDER BY si.type, si.ownerId, si.segmentIndex
     """)
     suspend fun getSegmentsInTiles(xMin: Int, xMax: Int, yMin: Int, yMax: Int, z: Int): List<SegmentInfo>
+
+    @Query("""
+        SELECT si.* FROM segment_info si
+        INNER JOIN (
+            SELECT DISTINCT type, ownerId, segmentIndex 
+            FROM map_segment_tile 
+            WHERE z = :z AND x BETWEEN :xMin AND :xMax AND y BETWEEN :yMin AND :yMax
+        ) mst ON si.type = mst.type AND si.ownerId = mst.ownerId AND si.segmentIndex = mst.segmentIndex AND si.z = :z
+        WHERE si.z = :z AND si.ownerId IN (:filteredOwnerIds)
+        ORDER BY si.type, si.ownerId, si.segmentIndex
+    """)
+    suspend fun getFilteredSegmentsInTiles(xMin: Int, xMax: Int, yMin: Int, yMax: Int, z: Int, filteredOwnerIds: List<String>): List<SegmentInfo>
 }

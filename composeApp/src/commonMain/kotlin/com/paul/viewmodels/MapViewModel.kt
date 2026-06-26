@@ -42,7 +42,6 @@ import com.paul.domain.SegmentType
 import com.paul.domain.StravaStreamEntity
 import com.paul.infrastructure.dao.SpatialIndexDao
 import com.paul.infrastructure.service.MigrationService
-import com.paul.infrastructure.repositories.SpatialIndexRepository.Companion.SPATIAL_INDEX_ZOOM
 import com.paul.infrastructure.service.geoToScreenPixel
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
@@ -303,32 +302,46 @@ class MapViewModel(
         val HIT_THRESHOLD_PIXELS = 24.0
 
         viewModelScope.launch(Dispatchers.Default) {
-            val n = 1 shl SPATIAL_INDEX_ZOOM
+            // Pick best index level for touch too
+            val indexLevel = com.paul.infrastructure.repositories.SpatialIndexRepository.SPATIAL_INDEX_ZOOM_LEVELS
+                .filter { it <= currentZoom }
+                .maxOrNull() ?: com.paul.infrastructure.repositories.SpatialIndexRepository.SPATIAL_INDEX_ZOOM_LEVELS.min()
+
+            val n = 1 shl indexLevel
             val latRad = tappedGeo.latitude * kotlin.math.PI / 180.0
             val tx = ((tappedGeo.longitude + 180.0) / 360.0 * n).toInt()
             val ty = ((1.0 - kotlin.math.ln(kotlin.math.tan(latRad) + 1.0 / kotlin.math.cos(latRad)) / kotlin.math.PI) / 2.0 * n).toInt()
 
-            val searchRadiusTiles = kotlin.math.ceil((HIT_THRESHOLD_PIXELS * 2.0.pow((SPATIAL_INDEX_ZOOM - currentZoom).toDouble())) / 256.0).toInt().coerceAtLeast(1)
+            val searchRadiusTiles = kotlin.math.ceil((HIT_THRESHOLD_PIXELS * 2.0.pow((indexLevel - currentZoom).toDouble())) / 256.0).toInt().coerceAtLeast(1)
 
-            val segments = spatialIndexDao.getSegmentsInTiles(
+            // Get filtered owner IDs
+            val filteredStravaIds = if (_isStravaEnabled.value) {
+                stravaRoutes.value.keys.map { it.id.toString() }
+            } else emptyList()
+            val routeIds = if (_isRoutesEnabled.value) {
+                storedRoutes.value.keys.map { it.id }
+            } else emptyList()
+            val allFilteredIds = filteredStravaIds + routeIds
+
+            if (allFilteredIds.isEmpty()) return@launch
+
+            val segments = spatialIndexDao.getFilteredSegmentsInTiles(
                 tx - searchRadiusTiles, tx + searchRadiusTiles,
                 ty - searchRadiusTiles, ty + searchRadiusTiles,
-                SPATIAL_INDEX_ZOOM
+                indexLevel,
+                allFilteredIds
             )
 
             val nearbyStravaIds = mutableSetOf<String>()
             val nearbyRouteIds = mutableSetOf<String>()
 
             segments.forEach { seg ->
-                if (seg.type == SegmentType.STRAVA && !_isStravaEnabled.value) return@forEach
-                if (seg.type == SegmentType.ROUTE && !_isRoutesEnabled.value) return@forEach
-
                 val p1 = geoToScreenPixel(
-                    GeoPosition(seg.lat1.toDouble(), seg.lon1.toDouble()),
+                    GeoPosition(seg.lat1, seg.lon1),
                     currentCenter, currentZoom, viewportSize
                 )
                 val p2 = geoToScreenPixel(
-                    GeoPosition(seg.lat2.toDouble(), seg.lon2.toDouble()),
+                    GeoPosition(seg.lat2, seg.lon2),
                     currentCenter, currentZoom, viewportSize
                 )
 
@@ -469,7 +482,7 @@ class MapViewModel(
         }
 
         // Optimization: Don't fetch segments if zoomed out too far
-        if (_mapZoom.value < 10f) {
+        if (_mapZoom.value < 2f) { // Adjusted from 10f as we now have lower zoom layers
             _visibleSegments.value = emptyList()
             return
         }
@@ -478,24 +491,43 @@ class MapViewModel(
             // Add a small delay to debounce rapid pans
             delay(50)
             
-            val first = visibleTileIds.first()
-            var minX = first.x; var maxX = first.x; var minY = first.y; var maxY = first.y
-            val zoom = first.z
+            val zoom = visibleTileIds.first().z
+            // Find best index level: the highest level <= zoom, or the lowest available
+            val indexLevel = com.paul.infrastructure.repositories.SpatialIndexRepository.SPATIAL_INDEX_ZOOM_LEVELS
+                .filter { it <= zoom }
+                .maxOrNull() ?: com.paul.infrastructure.repositories.SpatialIndexRepository.SPATIAL_INDEX_ZOOM_LEVELS.min()
+
+            var minX = Int.MAX_VALUE; var maxX = Int.MIN_VALUE
+            var minY = Int.MAX_VALUE; var maxY = Int.MIN_VALUE
 
             visibleTileIds.forEach {
                 minX = min(minX, it.x); maxX = max(maxX, it.x)
                 minY = min(minY, it.y); maxY = max(maxY, it.y)
             }
 
-            // Convert bounds from zoom to SPATIAL_INDEX_ZOOM
-            val scale = 2.0.pow((SPATIAL_INDEX_ZOOM - zoom).toDouble())
+            // Convert bounds from viewport zoom to indexLevel
+            val scale = 2.0.pow((indexLevel - zoom).toDouble())
             val ixMin = floor(minX * scale).toInt()
             val ixMax = floor((maxX + 1) * scale - 1).toInt()
             val iyMin = floor(minY * scale).toInt()
             val iyMax = floor((maxY + 1) * scale - 1).toInt()
 
             try {
-                val segments = spatialIndexDao.getSegmentsInTiles(ixMin, ixMax, iyMin, iyMax, SPATIAL_INDEX_ZOOM)
+                // Get filtered owner IDs for Strava
+                val filteredStravaIds = if (_isStravaEnabled.value) {
+                    stravaRoutes.value.keys.map { it.id.toString() }
+                } else emptyList()
+                
+                // Get all route IDs if enabled
+                val routeIds = if (_isRoutesEnabled.value) {
+                    storedRoutes.value.keys.map { it.id }
+                } else emptyList()
+                
+                val allFilteredIds = filteredStravaIds + routeIds
+
+                val segments = if (allFilteredIds.isEmpty()) emptyList() else {
+                    spatialIndexDao.getFilteredSegmentsInTiles(ixMin, ixMax, iyMin, iyMax, indexLevel, allFilteredIds)
+                }
                 _visibleSegments.value = segments
             } catch (e: Exception) {
                 if (e is CancellationException) throw e

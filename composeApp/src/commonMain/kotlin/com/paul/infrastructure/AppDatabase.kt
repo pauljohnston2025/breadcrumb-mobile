@@ -33,7 +33,7 @@ fun getRoomDatabase(builder: RoomDatabase.Builder<AppDatabase>): AppDatabase {
 
 @Database(
     entities = [StravaActivity::class, StravaStreamEntity::class, StravaGear::class, SegmentInfo::class, MapSegmentTile::class],
-    version = 11,
+    version = 12,
     autoMigrations = [
         AutoMigration(from = 1, to = 2),
         AutoMigration(from = 2, to = 3),
@@ -45,6 +45,7 @@ fun getRoomDatabase(builder: RoomDatabase.Builder<AppDatabase>): AppDatabase {
         AutoMigration(from = 8, to = 9),
         AutoMigration(from = 9, to = 10),
         AutoMigration(from = 10, to = 11),
+        AutoMigration(from = 11, to = 12),
     ]
 )
 @TypeConverters(TimestampConverter::class, PointListConverter::class, SegmentTypeConverter::class)
