@@ -157,7 +157,7 @@ class MainActivity : ComponentActivity() {
                     stravaImportService,
                     routeRepository,
                     generalSettingsRepository,
-                    spatialIndexDao,
+                    spatialIndexRepository,
                     migrationService,
                 )
             }

@@ -71,12 +71,15 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import breadcrumb.composeapp.generated.resources.Res
 import breadcrumb.composeapp.generated.resources.strava
 import com.paul.domain.PaletteMappingMode
+import com.paul.domain.SegmentInfo
 import com.paul.domain.SegmentType
 import com.paul.infrastructure.service.GeoPosition
 import com.paul.infrastructure.service.TileId
 import com.paul.infrastructure.service.TileInfo
 import com.paul.infrastructure.service.calculateNewCenter
 import com.paul.infrastructure.service.geoToScreenPixel
+import com.paul.infrastructure.service.geoToWorldPixel
+import com.paul.infrastructure.service.getScaleFactor
 import com.paul.infrastructure.service.latLonToTileXY
 import com.paul.infrastructure.service.screenPixelToGeo
 import com.paul.infrastructure.service.worldPixelToGeo
@@ -364,6 +367,11 @@ fun MapTilerComposable(
                 .clipToBounds()
         ) {
             val scale = 2.0.pow((localZoom - integerZoom).toDouble()).toFloat()
+            
+            // Pre-calculate world space constants for rendering
+            val worldScale = getScaleFactor(integerZoom.toFloat())
+            val (worldCenterX, worldCenterY) = geoToWorldPixel(localCenterGeo)
+
             withTransform({
                 scale(scale, scale, pivot = Offset(size.width / 2f, size.height / 2f))
             }) {
@@ -412,22 +420,21 @@ fun MapTilerComposable(
 
                         if (seg.ownerId != lastOwnerId || seg.type != lastType || seg.segmentIndex != lastIndex + 1) {
                             drawCurrentPath()
-                            val p1 = geoToScreenPixel(
-                                GeoPosition(seg.lat1.toDouble(), seg.lon1.toDouble()),
-                                localCenterGeo,
-                                integerZoom.toFloat(),
-                                viewportSize
-                            )
-                            currentPath.moveTo(p1.x.toFloat(), p1.y.toFloat())
+                            
+                            val dx1 = (seg.worldX1 - worldCenterX) * worldScale
+                            val dy1 = (seg.worldY1 - worldCenterY) * worldScale
+                            val x1 = viewportSize.width / 2.0 + dx1
+                            val y1 = viewportSize.height / 2.0 + dy1
+                            
+                            currentPath.moveTo(x1.toFloat(), y1.toFloat())
                         }
 
-                        val p2 = geoToScreenPixel(
-                            GeoPosition(seg.lat2.toDouble(), seg.lon2.toDouble()),
-                            localCenterGeo,
-                            integerZoom.toFloat(),
-                            viewportSize
-                        )
-                        currentPath.lineTo(p2.x.toFloat(), p2.y.toFloat())
+                        val dx2 = (seg.worldX2 - worldCenterX) * worldScale
+                        val dy2 = (seg.worldY2 - worldCenterY) * worldScale
+                        val x2 = viewportSize.width / 2.0 + dx2
+                        val y2 = viewportSize.height / 2.0 + dy2
+                        
+                        currentPath.lineTo(x2.toFloat(), y2.toFloat())
 
                         lastOwnerId = seg.ownerId
                         lastType = seg.type

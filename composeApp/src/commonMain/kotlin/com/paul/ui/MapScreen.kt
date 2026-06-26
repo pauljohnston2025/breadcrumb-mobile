@@ -126,7 +126,7 @@ fun MapScreen(
         Column(modifier = Modifier.fillMaxSize()) {
             StravaMapFilterSection(viewModel)
 
-            if (isMigrating || migrationStatus != null) {
+            if (isMigrating) {
                 Text(
                     text = migrationStatus ?: "",
                     style = MaterialTheme.typography.caption.copy(color = MaterialTheme.colors.primary),

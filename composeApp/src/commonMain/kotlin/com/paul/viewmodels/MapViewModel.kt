@@ -13,7 +13,7 @@ import androidx.lifecycle.viewModelScope
 import com.paul.composables.byteArrayToImageBitmap
 import com.paul.domain.ColourPalette
 import com.paul.domain.IRoute
-import com.paul.domain.StaveIRoute
+import com.paul.domain.StravaIRoute
 import com.paul.domain.StravaActivity
 import com.paul.domain.TileServerInfo
 import com.paul.infrastructure.connectiq.IConnection
@@ -39,6 +39,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.unit.IntOffset
 import com.paul.domain.RouteEntry
 import com.paul.domain.SegmentType
+import com.paul.domain.StravaStreamEntity
 import com.paul.infrastructure.dao.SpatialIndexDao
 import com.paul.infrastructure.service.MigrationService
 import com.paul.infrastructure.repositories.SpatialIndexRepository.Companion.SPATIAL_INDEX_ZOOM
@@ -164,6 +165,7 @@ class MapViewModel(
     private val _visibleSegments = MutableStateFlow<List<com.paul.domain.SegmentInfo>>(emptyList())
     val visibleSegments: StateFlow<List<com.paul.domain.SegmentInfo>> = _visibleSegments.asStateFlow()
 
+    private var visibleSegmentsJob: Job? = null
     private val loadingJobs = mutableMapOf<TileId, Job>() // Still needed for cancellation
     val isActive = true
     private var currentVisibleTiles: Set<TileId> = setOf()
@@ -226,22 +228,15 @@ class MapViewModel(
     // When the repo's date range changes, 'activities' emits, and this transforms them
     val stravaRoutes: StateFlow<Map<StravaActivity, Route>> = stravaRepo.activitiesByDateRangeAndPage
         .map { activities ->
-            val ids = activities.map { it.id }
-
-//            val streamsMap = stravaRepo.getStreamsForActivityIds(ids)
-
             kotlinx.coroutines.coroutineScope {
                 activities.map { activity ->
                     async(Dispatchers.Default) {
-//                        val stream = streamsMap[activity.id]
-                        // significantly less points when using the summary polyline
-                        // and i can't tell the difference (resolution seems fine)
-                        // note: the summary polyline does not have elevation data,
-                        // but we do not need that for display and click functionality
+                        // Use the summary polyline for map display.
+                        // Significantly fewer points and resolution is sufficient for the map.
+                        // Note: summary polyline does not contain elevation data.
                         val route = activity.summaryToRoute()
 
-                        // Accessing projectedPoints here triggers the lazy
-                        // calculation in the background.
+                        // Trigger lazy calculation of projected points
                         val _trigger = route.projectedPoints
 
                         activity to route
@@ -259,22 +254,38 @@ class MapViewModel(
     private var stravaToggleJob: Job? = null
     fun toggleStrava(enabled: Boolean) {
         if (enabled) {
+            if (migrationService.isMigrating.value) {
+                viewModelScope.launch {
+                    snackbarHostState.showSnackbar("Please wait for the spatial index migration to complete first")
+                }
+                return
+            }
+
             stravaToggleJob?.cancel()
             stravaToggleJob = viewModelScope.launch {
                 if (stravaRepo.getTotalCount() == 0L) {
                     snackbarHostState.showSnackbar("Please sync or import some Strava activities first")
                 } else {
                     _isStravaEnabled.value = true
+                    updateVisibleSegments(currentVisibleTiles)
                 }
             }
         } else {
             stravaToggleJob?.cancel()
             _isStravaEnabled.value = false
+            updateVisibleSegments(currentVisibleTiles)
         }
     }
 
     fun toggleStoredRoutes(enabled: Boolean) {
+        if (enabled && migrationService.isMigrating.value) {
+            viewModelScope.launch {
+                snackbarHostState.showSnackbar("Please wait for the spatial index migration to complete first")
+            }
+            return
+        }
         _isRoutesEnabled.value = enabled
+        updateVisibleSegments(currentVisibleTiles)
     }
 
     fun clearNearbyActivities() {
@@ -451,7 +462,8 @@ class MapViewModel(
     }
 
     private fun updateVisibleSegments(visibleTileIds: Set<TileId>) {
-        if (visibleTileIds.isEmpty()) {
+        visibleSegmentsJob?.cancel()
+        if (visibleTileIds.isEmpty() || (!_isStravaEnabled.value && !_isRoutesEnabled.value) || migrationService.isMigrating.value) {
             _visibleSegments.value = emptyList()
             return
         }
@@ -462,7 +474,10 @@ class MapViewModel(
             return
         }
 
-        viewModelScope.launch(Dispatchers.Default) {
+        visibleSegmentsJob = viewModelScope.launch(Dispatchers.Default) {
+            // Add a small delay to debounce rapid pans
+            delay(50)
+            
             val first = visibleTileIds.first()
             var minX = first.x; var maxX = first.x; var minY = first.y; var maxY = first.y
             val zoom = first.z
@@ -479,8 +494,13 @@ class MapViewModel(
             val iyMin = floor(minY * scale).toInt()
             val iyMax = floor((maxY + 1) * scale - 1).toInt()
 
-            val segments = spatialIndexDao.getSegmentsInTiles(ixMin, ixMax, iyMin, iyMax, SPATIAL_INDEX_ZOOM)
-            _visibleSegments.value = segments
+            try {
+                val segments = spatialIndexDao.getSegmentsInTiles(ixMin, ixMax, iyMin, iyMax, SPATIAL_INDEX_ZOOM)
+                _visibleSegments.value = segments
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                Napier.e("Failed to update visible segments", e, tag = TAG)
+            }
         }
     }
 
@@ -1010,11 +1030,15 @@ class MapViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val stream = stravaRepo.getStreamForActivity(activity.id)
-                if (stream == null) {
-                    snackbarHostState.showSnackbar("Failed to load activity stream, please do a full delete/resync")
-                    return@launch
+                if (stream != null) {
+                    displayRoute(stream.toRouteForDevice(activity.name), StravaIRoute(activity, stream))
+                } else {
+                    // Fallback to summary if stream hasn't been synced yet
+                    val summary = activity.summaryToRoute()
+                    displayRoute(summary, StravaIRoute(activity,
+                        StravaStreamEntity(activity.id, summary.route)
+                    ))
                 }
-                displayRoute(stream.toRouteForDevice(activity.name), StaveIRoute(activity, stream))
                 clearNearbyActivities()
             } catch (t: Throwable) {
                 snackbarHostState.showSnackbar("Failed to load activity preview")
@@ -1031,7 +1055,7 @@ class MapViewModel(
                     snackbarHostState.showSnackbar("Failed to load activity stream, please do a full delete/resync")
                     return@launch
                 }
-                sendRoute(StaveIRoute(activity, stream))
+                sendRoute(StravaIRoute(activity, stream))
                 clearNearbyActivities()
             } catch (t: Throwable) {
                 snackbarHostState.showSnackbar("Failed to send activity route")

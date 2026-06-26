@@ -324,7 +324,7 @@ class StravaRepository(
                         dao.insertActivities(listOf(activity))
 
                         // 3. Index segments
-                        val pointsToIndex = fullPoints.ifEmpty { activity.summaryToRoute().route }
+                        val pointsToIndex = activity.summaryToRoute().route
                         if (pointsToIndex.isNotEmpty()) {
                             spatialIndexRepository.indexStravaActivity(activity.id, pointsToIndex)
                         }
@@ -371,7 +371,6 @@ class StravaRepository(
                 val points = getActivityStreams(id)
                 if (points.isNotEmpty()) {
                     dao.insertStream(StravaStreamEntity(id, points))
-                    spatialIndexRepository.indexStravaActivity(id, points)
                 }
             }
             _loginStatus.value = "Stream repair complete."

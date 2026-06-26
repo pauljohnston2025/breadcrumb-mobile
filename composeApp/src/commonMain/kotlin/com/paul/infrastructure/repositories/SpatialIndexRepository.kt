@@ -4,13 +4,16 @@ import com.paul.domain.MapSegmentTile
 import com.paul.domain.SegmentInfo
 import com.paul.domain.SegmentType
 import com.paul.infrastructure.dao.SpatialIndexDao
+import com.paul.infrastructure.service.GeoPosition
+import com.paul.infrastructure.service.geoToWorldPixel
 import com.paul.protocol.todevice.Point
+import kotlinx.coroutines.yield
 import kotlin.math.*
 
-class SpatialIndexRepository(private val dao: SpatialIndexDao) {
+class SpatialIndexRepository(public val dao: SpatialIndexDao) {
     companion object {
         const val SPATIAL_INDEX_ZOOM = 14
-        const val SPATIAL_INDEX_VERSION = 4
+        const val SPATIAL_INDEX_VERSION = 10
     }
 
     suspend fun indexStravaActivity(activityId: Long, points: List<Point>) {
@@ -41,6 +44,9 @@ class SpatialIndexRepository(private val dao: SpatialIndexDao) {
         dao.clearAllTileMappings()
     }
 
+    suspend fun getSegmentCount(): Long = dao.getSegmentCount()
+    suspend fun getTileMappingCount(): Long = dao.getTileMappingCount()
+
     private suspend fun indexSegments(type: SegmentType, ownerId: String, points: List<Point>) {
         if (points.size < 2) {
             dao.deleteSegments(type, ownerId)
@@ -60,30 +66,40 @@ class SpatialIndexRepository(private val dao: SpatialIndexDao) {
                 val p1 = points[j]
                 val p2 = points[j + 1]
 
+                val p1Geo = GeoPosition(p1.latitude.toDouble(), p1.longitude.toDouble())
+                val p2Geo = GeoPosition(p2.latitude.toDouble(), p2.longitude.toDouble())
+                val p1World = geoToWorldPixel(p1Geo)
+                val p2World = geoToWorldPixel(p2Geo)
+
                 val segmentInfo = SegmentInfo(
                     type = type,
                     ownerId = ownerId,
                     segmentIndex = j,
-                    lat1 = p1.latitude,
-                    lon1 = p1.longitude,
-                    lat2 = p2.latitude,
-                    lon2 = p2.longitude
+                    worldX1 = p1World.first,
+                    worldY1 = p1World.second,
+                    worldX2 = p2World.first,
+                    worldY2 = p2World.second,
+                    lat1 = p1Geo.latitude,
+                    lon1 = p1Geo.longitude,
+                    lat2 = p2Geo.latitude,
+                    lon2 = p2Geo.longitude
                 )
                 segments.add(segmentInfo)
 
                 val intersectedTiles = getTilesIntersectingSegment(
-                    p1.latitude.toDouble(), p1.longitude.toDouble(),
-                    p2.latitude.toDouble(), p2.longitude.toDouble(),
+                    p1Geo.latitude, p1Geo.longitude,
+                    p2Geo.latitude, p2Geo.longitude,
                     SPATIAL_INDEX_ZOOM
                 )
 
                 intersectedTiles.forEach { (tx, ty) ->
-                    mappings.add(MapSegmentTile(tx, ty, SPATIAL_INDEX_ZOOM, type, ownerId, j))
+                    mappings.add(MapSegmentTile(SPATIAL_INDEX_ZOOM, tx, ty, type, ownerId, j))
                 }
             }
 
             dao.insertSegments(segments)
             dao.insertTileMappings(mappings)
+            yield()
         }
     }
 

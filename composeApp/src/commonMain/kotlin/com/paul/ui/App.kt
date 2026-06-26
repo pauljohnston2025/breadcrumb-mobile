@@ -45,6 +45,7 @@ import androidx.navigation.compose.rememberNavController
 import com.paul.infrastructure.connectiq.IConnection
 import com.paul.infrastructure.connectiq.IDeviceList
 import com.paul.infrastructure.dao.SpatialIndexDao
+import com.paul.infrastructure.repositories.SpatialIndexRepository
 import com.paul.infrastructure.service.MigrationService
 import com.paul.infrastructure.repositories.ColourPaletteRepository
 import com.paul.infrastructure.repositories.GeneralSettingsRepository
@@ -99,7 +100,7 @@ fun App(
     stravaImportService: StravaImportService,
     routeRepository: RouteRepository,
     generalSettingsRepository: GeneralSettingsRepository,
-    spatialIndexDao: SpatialIndexDao,
+    spatialIndexRepository: SpatialIndexRepository,
     migrationService: MigrationService,
 ) {
     // Inside the App composable:
@@ -144,7 +145,7 @@ fun App(
                         connection, deviceList, scaffoldState.snackbarHostState
                     )
                 }
-                val debugViewModel = viewModel { DebugViewModel() }
+                val debugViewModel = viewModel { DebugViewModel(migrationService) }
                 val settingsViewModel = viewModel {
                     SettingsViewModel(
                         deviceSelector,
@@ -169,7 +170,7 @@ fun App(
                         locationService = locationService,
                         stravaRepo = stravaRepository,
                         routeRepository = settingsViewModel.routesRepo,
-                        spatialIndexDao = spatialIndexDao,
+                        spatialIndexDao = spatialIndexRepository.dao,
                         migrationService = migrationService,
                     )
                 }
@@ -483,6 +484,8 @@ fun App(
                                         StorageViewModel(
                                             fileHelper,
                                             startViewModel.routeRepo,
+                                            spatialIndexRepository,
+                                            migrationService,
                                         )
                                     }
                                     storageViewModel.refresh()

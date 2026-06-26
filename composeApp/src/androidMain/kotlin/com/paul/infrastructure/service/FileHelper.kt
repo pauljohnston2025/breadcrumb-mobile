@@ -144,8 +144,12 @@ class FileHelper(
     }
 
     fun fileLoaded(uri: Uri?) {
-        require(searchCompletion != null)
-        searchCompletion!!(uri)
+        val completion = searchCompletion
+        if (completion != null) {
+            completion(uri)
+        } else {
+            Napier.w("fileLoaded called but searchCompletion is null. This can happen after a configuration change. URI: $uri", tag = "FileHelper")
+        }
     }
 
     override suspend fun localDirectorySize(directory: String): Long {

@@ -61,6 +61,11 @@ fun StorageScreen(
     val loadingRoutes by viewModel.loadingRoutes.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
 
+    val segmentCount by viewModel.segmentCount.collectAsState()
+    val tileMappingCount by viewModel.tileMappingCount.collectAsState()
+    val migrationStatus by viewModel.migrationService.migrationStatus.collectAsState()
+    val isMigrating by viewModel.migrationService.isMigrating.collectAsState()
+
     val pullRefreshState = rememberPullRefreshState(isRefreshing, { viewModel.refresh() })
 
     Box(Modifier.pullRefresh(pullRefreshState)) {
@@ -126,6 +131,43 @@ fun StorageScreen(
                             contentDescription = "Delete Tiles",
                             tint = MaterialTheme.colors.error
                         ) // Indicate destructive action
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(24.dp))
+
+            Text(
+                text = "Spatial Index:",
+                style = MaterialTheme.typography.h6,
+                maxLines = 1,
+            )
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                elevation = 2.dp
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "Total Segments: $segmentCount",
+                        style = MaterialTheme.typography.body1
+                    )
+                    Text(
+                        text = "Tile Mappings: $tileMappingCount",
+                        style = MaterialTheme.typography.body1
+                    )
+                    
+                    if (isMigrating || migrationStatus != null) {
+                        Spacer(Modifier.height(8.dp))
+                        Divider()
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            text = migrationStatus ?: "Migrating...",
+                            style = MaterialTheme.typography.caption,
+                            color = MaterialTheme.colors.primary
+                        )
                     }
                 }
             }

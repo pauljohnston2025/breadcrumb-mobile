@@ -6,9 +6,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.paul.domain.IRoute
-import com.paul.domain.StaveIRoute
 import com.paul.domain.StravaActivity
 import com.paul.domain.StravaGear
+import com.paul.domain.StravaIRoute
 import com.paul.infrastructure.connectiq.IConnection
 import com.paul.infrastructure.repositories.HistoryRepository
 import com.paul.infrastructure.repositories.ITileRepository
@@ -148,7 +148,7 @@ class StravaActivitiesViewModel(
                     return@launch
                 }
 
-                mapViewModel.displayRoute(stream.toRouteForDevice(activity.name), StaveIRoute(activity, stream))
+                mapViewModel.displayRoute(stream.toRouteForDevice(activity.name), StravaIRoute(activity, stream))
                 _navigationEvents.emit(StravaNavigationEvent.NavigateTo(Screen.Map.route))
             } catch (e: Exception) {
                 snackbarHostState.showSnackbar("Failed to parse map data")
@@ -164,7 +164,7 @@ class StravaActivitiesViewModel(
                     snackbarHostState.showSnackbar("Failed to load activity stream, please do a full delete/resync")
                     return@launch
                 }
-                sendRoute(StaveIRoute(activity, stream))
+                sendRoute(StravaIRoute(activity, stream))
 
             } catch (t: Throwable) {
                 snackbarHostState.showSnackbar("Failed to load activity preview")

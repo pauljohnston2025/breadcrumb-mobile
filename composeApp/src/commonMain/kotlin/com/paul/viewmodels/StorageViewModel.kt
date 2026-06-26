@@ -5,7 +5,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.paul.infrastructure.repositories.RouteRepository
+import com.paul.infrastructure.repositories.SpatialIndexRepository
 import com.paul.infrastructure.service.IFileHelper
+import com.paul.infrastructure.service.MigrationService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,9 +18,14 @@ import kotlinx.coroutines.launch
 class StorageViewModel(
     private val fileHelper: IFileHelper,
     private var routesRepository: RouteRepository,
+    private val spatialIndexRepository: SpatialIndexRepository,
+    val migrationService: MigrationService,
 ) : ViewModel() {
     val tileServers: MutableState<Map<String, Long>> = mutableStateOf(mapOf())
     val routesTotalSize: MutableState<Long> = mutableStateOf(-1)
+
+    val segmentCount = MutableStateFlow(0L)
+    val tileMappingCount = MutableStateFlow(0L)
 
     private val _deletingTileServer = MutableStateFlow<String?>(null)
     val deletingTileServer: StateFlow<String?> = _deletingTileServer.asStateFlow()
@@ -104,6 +111,10 @@ class StorageViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             updateTileServers()
             updateRouteTotalSize()
+            
+            segmentCount.value = spatialIndexRepository.getSegmentCount()
+            tileMappingCount.value = spatialIndexRepository.getTileMappingCount()
+
             viewModelScope.launch(Dispatchers.Main) {
                 _isRefreshing.value = false
             }

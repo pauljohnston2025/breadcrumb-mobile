@@ -204,7 +204,7 @@ data class StravaMap(
     }
 }
 
-class StaveIRoute(
+class StravaIRoute(
     val activity: StravaActivity,
     val stravaStreamEntity: StravaStreamEntity
 ) : IRoute("strava:${activity.id}") {

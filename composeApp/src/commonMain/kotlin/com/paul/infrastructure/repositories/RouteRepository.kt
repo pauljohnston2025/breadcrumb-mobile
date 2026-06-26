@@ -183,13 +183,9 @@ class RouteRepository(
                 throw RuntimeException(error)
             }
         }
-        val points = when (route) {
-            is CoordinatesRoute -> route.coordinates()
-            is GpxRoute -> route.getPoints() ?: emptyList()
-            is FitRoute -> route.getPoints()
-            else -> emptyList()
-        }
-        val distance = Route.calculateTotalDistance(points)
+
+        val snackbarHostState = SnackbarHostState()
+        val (summaryLine, distance) = getSummaryAndDistance(route, snackbarHostState)
 
         routes.add(
             RouteEntry(
@@ -199,11 +195,29 @@ class RouteRepository(
                 Clock.System.now(),
                 route.rawBytes().size.toLong(),
                 route.hasDirectionInfo(),
+                summary = summaryLine,
+                summaryVersion = ROUTE_SUMMARY_VERSION,
                 distanceMeters = distance
             )
         )
         saveRoutes()
-        spatialIndexRepository.indexRoute(route.id, points)
+        spatialIndexRepository.indexRoute(route.id, summaryLine)
+    }
+
+    private suspend fun getSummaryAndDistance(iRoute: IRoute, snackbarHostState: SnackbarHostState): Pair<List<Point>, Float> {
+        val summaryLine = iRoute.toSummary(snackbarHostState)
+        val fullPoints = getFullPoints(iRoute, snackbarHostState)
+        val distance = Route.calculateTotalDistance(fullPoints)
+        return Pair(summaryLine, distance)
+    }
+
+    private suspend fun getFullPoints(iRoute: IRoute, snackbarHostState: SnackbarHostState?): List<Point> {
+        return when (iRoute) {
+            is CoordinatesRoute -> iRoute.coordinates()
+            is GpxRoute -> iRoute.getPoints(snackbarHostState) ?: emptyList()
+            is FitRoute -> iRoute.getPoints()
+            else -> emptyList()
+        }
     }
 
     private fun saveRoutes() {
@@ -232,29 +246,17 @@ class RouteRepository(
     suspend fun getRouteEntrySummary(route: RouteEntry?, snackbarHostState: SnackbarHostState): Route?
     {
         if (route != null) {
-            var summary = route.summaryToRoute()
-            if (summary == null || route.summaryVersion != ROUTE_SUMMARY_VERSION) {
-                // first time write the summary back and persist it
-                val iRoute = getRouteI(route.id)
-                if (iRoute != null) {
-                    val summaryLine = iRoute.toSummary(snackbarHostState)
-                    val points = if (iRoute is CoordinatesRoute) {
-                        iRoute.coordinates()
-                    } else if (iRoute is GpxRoute) {
-                        iRoute.getPoints(snackbarHostState) ?: emptyList()
-                    } else if (iRoute is FitRoute) {
-                        iRoute.getPoints()
-                    } else {
-                        emptyList()
-                    }
-                    val distance = Route.calculateTotalDistance(points)
-
-                    updateRouteSummary(route.id, summaryLine, distance)
-                    summary = Route(route.name, summaryLine, emptyList())
-                }
+            if (route.summary != null && route.summaryVersion == ROUTE_SUMMARY_VERSION) {
+                return route.summaryToRoute()
             }
 
-            return summary
+            // first time write the summary back and persist it
+            val iRoute = getRouteI(route.id)
+            if (iRoute != null) {
+                val (summaryLine, distance) = getSummaryAndDistance(iRoute, snackbarHostState)
+                updateRouteSummary(route.id, summaryLine, distance)
+                return Route(route.name, summaryLine, emptyList())
+            }
         }
 
         return null

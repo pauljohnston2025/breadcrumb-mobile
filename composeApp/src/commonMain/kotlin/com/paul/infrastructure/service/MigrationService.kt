@@ -4,7 +4,9 @@ import com.paul.infrastructure.dao.StravaDao
 import com.paul.infrastructure.repositories.RouteRepository
 import com.paul.infrastructure.repositories.SpatialIndexRepository
 import com.paul.domain.SegmentType
+import com.paul.protocol.todevice.Route.Companion.ROUTE_SUMMARY_VERSION
 import com.russhwolf.settings.Settings
+import androidx.compose.material.SnackbarHostState
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -12,6 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.yield
 
 class MigrationService(
     private val spatialIndexRepository: SpatialIndexRepository,
@@ -42,8 +45,13 @@ class MigrationService(
         Napier.i("Starting Spatial Index Migration to version ${SpatialIndexRepository.SPATIAL_INDEX_VERSION}...", tag = "MigrationService")
         try {
             // Clear existing index first to ensure a clean migration
-            _migrationStatus.value = "Clearing old index..."
-            spatialIndexRepository.clearAll()
+            _migrationStatus.value = "Clearing old index (Segments)..."
+            spatialIndexRepository.dao.clearAllSegments()
+            yield()
+            
+            _migrationStatus.value = "Clearing old index (Mappings)..."
+            spatialIndexRepository.dao.clearAllTileMappings()
+            yield()
 
             // 1. Migrate Routes
             // Ensure routes are loaded. 
@@ -51,11 +59,21 @@ class MigrationService(
             // it should be ready, but let's give it a tiny delay just in case of any race.
             val totalRoutes = routeRepository.routes.size
             Napier.i("Found $totalRoutes routes to index", tag = "MigrationService")
-            routeRepository.routes.forEachIndexed { index, routeEntry ->
-                _migrationStatus.value = "Indexing Routes: ${index + 1} / $totalRoutes"
-                routeEntry.summary?.let { points ->
-                    spatialIndexRepository.indexRoute(routeEntry.id, points)
+            val dummySnackbarHostState = SnackbarHostState()
+            
+            routeRepository.routes.toList().forEachIndexed { index, routeEntry ->
+                val status = "Indexing Routes: ${index + 1} / $totalRoutes"
+                _migrationStatus.value = status
+                Napier.i(status, tag = "MigrationService")
+                
+                // Use getRouteEntrySummary to ensure summary is generated and persisted if missing
+                // getRouteEntrySummary will call updateRouteSummary which handles the spatial indexing
+                if (routeEntry.summary == null || routeEntry.summaryVersion != ROUTE_SUMMARY_VERSION) {
+                    routeRepository.getRouteEntrySummary(routeEntry, dummySnackbarHostState)
+                } else {
+                    spatialIndexRepository.indexRoute(routeEntry.id, routeEntry.summary)
                 }
+                yield() // Let other coroutines/queries run
             }
 
             // 2. Migrate Strava Activities
@@ -63,21 +81,23 @@ class MigrationService(
             val pageSize = 50L
             val totalPages = (totalStrava + pageSize - 1) / pageSize
             
-            for (page in 0 until totalPages) {
+            for (page in 0 until totalPages.toInt()) {
                 // We need a way to fetch a page of activities.
                 // StravaDao has getActivitiesByDateRangeAndPage but that requires a date range.
                 // Let's add a simple paged getAllActivities.
-                val activities = stravaDao.getAllActivitiesPaged(page, pageSize)
+                val activities = stravaDao.getAllActivitiesPaged(page.toLong(), pageSize)
                 activities.forEachIndexed { index, activity ->
                     val globalIndex = page * pageSize + index + 1
-                    _migrationStatus.value = "Indexing Strava: $globalIndex / $totalStrava"
+                    val status = "Indexing Strava: $globalIndex / $totalStrava"
+                    _migrationStatus.value = status
+                    Napier.i(status, tag = "MigrationService")
                     
-                    val stream = stravaDao.getStreamForActivity(activity.id)
-                    val points = stream?.points ?: activity.summaryToRoute().route
+                    val points = activity.summaryToRoute().route
                     if (points.isNotEmpty()) {
                         spatialIndexRepository.indexStravaActivity(activity.id, points)
                     }
                 }
+                yield() // Let other coroutines/queries run
             }
 
             settings.putInt(SPATIAL_INDEX_VERSION_KEY, SpatialIndexRepository.SPATIAL_INDEX_VERSION)

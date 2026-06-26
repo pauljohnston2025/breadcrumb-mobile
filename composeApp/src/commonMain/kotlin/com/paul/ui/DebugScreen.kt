@@ -42,6 +42,10 @@ import kotlinx.datetime.toLocalDateTime
 fun DebugScreen(viewModel: DebugViewModel, fileHelper: IFileHelper) {
     val logs by viewModel.logs.collectAsState()
     val isDescending by viewModel.isDescending.collectAsState()
+    val migrationStatus by viewModel.migrationService.migrationStatus.collectAsState()
+    val isMigrating by viewModel.migrationService.isMigrating.collectAsState()
+    val spatialIndexVersion by viewModel.spatialIndexVersion.collectAsState()
+
     val clipboardManager = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
@@ -131,8 +135,10 @@ fun DebugScreen(viewModel: DebugViewModel, fileHelper: IFileHelper) {
                     onSortToggle = { viewModel.toggleSort() },
                     onClear = { viewModel.clear() },
                     onExport = { saveLauncher.launch("logs_${System.currentTimeMillis()}.txt") },
-                    spatialVersion = viewModel.spatialIndexVersion,
-                    targetVersion = viewModel.targetSpatialIndexVersion
+                    spatialVersion = spatialIndexVersion,
+                    targetVersion = viewModel.targetSpatialIndexVersion,
+                    isMigrating = isMigrating,
+                    migrationStatus = migrationStatus
                 )
             }
 
@@ -257,7 +263,9 @@ fun HeaderSection(
     onClear: () -> Unit,
     onExport: () -> Unit,
     spatialVersion: Int,
-    targetVersion: Int
+    targetVersion: Int,
+    isMigrating: Boolean,
+    migrationStatus: String?
 ) {
     val levels = listOf("VERBOSE", "DEBUG", "INFO", "WARNING", "ERROR")
 
@@ -266,11 +274,20 @@ fun HeaderSection(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
         ) {
-            Text(
-                text = "Spatial Index: v$spatialVersion / v$targetVersion",
-                style = MaterialTheme.typography.overline,
-                color = if (spatialVersion < targetVersion) MaterialTheme.colors.error else Color.Gray
-            )
+            Column {
+                Text(
+                    text = "Spatial Index: v$spatialVersion / v$targetVersion",
+                    style = MaterialTheme.typography.overline,
+                    color = if (spatialVersion < targetVersion) MaterialTheme.colors.error else Color.Gray
+                )
+                if (isMigrating || migrationStatus != null) {
+                    Text(
+                        text = migrationStatus ?: "Migrating...",
+                        style = MaterialTheme.typography.caption.copy(color = MaterialTheme.colors.primary),
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
+            }
         }
 
         Row(
