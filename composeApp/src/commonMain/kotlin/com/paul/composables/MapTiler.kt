@@ -670,25 +670,25 @@ fun MapTilerComposable(
                 Text(text = "Zoom: %.1f".format(localZoom), color = Color.White, fontSize = 12.sp)
             }
 
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(Color.Black.copy(alpha = 0.5f))
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-            ) {
-                Text(text = "Base Tiles: %d".format(tileCache.size), color = Color.White, fontSize = 12.sp)
-            }
-
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(Color.Black.copy(alpha = 0.5f))
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-            ) {
-                Text(text = "Overlay Tiles: %d".format(overlayTiles.size), color = Color.White, fontSize = 12.sp)
-            }
-
             if (routeSettings.showRoutePoints && routeToDisplay != null) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Color.Black.copy(alpha = 0.5f))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(text = "Base Tiles: %d".format(tileCache.size), color = Color.White, fontSize = 12.sp)
+                }
+
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Color.Black.copy(alpha = 0.5f))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(text = "Overlay Tiles: %d".format(overlayTiles.size), color = Color.White, fontSize = 12.sp)
+                }
+
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(4.dp))

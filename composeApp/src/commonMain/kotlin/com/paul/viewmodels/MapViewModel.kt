@@ -582,11 +582,11 @@ class MapViewModel(
             }
 
             // 1. Cleanup overlay cache
-//            if (_overlayTileCache.size > 150) {
-//                val toRemove = _overlayTileCache.keys.filter { it !in overlayTileIds }.take(50)
-//                toRemove.forEach { _overlayTileCache.remove(it) }
-//                _overlayCacheState.value = _overlayTileCache.toMap()
-//            }
+            if (_overlayTileCache.size > 750) {
+                val toRemove = _overlayTileCache.keys.filter { it !in overlayTileIds }.take(50)
+                toRemove.forEach { _overlayTileCache.remove(it) }
+                _overlayCacheState.value = _overlayTileCache.toMap()
+            }
 
             // 2. Identify missing tiles
             val missingTiles = overlayTileIds.filter { !_overlayTileCache.containsKey(it) }
@@ -762,13 +762,13 @@ class MapViewModel(
 //        // 2. Cleanup cache - prevent infinite growth
 //        // Keep visible tiles + a buffer of others.
 //        // 100 tiles is roughly 25MB of bitmap data.
-//        if (_tileBitmapCache.size > 150) {
-//            val toRemove = _tileBitmapCache.keys.filter { it !in visibleTileIds }.take(50)
-//            if (toRemove.isNotEmpty()) {
-//                toRemove.forEach { _tileBitmapCache.remove(it) }
-//                _tileCacheState.value = _tileBitmapCache.toMap()
-//            }
-//        }
+        if (_tileBitmapCache.size > 750) {
+            val toRemove = _tileBitmapCache.keys.filter { it !in visibleTileIds }.take(50)
+            if (toRemove.isNotEmpty()) {
+                toRemove.forEach { _tileBitmapCache.remove(it) }
+                _tileCacheState.value = _tileBitmapCache.toMap()
+            }
+        }
 
         // 3. Request missing tiles
         visibleTileIds.forEach { tileId ->
