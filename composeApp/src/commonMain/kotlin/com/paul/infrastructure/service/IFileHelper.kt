@@ -15,6 +15,8 @@ interface IFileHelper {
     suspend fun localContentsSize(directory: String): Map<String, Long>
     /** The size of a directory in bytes */
     suspend fun localDirectorySize(directory: String): Long
+    /** The number of files in a directory */
+    suspend fun localFileCount(directory: String): Int
 
     suspend fun deleteDir(directory: String)
     suspend fun delete(file: String)

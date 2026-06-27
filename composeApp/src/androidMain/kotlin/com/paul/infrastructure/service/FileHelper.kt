@@ -156,6 +156,12 @@ class FileHelper(
         return getDirectorySize(File(context.filesDir, directory))
     }
 
+    override suspend fun localFileCount(directory: String): Int {
+        val dir = File(context.filesDir, directory)
+        if (!dir.exists() || !dir.isDirectory) return 0
+        return dir.listFiles()?.count { it.isFile } ?: 0
+    }
+
     private fun getDirectorySize(directory: File): Long {
         var totalSize: Long = 0
         // Check if it's a valid, readable directory

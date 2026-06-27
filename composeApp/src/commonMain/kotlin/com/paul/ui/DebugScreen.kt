@@ -34,12 +34,13 @@ import androidx.compose.ui.unit.sp
 import com.paul.infrastructure.repositories.LogEntry
 import com.paul.infrastructure.service.IFileHelper
 import com.paul.viewmodels.DebugViewModel
+import com.paul.viewmodels.MapViewModel
 import kotlinx.coroutines.launch
 import kotlinx.datetime.TimeZone.Companion.currentSystemDefault
 import kotlinx.datetime.toLocalDateTime
 
 @Composable
-fun DebugScreen(viewModel: DebugViewModel, fileHelper: IFileHelper) {
+fun DebugScreen(viewModel: DebugViewModel, fileHelper: IFileHelper, mapViewModel: MapViewModel) {
     val logs by viewModel.logs.collectAsState()
     val isDescending by viewModel.isDescending.collectAsState()
     val migrationStatus by viewModel.migrationService.migrationStatus.collectAsState()
@@ -134,6 +135,7 @@ fun DebugScreen(viewModel: DebugViewModel, fileHelper: IFileHelper) {
                     isDescending = isDescending,
                     onSortToggle = { viewModel.toggleSort() },
                     onClear = { viewModel.clear() },
+                    onClearOverlays = { viewModel.clearOverlayCache(mapViewModel) },
                     onExport = { saveLauncher.launch("logs_${System.currentTimeMillis()}.txt") },
                     spatialVersion = spatialIndexVersion,
                     targetVersion = viewModel.targetSpatialIndexVersion,
@@ -261,6 +263,7 @@ fun HeaderSection(
     isDescending: Boolean,
     onSortToggle: () -> Unit,
     onClear: () -> Unit,
+    onClearOverlays: () -> Unit,
     onExport: () -> Unit,
     spatialVersion: Int,
     targetVersion: Int,
@@ -345,6 +348,15 @@ fun HeaderSection(
                 Icon(
                     Icons.Default.Share,
                     "Export",
+                    tint = MaterialTheme.colors.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
+            IconButton(onClick = onClearOverlays, modifier = Modifier.size(32.dp)) {
+                Icon(
+                    Icons.Default.Layers,
+                    "Clear Overlays",
                     tint = MaterialTheme.colors.primary,
                     modifier = Modifier.size(20.dp)
                 )

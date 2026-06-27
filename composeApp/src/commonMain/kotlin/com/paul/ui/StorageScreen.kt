@@ -19,17 +19,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.AlertDialog
-import androidx.compose.material.Button
-import androidx.compose.material.ButtonDefaults
-import androidx.compose.material.Card
-import androidx.compose.material.CircularProgressIndicator
-import androidx.compose.material.Divider
-import androidx.compose.material.ExperimentalMaterialApi
-import androidx.compose.material.Icon
-import androidx.compose.material.IconButton
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.Text
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
@@ -41,6 +32,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.paul.infrastructure.repositories.TileServerRepo
@@ -63,6 +56,8 @@ fun StorageScreen(
 
     val segmentCount by viewModel.segmentCount.collectAsState()
     val tileMappingCount by viewModel.tileMappingCount.collectAsState()
+    val overlayCount by viewModel.overlayCount.collectAsState()
+    val deletingOverlays by viewModel.deletingOverlays.collectAsState()
     val migrationStatus by viewModel.migrationService.migrationStatus.collectAsState()
     val isMigrating by viewModel.migrationService.isMigrating.collectAsState()
 
@@ -138,7 +133,7 @@ fun StorageScreen(
             Spacer(Modifier.height(24.dp))
 
             Text(
-                text = "Spatial Index:",
+                text = "Spatial Index & Overlays:",
                 style = MaterialTheme.typography.h6,
                 maxLines = 1,
             )
@@ -150,30 +145,88 @@ fun StorageScreen(
                 elevation = 2.dp
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "Total Segments: $segmentCount",
-                        style = MaterialTheme.typography.body1
-                    )
-                    Text(
-                        text = "Tile Mappings: $tileMappingCount",
-                        style = MaterialTheme.typography.body1
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Database Index",
+                                style = MaterialTheme.typography.subtitle1,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "$segmentCount Segments across all layers",
+                                style = MaterialTheme.typography.body2
+                            )
+                            Text(
+                                text = "$tileMappingCount Tile mappings",
+                                style = MaterialTheme.typography.body2
+                            )
+                        }
+                    }
+                    
+                    Divider(modifier = Modifier.padding(vertical = 12.dp))
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Raster Cache",
+                                style = MaterialTheme.typography.subtitle1,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "$overlayCount tiles persisted to disk",
+                                style = MaterialTheme.typography.body2
+                            )
+                            Text(
+                                text = "Accelerates map panning and zooming",
+                                style = MaterialTheme.typography.caption,
+                                color = Color.Gray
+                            )
+                        }
+                        IconButton(onClick = { viewModel.requestOverlaysDelete() }) {
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = "Clear Overlays",
+                                tint = MaterialTheme.colors.error
+                            )
+                        }
+                    }
                     
                     if (isMigrating || migrationStatus != null) {
-                        Spacer(Modifier.height(8.dp))
-                        Divider()
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            text = migrationStatus ?: "Migrating...",
-                            style = MaterialTheme.typography.caption,
-                            color = MaterialTheme.colors.primary
-                        )
+                        Spacer(Modifier.height(12.dp))
+                        Surface(
+                            color = MaterialTheme.colors.primary.copy(alpha = 0.1f),
+                            shape = RoundedCornerShape(4.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = migrationStatus ?: "Migrating...",
+                                style = MaterialTheme.typography.caption,
+                                color = MaterialTheme.colors.primary,
+                                modifier = Modifier.padding(8.dp)
+                            )
+                        }
                     }
                 }
             }
         }
 
-        // Delete Confirmation Dialog
+        // Delete Confirmation Dialogs
+        if (deletingOverlays) {
+            AlertDialog(
+                onDismissRequest = { viewModel.cancelOverlaysDelete() },
+                title = { Text("Confirm Clear Overlays") },
+                text = { Text("Are you sure you want to delete all persisted overlay tiles from storage? They will be re-rendered when needed.") },
+                confirmButton = {
+                    Button(
+                        onClick = { viewModel.confirmOverlaysDelete() },
+                        colors = ButtonDefaults.buttonColors(backgroundColor = MaterialTheme.colors.error)
+                    ) { Text("Clear") }
+                },
+                dismissButton = {
+                    Button(onClick = { viewModel.cancelOverlaysDelete() }) { Text("Cancel") }
+                }
+            )
+        }
         tilesBeingDeleted?.let { tileServer ->
             DeleteTilesConfirmationDialog(
                 tileServerName = tileServer,

@@ -202,13 +202,15 @@ fun MapTilerComposable(
         }
     }
 
-    LaunchedEffect(visibleTiles) {
-        viewModel.requestTilesForViewport(
-            visibleTiles.map { it.id }.toSet(),
-            localCenterGeo,
-            localZoom,
-            viewportSize
-        )
+    LaunchedEffect(visibleTiles, viewportSize) {
+        if (viewportSize != IntSize.Zero) {
+            viewModel.requestTilesForViewport(
+                visibleTiles.map { it.id }.toSet(),
+                localCenterGeo,
+                localZoom,
+                viewportSize
+            )
+        }
     }
 
     // --- Fit to Route Effect ---

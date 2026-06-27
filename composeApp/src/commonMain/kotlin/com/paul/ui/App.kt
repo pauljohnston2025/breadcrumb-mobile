@@ -172,6 +172,7 @@ fun App(
                         routeRepository = settingsViewModel.routesRepo,
                         spatialIndexDao = spatialIndexRepository.dao,
                         migrationService = migrationService,
+                        fileHelper = fileHelper,
                     )
                 }
 
@@ -496,7 +497,7 @@ fun App(
                                 }
 
                                 composable(Screen.Debug.route) {
-                                    DebugScreen(debugViewModel, fileHelper)
+                                    DebugScreen(debugViewModel, fileHelper, mapViewModel)
                                 }
                             } // End NavHost
                         }

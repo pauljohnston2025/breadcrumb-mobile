@@ -26,9 +26,13 @@ class StorageViewModel(
 
     val segmentCount = MutableStateFlow(0L)
     val tileMappingCount = MutableStateFlow(0L)
+    val overlayCount = MutableStateFlow(0)
 
     private val _deletingTileServer = MutableStateFlow<String?>(null)
     val deletingTileServer: StateFlow<String?> = _deletingTileServer.asStateFlow()
+
+    private val _deletingOverlays = MutableStateFlow<Boolean>(false)
+    val deletingOverlays: StateFlow<Boolean> = _deletingOverlays.asStateFlow()
 
     private val _deletingRoutes = MutableStateFlow<Boolean>(false)
     val deletingRoutes: StateFlow<Boolean> = _deletingRoutes.asStateFlow()
@@ -96,6 +100,24 @@ class StorageViewModel(
         _deletingRoutes.value = false
     }
 
+    fun requestOverlaysDelete() {
+        _deletingOverlays.value = true
+    }
+
+    fun cancelOverlaysDelete() {
+        _deletingOverlays.value = false
+    }
+
+    fun confirmOverlaysDelete() {
+        viewModelScope.launch(Dispatchers.IO) {
+            if (_deletingOverlays.value) {
+                fileHelper.deleteDir("overlays")
+            }
+            refresh()
+            _deletingOverlays.value = false
+        }
+    }
+
     fun confirmRoutesDelete() {
         viewModelScope.launch(Dispatchers.IO) {
             if (_deletingRoutes.value) {
@@ -114,6 +136,7 @@ class StorageViewModel(
             
             segmentCount.value = spatialIndexRepository.getSegmentCount()
             tileMappingCount.value = spatialIndexRepository.getTileMappingCount()
+            overlayCount.value = fileHelper.localFileCount("overlays")
 
             viewModelScope.launch(Dispatchers.Main) {
                 _isRefreshing.value = false

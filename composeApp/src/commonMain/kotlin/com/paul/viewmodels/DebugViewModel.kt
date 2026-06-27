@@ -69,6 +69,10 @@ class DebugViewModel(val migrationService: MigrationService) : ViewModel() {
 
     fun clear() = DebugLogRepository.clearLogs()
 
+    fun clearOverlayCache(mapViewModel: MapViewModel) {
+        mapViewModel.clearOverlayCache()
+    }
+
     fun toggleSort() {
         _isDescending.update { !it }
     }

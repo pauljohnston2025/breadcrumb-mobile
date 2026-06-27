@@ -41,12 +41,13 @@ import com.paul.domain.RouteEntry
 import com.paul.domain.SegmentType
 import com.paul.domain.StravaStreamEntity
 import com.paul.infrastructure.dao.SpatialIndexDao
-import com.paul.infrastructure.dao.SegmentWithTile
 import com.paul.infrastructure.service.MigrationService
 import com.paul.infrastructure.repositories.SpatialIndexRepository
 import com.paul.infrastructure.service.geoToScreenPixel
 import com.paul.infrastructure.service.screenPixelToGeo
 import com.paul.infrastructure.service.latLonToTileXY
+import com.paul.composables.imageBitmapToByteArray
+import com.paul.composables.byteArrayToImageBitmap
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -61,6 +62,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
@@ -94,6 +96,7 @@ class MapViewModel(
     val routeRepository: RouteRepository,
     val spatialIndexDao: SpatialIndexDao,
     val migrationService: MigrationService,
+    private val fileHelper: com.paul.infrastructure.service.IFileHelper,
 ) : ViewModel() {
 
     companion object {
@@ -172,20 +175,33 @@ class MapViewModel(
     private val _visibleSegments = MutableStateFlow<List<com.paul.domain.SegmentInfo>>(emptyList())
     val visibleSegments: StateFlow<List<com.paul.domain.SegmentInfo>> = _visibleSegments.asStateFlow()
 
+    private var currentFilterHash = 0
+    private fun updateFilterHash() {
+        val filteredStravaIds = if (_isStravaEnabled.value) {
+            stravaRoutes.value.keys.map { it.id.toString() }
+        } else emptyList()
+        val routeIds = if (_isRoutesEnabled.value) {
+            storedRoutes.value.keys.map { it.id }
+        } else emptyList()
+        val allIds = (filteredStravaIds + routeIds).sorted()
+        val newHash = allIds.hashCode()
+        if (newHash != currentFilterHash) {
+            currentFilterHash = newHash
+            _overlayTileCache.clear()
+            _overlayCacheState.value = emptyMap()
+            // Trigger a refresh of visible segments
+            updateVisibleSegments(
+                GeoPosition(_mapCenter.value.latitude.toDouble(), _mapCenter.value.longitude.toDouble()),
+                _mapZoom.value,
+                IntSize.Zero // Force refresh if size unknown, though usually called from requestTilesForViewport
+            )
+        }
+    }
+
     private var visibleSegmentsJob: Job? = null
     private val loadingJobs = mutableMapOf<TileId, Job>() // Still needed for cancellation
     val isActive = true
     private var currentVisibleTiles: Set<TileId> = setOf()
-
-    init {
-        // Start collecting location updates as soon as the ViewModel is created
-        startLocationUpdates()
-
-        viewModelScope.launch(Dispatchers.IO) {
-            tileServerRepository.currentServerFlow().onEach { refresh() }.collect()
-            tileServerRepository.authTokenFlow().onEach { refresh() }.collect()
-        }
-    }
 
     val sendingFile: MutableState<String> = mutableStateOf("")
 
@@ -257,6 +273,22 @@ class MapViewModel(
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyMap()
         )
+
+    init {
+        // Start collecting location updates as soon as the ViewModel is created
+        startLocationUpdates()
+
+        viewModelScope.launch(Dispatchers.IO) {
+            tileServerRepository.currentServerFlow().onEach { refresh() }.collect()
+            tileServerRepository.authTokenFlow().onEach { refresh() }.collect()
+        }
+
+        viewModelScope.launch {
+            combine(stravaRoutes, storedRoutes, _isStravaEnabled, _isRoutesEnabled) { _, _, _, _ -> 
+                updateFilterHash()
+            }.collect()
+        }
+    }
 
     private var stravaToggleJob: Job? = null
     fun toggleStrava(enabled: Boolean) {
@@ -591,10 +623,22 @@ class MapViewModel(
                 overlayTileIds.forEach { tileId ->
                     if (_overlayTileCache.containsKey(tileId)) return@forEach
                     
+                    val cacheFileName = "overlays/${indexLevel}_${tileId.x}_${tileId.y}_${currentFilterHash}.png"
+                    val cachedData: ByteArray? = fileHelper.readLocalFile(cacheFileName)
+                    if (cachedData != null) {
+                        val bitmap: ImageBitmap? = byteArrayToImageBitmap(cachedData)
+                        if (bitmap != null) {
+                            _overlayTileCache[tileId] = bitmap
+                            _overlayCacheState.value = _overlayTileCache.toMap()
+                            return@forEach
+                        }
+                    }
+
                     val segmentsInTile = grouped[tileId.x to tileId.y] ?: emptyList()
                     
                     if (segmentsInTile.isEmpty()) {
                         _overlayTileCache[tileId] = null // Cache empty
+                        _overlayCacheState.value = _overlayTileCache.toMap()
                         return@forEach
                     }
 
@@ -639,6 +683,13 @@ class MapViewModel(
                     }
 
                     _overlayTileCache[tileId] = bitmap
+                    _overlayCacheState.value = _overlayTileCache.toMap()
+                    
+                    // Save to disk cache
+                    val bytesToSave = imageBitmapToByteArray(bitmap)
+                    if (bytesToSave != null) {
+                        fileHelper.writeLocalFile(cacheFileName, bytesToSave as ByteArray)
+                    }
                 }
                 
                 _overlayCacheState.value = _overlayTileCache.toMap()
@@ -778,6 +829,15 @@ class MapViewModel(
         _currentRoute.value = null
         _currentRouteI.value = null
         _isElevationProfileVisible.value = false // Hide profile when route is cleared
+    }
+
+    fun clearOverlayCache() {
+        viewModelScope.launch(Dispatchers.IO) {
+            fileHelper.deleteDir("overlays")
+            _overlayTileCache.clear()
+            _overlayCacheState.value = emptyMap()
+            refresh()
+        }
     }
 
     // --- New function to toggle profile visibility ---
