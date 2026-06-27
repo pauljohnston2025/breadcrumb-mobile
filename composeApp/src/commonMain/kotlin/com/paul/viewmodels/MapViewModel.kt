@@ -540,7 +540,8 @@ class MapViewModel(
 
     private fun updateVisibleSegments(centerGeo: GeoPosition, zoom: Float, viewportSize: IntSize) {
         visibleSegmentsJob?.cancel()
-        if (viewportSize == IntSize.Zero || (!_isStravaEnabled.value && !_isRoutesEnabled.value) || migrationService.isMigrating.value) {
+        val visibleTileIds = currentVisibleTiles
+        if (visibleTileIds.isEmpty() || (!_isStravaEnabled.value && !_isRoutesEnabled.value) || migrationService.isMigrating.value) {
             _overlayTileCache.clear()
             _overlayCacheState.value = emptyMap()
             return
@@ -557,137 +558,131 @@ class MapViewModel(
             // Add a small delay to debounce rapid pans
             delay(150) // Increased debounce for overlay rendering
 
-            // Find best index level: prefer the higher resolution index (>= zoom)
+            val mapZoomLevel = visibleTileIds.first().z
+            val nMap = 1 shl mapZoomLevel
+
+            // Choose the best spatial index level for the current map zoom
             val indexLevel = com.paul.infrastructure.repositories.SpatialIndexRepository.SPATIAL_INDEX_ZOOM_LEVELS
-                .filter { it >= zoom.toInt() }
+                .filter { it >= mapZoomLevel }
                 .minOrNull() ?: com.paul.infrastructure.repositories.SpatialIndexRepository.SPATIAL_INDEX_ZOOM_LEVELS.max()
-
-            // Calculate visible tiles at indexLevel
-            val n = 1 shl indexLevel
-            val topLeftGeo = screenPixelToGeo(IntOffset(0, 0), centerGeo, zoom, viewportSize)
-            val bottomRightGeo = screenPixelToGeo(
-                IntOffset(viewportSize.width, viewportSize.height), centerGeo, zoom, viewportSize
-            )
-            val (minTileX, minTileY) = latLonToTileXY(topLeftGeo.latitude, topLeftGeo.longitude, indexLevel)
-            val (maxTileX, maxTileY) = latLonToTileXY(
-                bottomRightGeo.latitude, bottomRightGeo.longitude, indexLevel
-            )
-
-            val buffer = 1
-            val overlayTileIds = mutableSetOf<TileId>()
-            for (x in (minTileX - buffer).coerceAtLeast(0)..(maxTileX + buffer).coerceAtMost(n - 1)) {
-                for (y in (minTileY - buffer).coerceAtLeast(0)..(maxTileY + buffer).coerceAtMost(n - 1)) {
-                    overlayTileIds.add(TileId(x, y, indexLevel, "overlay"))
-                }
-            }
 
             // 1. Cleanup overlay cache
             if (_overlayTileCache.size > 750) {
-                val toRemove = _overlayTileCache.keys.filter { it !in overlayTileIds }.take(50)
+                val toRemove = _overlayTileCache.keys.filter { it !in visibleTileIds }.take(50)
                 toRemove.forEach { _overlayTileCache.remove(it) }
                 _overlayCacheState.value = _overlayTileCache.toMap()
             }
 
             // 2. Identify missing tiles
-            val missingTiles = overlayTileIds.filter { !_overlayTileCache.containsKey(it) }
+            val missingTiles = visibleTileIds.filter { !_overlayTileCache.containsKey(it) }
             if (missingTiles.isEmpty()) return@launch
 
-            var minX = Int.MAX_VALUE; var maxX = Int.MIN_VALUE
-            var minY = Int.MAX_VALUE; var maxY = Int.MIN_VALUE
+            // 3. Scan disk in parallel
+            val diskLoadResults = missingTiles.map { tileId ->
+                async(Dispatchers.IO) {
+                    val cacheFileName = "overlays/${tileId.z}_${tileId.x}_${tileId.y}_${currentFilterHash}.png"
+                    val cachedData: ByteArray? = fileHelper.readLocalFile(cacheFileName)
+                    if (cachedData != null) {
+                        val bitmap: ImageBitmap? = byteArrayToImageBitmap(cachedData)
+                        if (bitmap != null) {
+                            return@async tileId to bitmap
+                        }
+                    }
+                    tileId
+                }
+            }.awaitAll()
 
-            overlayTileIds.forEach {
-                minX = min(minX, it.x); maxX = max(maxX, it.x)
-                minY = min(minY, it.y); maxY = max(maxY, it.y)
+            val tilesToFetchFromDb = mutableSetOf<TileId>()
+            var diskFound = false
+            diskLoadResults.forEach { res ->
+                if (res is Pair<*, *>) {
+                    @Suppress("UNCHECKED_CAST")
+                    val pair = res as Pair<TileId, ImageBitmap>
+                    _overlayTileCache[pair.first] = pair.second
+                    diskFound = true
+                } else if (res is TileId) {
+                    tilesToFetchFromDb.add(res)
+                }
             }
 
-            // ix bounds are the same as tile bounds for indexLevel
-            val ixMin = minX; val ixMax = maxX; val iyMin = minY; val iyMax = maxY
+            if (diskFound) {
+                _overlayCacheState.value = _overlayTileCache.toMap()
+            }
+
+            if (tilesToFetchFromDb.isEmpty()) return@launch
+
+            // 4. Fetch missing tiles from DB
+            val filteredStravaIds = if (_isStravaEnabled.value) {
+                stravaRoutes.value.keys.map { it.id.toString() }
+            } else emptyList()
+            val routeIds = if (_isRoutesEnabled.value) {
+                storedRoutes.value.keys.map { it.id }
+            } else emptyList()
+            val allFilteredIds = filteredStravaIds + routeIds
+
+            if (allFilteredIds.isEmpty()) {
+                _overlayTileCache.clear()
+                _overlayCacheState.value = emptyMap()
+                return@launch
+            }
+
+            // Group DB fetches by indexLevel tile to avoid duplicate queries
+            val indexTilesToFetch = mutableSetOf<Pair<Int, Int>>()
+            val mapTileToIndexTiles = mutableMapOf<TileId, List<Pair<Int, Int>>>()
+
+            tilesToFetchFromDb.forEach { tileId ->
+                val iTiles: List<Pair<Int, Int>> = if (mapZoomLevel >= indexLevel) {
+                    val shift = mapZoomLevel - indexLevel
+                    listOf((tileId.x shr shift) to (tileId.y shr shift))
+                } else {
+                    val shift = indexLevel - mapZoomLevel
+                    val xMin = tileId.x shl shift
+                    val xMax = ((tileId.x + 1) shl shift) - 1
+                    val yMin = tileId.y shl shift
+                    val yMax = ((tileId.y + 1) shl shift) - 1
+                    val list = mutableListOf<Pair<Int, Int>>()
+                    for (ix in xMin..xMax) {
+                        for (iy in yMin..yMax) {
+                            list.add(ix to iy)
+                        }
+                    }
+                    list
+                }
+                mapTileToIndexTiles[tileId] = iTiles
+                indexTilesToFetch.addAll(iTiles)
+            }
 
             try {
-                // Get filtered owner IDs for Strava
-                val filteredStravaIds = if (_isStravaEnabled.value) {
-                    stravaRoutes.value.keys.map { it.id.toString() }
-                } else emptyList()
-
-                // Get all route IDs if enabled
-                val routeIds = if (_isRoutesEnabled.value) {
-                    storedRoutes.value.keys.map { it.id }
-                } else emptyList()
-
-                val allFilteredIds = filteredStravaIds + routeIds
-
-                if (allFilteredIds.isEmpty()) {
-                    _overlayTileCache.clear()
-                    _overlayCacheState.value = emptyMap()
-                    return@launch
-                }
-
-                // 1. Identify missing tiles and scan disk in parallel
-                val tilesToScan = overlayTileIds.filter { !_overlayTileCache.containsKey(it) }
-                if (tilesToScan.isEmpty()) return@launch
-
-                val diskLoadResults = tilesToScan.map { tileId ->
-                    async(Dispatchers.IO) {
-                        val cacheFileName = "overlays/${indexLevel}_${tileId.x}_${tileId.y}_${currentFilterHash}.png"
-                        val cachedData: ByteArray? = fileHelper.readLocalFile(cacheFileName)
-                        if (cachedData != null) {
-                            val bitmap: ImageBitmap? = byteArrayToImageBitmap(cachedData)
-                            if (bitmap != null) {
-                                return@async tileId to bitmap
-                            }
-                        }
-                        tileId
-                    }
-                }.awaitAll()
-
-                val tilesToFetchFromDb = mutableSetOf<TileId>()
-                var diskFound = false
-                diskLoadResults.forEach { res ->
-                    if (res is Pair<*, *>) {
-                        @Suppress("UNCHECKED_CAST")
-                        val pair = res as Pair<TileId, ImageBitmap>
-                        _overlayTileCache[pair.first] = pair.second
-                        diskFound = true
-                    } else if (res is TileId) {
-                        tilesToFetchFromDb.add(res)
-                    }
-                }
-
-                if (diskFound) {
-                    _overlayCacheState.value = _overlayTileCache.toMap()
-                }
-
-                if (tilesToFetchFromDb.isEmpty()) return@launch
-
-                // 2. Fetch missing tiles from DB using bounding box of JUST the missing tiles
+                // Fetch segments for all needed index tiles in one or more batches
                 var dbMinX = Int.MAX_VALUE; var dbMaxX = Int.MIN_VALUE
                 var dbMinY = Int.MAX_VALUE; var dbMaxY = Int.MIN_VALUE
-                tilesToFetchFromDb.forEach {
-                    dbMinX = min(dbMinX, it.x); dbMaxX = max(dbMaxX, it.x)
-                    dbMinY = min(dbMinY, it.y); dbMaxY = max(dbMaxY, it.y)
+                indexTilesToFetch.forEach { (ix, iy) ->
+                    dbMinX = min(dbMinX, ix); dbMaxX = max(dbMaxX, ix)
+                    dbMinY = min(dbMinY, iy); dbMaxY = max(dbMaxY, iy)
                 }
 
                 val allSegments = spatialIndexDao.getSegmentsForTiles(dbMinX, dbMaxX, dbMinY, dbMaxY, indexLevel, allFilteredIds)
-                val grouped = allSegments.groupBy { it.x to it.y }
+                val segmentsByIndexTile = allSegments.groupBy { it.x to it.y }
 
                 val stravaColor = androidx.compose.ui.graphics.Color(0xFFFC4C02).copy(alpha = 0.7f)
                 val routeColorStored = androidx.compose.ui.graphics.Color(0xFFD01E18)
 
-                // 3. Render missing tiles in parallel
+                // 5. Render missing tiles
                 val renderResults = tilesToFetchFromDb.map { tileId ->
                     async(Dispatchers.Default) {
-                        val segmentsInTile = grouped[tileId.x to tileId.y] ?: emptyList()
+                        val iTiles = mapTileToIndexTiles[tileId] ?: emptyList()
+                        val segmentsForThisMapTile = iTiles.flatMap { segmentsByIndexTile[it] ?: emptyList() }
+                            .distinctBy { it.ownerId to it.type to it.segmentIndex }
 
-                        if (segmentsInTile.isEmpty()) {
+                        if (segmentsForThisMapTile.isEmpty()) {
                             return@async tileId to null
                         }
 
-                        // RENDER TILE
                         val bitmap = ImageBitmap(256, 256)
                         val canvas = androidx.compose.ui.graphics.Canvas(bitmap)
                         val baseStrokeWidth = 8f
 
-                        val segmentsByOwner = segmentsInTile.groupBy { it.ownerId to it.type }
+                        val segmentsByOwner = segmentsForThisMapTile.groupBy { it.ownerId to it.type }
                         segmentsByOwner.forEach { (idKey, segments) ->
                             val (_, type) = idKey
                             val color = if (type == SegmentType.STRAVA) stravaColor else routeColorStored
@@ -695,10 +690,10 @@ class MapViewModel(
                             var expectedIdx = -1
 
                             segments.sortedBy { it.segmentIndex }.forEach { seg ->
-                                val px1 = (seg.worldX1 * n - tileId.x) * 256.0
-                                val py1 = (seg.worldY1 * n - tileId.y) * 256.0
-                                val px2 = (seg.worldX2 * n - tileId.x) * 256.0
-                                val py2 = (seg.worldY2 * n - tileId.y) * 256.0
+                                val px1 = (seg.worldX1 * nMap - tileId.x) * 256.0
+                                val py1 = (seg.worldY1 * nMap - tileId.y) * 256.0
+                                val px2 = (seg.worldX2 * nMap - tileId.x) * 256.0
+                                val py2 = (seg.worldY2 * nMap - tileId.y) * 256.0
 
                                 if (seg.segmentIndex != expectedIdx) {
                                     path.moveTo(px1.toFloat(), py1.toFloat())
@@ -719,10 +714,9 @@ class MapViewModel(
                             )
                         }
 
-                        // Save to disk cache in background
                         val bytesToSave = imageBitmapToByteArray(bitmap)
                         if (bytesToSave != null) {
-                            val cacheFileName = "overlays/${indexLevel}_${tileId.x}_${tileId.y}_${currentFilterHash}.png"
+                            val cacheFileName = "overlays/${tileId.z}_${tileId.x}_${tileId.y}_${currentFilterHash}.png"
                             try {
                                 fileHelper.writeLocalFile(cacheFileName, bytesToSave as ByteArray)
                             } catch (e: Exception) {
@@ -740,13 +734,12 @@ class MapViewModel(
                 _overlayCacheState.value = _overlayTileCache.toMap()
 
             } catch (e: Exception) {
-
-            } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 Napier.e("Failed to update visible segments", e, tag = TAG)
             }
         }
     }
+
 
     // Function called by Composable
     fun requestTilesForViewport(visibleTileIds: Set<TileId>, centerGeo: GeoPosition, zoom: Float, viewportSize: IntSize) {

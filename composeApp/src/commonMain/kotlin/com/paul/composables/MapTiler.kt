@@ -193,24 +193,6 @@ fun MapTilerComposable(
             }
         }
     }
-    val visibleOverlayTiles by remember(localCenterGeo, integerZoom, viewportSize) {
-        derivedStateOf {
-            if (viewportSize == IntSize.Zero || (!isStravaEnabled && !isRoutesEnabled)) emptyList() else {
-                com.paul.infrastructure.repositories.SpatialIndexRepository.SPATIAL_INDEX_ZOOM_LEVELS
-                    .filter { level ->
-                        // Only calculate tiles for layers that are visually relevant.
-                        // Zooming out from 14 to 4 shouldn't trigger level 14 calculations.
-                        level <= integerZoom + 1 && level >= integerZoom - 4
-                    }
-                    .sorted()
-                    .flatMap { level ->
-                        com.paul.infrastructure.service.calculateVisibleTiles(
-                            localCenterGeo, level, viewportSize, "overlay"
-                        )
-                    }
-            }
-        }
-    }
 
     LaunchedEffect(visibleTiles, viewportSize) {
         if (viewportSize != IntSize.Zero) {
@@ -415,9 +397,7 @@ fun MapTilerComposable(
                             )
                         )
                     }
-                }
 
-                visibleOverlayTiles.forEach { tileInfo ->
                     overlayTiles[tileInfo.id]?.let { imageBitmap ->
                         drawImage(
                             image = imageBitmap,
