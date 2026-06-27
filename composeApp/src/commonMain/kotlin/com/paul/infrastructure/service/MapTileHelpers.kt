@@ -16,64 +16,8 @@ data class TileId(val x: Int, val y: Int, val z: Int, val serverId: String)
 data class TileInfo(
     val id: TileId,
     val screenOffset: IntOffset, // Where to draw it on screen
-    val size: IntSize // The size to draw it on screen
+    val size: IntSize = IntSize(TILE_SIZE, TILE_SIZE) // Assuming fixed tile size
 )
-
-/**
- * Calculates which tiles at a specific [tileZoom] are visible in a viewport
- * centered at [mapCenterGeo] with a current fractional [viewportZoom].
- * 
- * Returns a list of [TileInfo] containing the tile identifiers and their
- * calculated screen positions and sizes.
- */
-fun calculateVisibleTiles(
-    mapCenterGeo: GeoPosition,
-    tileZoom: Int,
-    viewportZoom: Float,
-    viewportSize: IntSize,
-    serverId: String
-): List<TileInfo> {
-    if (viewportSize == IntSize.Zero) return emptyList()
-    val tiles = mutableListOf<TileInfo>()
-    
-    // 1. Determine geographic boundaries of the current viewport at its fractional zoom
-    val topLeftGeo = screenPixelToGeo(IntOffset(0, 0), mapCenterGeo, viewportZoom, viewportSize)
-    val bottomRightGeo = screenPixelToGeo(
-        IntOffset(viewportSize.width, viewportSize.height), mapCenterGeo, viewportZoom, viewportSize
-    )
-    
-    // 2. Map those boundaries to tile indices at the target tileZoom
-    val (minTileX, minTileY) = latLonToTileXY(topLeftGeo.latitude, topLeftGeo.longitude, tileZoom)
-    val (maxTileX, maxTileY) = latLonToTileXY(
-        bottomRightGeo.latitude, bottomRightGeo.longitude, tileZoom
-    )
-    
-    val n = 1 shl tileZoom
-    val buffer = 1
-    val startX = (minTileX - buffer).coerceAtLeast(0)
-    val startY = (minTileY - buffer).coerceAtLeast(0)
-    val endX = (maxTileX + buffer).coerceAtMost(n - 1)
-    val endY = (maxTileY + buffer).coerceAtMost(n - 1)
-    
-    // 3. Calculate how large a base 256px tile should be on screen at the current zoom
-    val scaleFactor = 2.0.pow((viewportZoom - tileZoom).toDouble())
-    val tileSizeOnScreen = (TILE_SIZE * scaleFactor).roundToInt()
-    val tileSize = IntSize(tileSizeOnScreen, tileSizeOnScreen)
-
-    // 4. Generate TileInfo for every tile in the range
-    for (x in startX..endX) {
-        for (y in startY..endY) {
-            val tileId = TileId(x, y, tileZoom, serverId)
-            val tileTopLeftGeo = worldPixelToGeo(x.toDouble() / n, y.toDouble() / n)
-            
-            // Calculate where this tile's top-left corner sits in screen pixels
-            val screenOffset = geoToScreenPixel(tileTopLeftGeo, mapCenterGeo, viewportZoom, viewportSize)
-            
-            tiles.add(TileInfo(id = tileId, screenOffset = screenOffset, size = tileSize))
-        }
-    }
-    return tiles
-}
 
 // --- Constants ---
 const val TILE_SIZE = 256 // Standard tile size in pixels
@@ -200,4 +144,59 @@ fun calculateNewCenter(
     val worldCenterY = worldTargetY - (targetScreenPx.y - viewportSize.height / 2.0) / scale
 
     return worldPixelToGeo(worldCenterX, worldCenterY)
+}
+
+/**
+ * Calculates which tiles at a specific [tileZoom] are visible in a viewport
+ */
+fun calculateVisibleTiles(
+    mapCenterGeo: GeoPosition,
+    tileZoom: Int,
+    viewportSize: IntSize,
+    serverId: String,
+    viewportZoom: Float = tileZoom.toFloat()
+): List<TileInfo> {
+    if (viewportSize == IntSize.Zero) return emptyList()
+    
+    // 1. Determine geographic boundaries of the current viewport
+    val topLeftGeo = screenPixelToGeo(IntOffset(0, 0), mapCenterGeo, viewportZoom, viewportSize)
+    val bottomRightGeo = screenPixelToGeo(
+        IntOffset(viewportSize.width, viewportSize.height), mapCenterGeo, viewportZoom, viewportSize
+    )
+    
+    // 2. Map those boundaries to tile indices at the target tileZoom
+    val (minTileX, minTileY) = latLonToTileXY(topLeftGeo.latitude, topLeftGeo.longitude, tileZoom)
+    val (maxTileX, maxTileY) = latLonToTileXY(
+        bottomRightGeo.latitude, bottomRightGeo.longitude, tileZoom
+    )
+
+    // SAFETY CAP: Prevent OutOfMemoryError by refusing to calculate an insane number of tiles.
+    val countX = maxTileX - minTileX + 1
+    val countY = maxTileY - minTileY + 1
+    if (countX <= 0 || countY <= 0 || countX * countY > 400) {
+        return emptyList()
+    }
+
+    val n = 1 shl tileZoom
+    val buffer = 1
+    val startX = (minTileX - buffer).coerceAtLeast(0)
+    val startY = (minTileY - buffer).coerceAtLeast(0)
+    val endX = (maxTileX + buffer).coerceAtMost(n - 1)
+    val endY = (maxTileY + buffer).coerceAtMost(n - 1)
+    
+    val scaleFactor = 2.0.pow((viewportZoom - tileZoom).toDouble())
+    val tileSizeOnScreen = (TILE_SIZE * scaleFactor).roundToInt()
+    val tileSize = IntSize(tileSizeOnScreen, tileSizeOnScreen)
+
+    val tiles = mutableListOf<TileInfo>()
+    for (x in startX..endX) {
+        for (y in startY..endY) {
+            val tileId = TileId(x, y, tileZoom, serverId)
+            val tileTopLeftGeo = worldPixelToGeo(x.toDouble() / n, y.toDouble() / n)
+            // Restore standard projection for bit-perfect alignment with stable release
+            val screenOffset = geoToScreenPixel(tileTopLeftGeo, mapCenterGeo, viewportZoom, viewportSize)
+            tiles.add(TileInfo(id = tileId, screenOffset = screenOffset, size = tileSize))
+        }
+    }
+    return tiles
 }

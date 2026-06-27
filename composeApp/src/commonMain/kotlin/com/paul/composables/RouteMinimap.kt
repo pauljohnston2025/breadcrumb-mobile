@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.paul.infrastructure.repositories.ITileRepository
 import com.paul.infrastructure.service.GeoPosition
+import com.paul.infrastructure.service.calculateVisibleTiles
 import com.paul.infrastructure.service.geoToScreenPixel
 import com.paul.protocol.todevice.Route
 import kotlinx.coroutines.launch
@@ -87,8 +88,8 @@ fun RouteMiniMap(
         val integerZoom = mapParams.third
 
         // 2. Determine visible tiles
-        val visibleTiles = remember(centerGeo, integerZoom, localZoom, viewportSize) {
-            calculateVisibleTiles(centerGeo, integerZoom, localZoom, viewportSize, "minimap")
+        val visibleTiles = remember(centerGeo, integerZoom, viewportSize) {
+            calculateVisibleTiles(centerGeo, integerZoom, viewportSize, "minimap")
         }
 
         // 3. Handle Suspend Loading: Fetch tiles from repo and update local state

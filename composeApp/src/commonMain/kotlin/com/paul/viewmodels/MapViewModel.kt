@@ -176,6 +176,7 @@ class MapViewModel(
     val visibleSegments: StateFlow<List<com.paul.domain.SegmentInfo>> = _visibleSegments.asStateFlow()
 
     private var currentFilterHash = 0
+    private var lastViewportSize: IntSize = IntSize.Zero
     private fun updateFilterHash() {
         val filteredStravaIds = if (_isStravaEnabled.value) {
             stravaRoutes.value.keys.map { it.id.toString() }
@@ -186,15 +187,18 @@ class MapViewModel(
         val allIds = (filteredStravaIds + routeIds).sorted()
         val newHash = allIds.hashCode()
         if (newHash != currentFilterHash) {
+            Napier.d("Filter hash changed: $currentFilterHash -> $newHash", tag = TAG)
             currentFilterHash = newHash
             _overlayTileCache.clear()
             _overlayCacheState.value = emptyMap()
-            // Trigger a refresh of visible segments
-            updateVisibleSegments(
-                GeoPosition(_mapCenter.value.latitude.toDouble(), _mapCenter.value.longitude.toDouble()),
-                _mapZoom.value,
-                IntSize.Zero // Force refresh if size unknown, though usually called from requestTilesForViewport
-            )
+            // Trigger a refresh of visible segments using last known viewport size
+            if (lastViewportSize != IntSize.Zero) {
+                updateVisibleSegments(
+                    GeoPosition(_mapCenter.value.latitude.toDouble(), _mapCenter.value.longitude.toDouble()),
+                    _mapZoom.value,
+                    lastViewportSize
+                )
+            }
         }
     }
 
@@ -571,8 +575,8 @@ class MapViewModel(
             }
 
             // 1. Cleanup overlay cache
-            if (_overlayTileCache.size > 100) {
-                val toRemove = _overlayTileCache.keys.filter { it !in overlayTileIds }.take(30)
+            if (_overlayTileCache.size > 150) {
+                val toRemove = _overlayTileCache.keys.filter { it !in overlayTileIds }.take(50)
                 toRemove.forEach { _overlayTileCache.remove(it) }
                 _overlayCacheState.value = _overlayTileCache.toMap()
             }
@@ -611,88 +615,124 @@ class MapViewModel(
                     return@launch
                 }
 
-                // FETCH ALL SEGMENTS FOR VIEWPORT IN ONE TRANSACTION
-                val allSegments = spatialIndexDao.getSegmentsForTiles(ixMin, ixMax, iyMin, iyMax, indexLevel, allFilteredIds)
-                
-                // Group by the index-level tile (x, y)
+                // 1. Identify missing tiles and scan disk in parallel
+                val tilesToScan = overlayTileIds.filter { !_overlayTileCache.containsKey(it) }
+                if (tilesToScan.isEmpty()) return@launch
+
+                val diskLoadResults = tilesToScan.map { tileId ->
+                    async(Dispatchers.IO) {
+                        val cacheFileName = "overlays/${indexLevel}_${tileId.x}_${tileId.y}_${currentFilterHash}.png"
+                        val cachedData: ByteArray? = fileHelper.readLocalFile(cacheFileName)
+                        if (cachedData != null) {
+                            val bitmap: ImageBitmap? = byteArrayToImageBitmap(cachedData)
+                            if (bitmap != null) {
+                                return@async tileId to bitmap
+                            }
+                        }
+                        tileId
+                    }
+                }.awaitAll()
+
+                val tilesToFetchFromDb = mutableSetOf<TileId>()
+                var diskFound = false
+                diskLoadResults.forEach { res ->
+                    if (res is Pair<*, *>) {
+                        @Suppress("UNCHECKED_CAST")
+                        val pair = res as Pair<TileId, ImageBitmap>
+                        _overlayTileCache[pair.first] = pair.second
+                        diskFound = true
+                    } else if (res is TileId) {
+                        tilesToFetchFromDb.add(res)
+                    }
+                }
+
+                if (diskFound) {
+                    _overlayCacheState.value = _overlayTileCache.toMap()
+                }
+
+                if (tilesToFetchFromDb.isEmpty()) return@launch
+
+                // 2. Fetch missing tiles from DB using bounding box of JUST the missing tiles
+                var dbMinX = Int.MAX_VALUE; var dbMaxX = Int.MIN_VALUE
+                var dbMinY = Int.MAX_VALUE; var dbMaxY = Int.MIN_VALUE
+                tilesToFetchFromDb.forEach {
+                    dbMinX = min(dbMinX, it.x); dbMaxX = max(dbMaxX, it.x)
+                    dbMinY = min(dbMinY, it.y); dbMaxY = max(dbMaxY, it.y)
+                }
+
+                val allSegments = spatialIndexDao.getSegmentsForTiles(dbMinX, dbMaxX, dbMinY, dbMaxY, indexLevel, allFilteredIds)
                 val grouped = allSegments.groupBy { it.x to it.y }
                 
                 val stravaColor = androidx.compose.ui.graphics.Color(0xFFFC4C02).copy(alpha = 0.7f)
                 val routeColorStored = androidx.compose.ui.graphics.Color(0xFFD01E18)
                 
-                overlayTileIds.forEach { tileId ->
-                    if (_overlayTileCache.containsKey(tileId)) return@forEach
-                    
-                    val cacheFileName = "overlays/${indexLevel}_${tileId.x}_${tileId.y}_${currentFilterHash}.png"
-                    val cachedData: ByteArray? = fileHelper.readLocalFile(cacheFileName)
-                    if (cachedData != null) {
-                        val bitmap: ImageBitmap? = byteArrayToImageBitmap(cachedData)
-                        if (bitmap != null) {
-                            _overlayTileCache[tileId] = bitmap
-                            _overlayCacheState.value = _overlayTileCache.toMap()
-                            return@forEach
+                // 3. Render missing tiles in parallel
+                val renderResults = tilesToFetchFromDb.map { tileId ->
+                    async(Dispatchers.Default) {
+                        val segmentsInTile = grouped[tileId.x to tileId.y] ?: emptyList()
+                        
+                        if (segmentsInTile.isEmpty()) {
+                            return@async tileId to null
                         }
-                    }
 
-                    val segmentsInTile = grouped[tileId.x to tileId.y] ?: emptyList()
-                    
-                    if (segmentsInTile.isEmpty()) {
-                        _overlayTileCache[tileId] = null // Cache empty
-                        _overlayCacheState.value = _overlayTileCache.toMap()
-                        return@forEach
-                    }
+                        // RENDER TILE
+                        val bitmap = ImageBitmap(256, 256)
+                        val canvas = androidx.compose.ui.graphics.Canvas(bitmap)
+                        val baseStrokeWidth = 8f 
+                        
+                        val segmentsByOwner = segmentsInTile.groupBy { it.ownerId to it.type }
+                        segmentsByOwner.forEach { (idKey, segments) ->
+                            val (_, type) = idKey
+                            val color = if (type == SegmentType.STRAVA) stravaColor else routeColorStored
+                            val path = androidx.compose.ui.graphics.Path()
+                            var expectedIdx = -1
 
-                    // RENDER TILE
-                    val bitmap = ImageBitmap(256, 256)
-                    val canvas = androidx.compose.ui.graphics.Canvas(bitmap)
-                    val baseStrokeWidth = 8f 
-                    
-                    // Group segments by owner within this viewport tile to draw continuous paths
-                    val segmentsByOwner = segmentsInTile.groupBy { it.ownerId to it.type }
+                            segments.sortedBy { it.segmentIndex }.forEach { seg ->
+                                val px1 = (seg.worldX1 * n - tileId.x) * 256.0
+                                val py1 = (seg.worldY1 * n - tileId.y) * 256.0
+                                val px2 = (seg.worldX2 * n - tileId.x) * 256.0
+                                val py2 = (seg.worldY2 * n - tileId.y) * 256.0
 
-                    segmentsByOwner.forEach { (idKey, segments) ->
-                        val (ownerId, type) = idKey
-                        val color = if (type == SegmentType.STRAVA) stravaColor else routeColorStored
-                        val path = androidx.compose.ui.graphics.Path()
-                        var expectedIdx = -1
-
-                        // Sort segments of this specific owner to ensure path continuity
-                        segments.sortedBy { it.segmentIndex }.forEach { seg ->
-                            val px1 = (seg.worldX1 * n - tileId.x) * 256.0
-                            val py1 = (seg.worldY1 * n - tileId.y) * 256.0
-                            val px2 = (seg.worldX2 * n - tileId.x) * 256.0
-                            val py2 = (seg.worldY2 * n - tileId.y) * 256.0
-
-                            if (seg.segmentIndex != expectedIdx) {
-                                path.moveTo(px1.toFloat(), py1.toFloat())
+                                if (seg.segmentIndex != expectedIdx) {
+                                    path.moveTo(px1.toFloat(), py1.toFloat())
+                                }
+                                path.lineTo(px2.toFloat(), py2.toFloat())
+                                expectedIdx = seg.segmentIndex + 1
                             }
-                            path.lineTo(px2.toFloat(), py2.toFloat())
-                            expectedIdx = seg.segmentIndex + 1
+                            
+                            canvas.drawPath(
+                                path = path,
+                                paint = androidx.compose.ui.graphics.Paint().apply {
+                                    this.color = color
+                                    style = androidx.compose.ui.graphics.PaintingStyle.Stroke
+                                    strokeWidth = baseStrokeWidth
+                                    strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
+                                    strokeJoin = androidx.compose.ui.graphics.StrokeJoin.Round
+                                }
+                            )
                         }
                         
-                        canvas.drawPath(
-                            path = path,
-                            paint = androidx.compose.ui.graphics.Paint().apply {
-                                this.color = color
-                                style = androidx.compose.ui.graphics.PaintingStyle.Stroke
-                                strokeWidth = baseStrokeWidth
-                                strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
-                                strokeJoin = androidx.compose.ui.graphics.StrokeJoin.Round
+                        // Save to disk cache in background
+                        val bytesToSave = imageBitmapToByteArray(bitmap)
+                        if (bytesToSave != null) {
+                            val cacheFileName = "overlays/${indexLevel}_${tileId.x}_${tileId.y}_${currentFilterHash}.png"
+                            try {
+                                fileHelper.writeLocalFile(cacheFileName, bytesToSave as ByteArray)
+                            } catch (e: Exception) {
+                                Napier.e("Failed to write overlay cache: $cacheFileName", e, tag = TAG)
                             }
-                        )
+                        }
+                        
+                        tileId to bitmap
                     }
+                }.awaitAll()
 
-                    _overlayTileCache[tileId] = bitmap
-                    _overlayCacheState.value = _overlayTileCache.toMap()
-                    
-                    // Save to disk cache
-                    val bytesToSave = imageBitmapToByteArray(bitmap)
-                    if (bytesToSave != null) {
-                        fileHelper.writeLocalFile(cacheFileName, bytesToSave as ByteArray)
-                    }
+                renderResults.forEach { (id, bmp) ->
+                    _overlayTileCache[id] = bmp
                 }
-                
                 _overlayCacheState.value = _overlayTileCache.toMap()
+
+            } catch (e: Exception) {
 
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
@@ -704,6 +744,7 @@ class MapViewModel(
     // Function called by Composable
     fun requestTilesForViewport(visibleTileIds: Set<TileId>, centerGeo: GeoPosition, zoom: Float, viewportSize: IntSize) {
         currentVisibleTiles = visibleTileIds
+        lastViewportSize = viewportSize
         updateVisibleSegments(centerGeo, zoom, viewportSize)
         // 1. Cancel jobs for tiles no longer needed
         val jobsToCancel = loadingJobs.filterKeys { it !in visibleTileIds }

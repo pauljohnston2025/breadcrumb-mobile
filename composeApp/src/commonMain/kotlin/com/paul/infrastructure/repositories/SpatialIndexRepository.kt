@@ -13,11 +13,8 @@ import kotlin.math.*
 
 class SpatialIndexRepository(public val dao: SpatialIndexDao) {
     companion object {
-        // switching zoom levels results in all the segments having to be updated in the map renderer
-        // so they should be sparsely populated enough so that the user does not notice the jump
-        // perhaps we should just do one layer?
-        val SPATIAL_INDEX_ZOOM_LEVELS = listOf(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19)
-        const val SPATIAL_INDEX_VERSION = 16
+        val SPATIAL_INDEX_ZOOM_LEVELS = (0..19).toList()
+        const val SPATIAL_INDEX_VERSION = 19
     }
 
     suspend fun indexStravaActivity(activityId: Long, points: List<Point>) {

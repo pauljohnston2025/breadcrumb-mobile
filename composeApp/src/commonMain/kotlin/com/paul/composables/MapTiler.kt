@@ -73,10 +73,12 @@ import breadcrumb.composeapp.generated.resources.strava
 import com.paul.domain.PaletteMappingMode
 import com.paul.domain.SegmentInfo
 import com.paul.domain.SegmentType
+import com.paul.infrastructure.repositories.SpatialIndexRepository
 import com.paul.infrastructure.service.GeoPosition
 import com.paul.infrastructure.service.TileId
 import com.paul.infrastructure.service.TileInfo
 import com.paul.infrastructure.service.calculateNewCenter
+import com.paul.infrastructure.service.calculateVisibleTiles
 import com.paul.infrastructure.service.geoToScreenPixel
 import com.paul.infrastructure.service.geoToWorldPixel
 import com.paul.infrastructure.service.getScaleFactor
@@ -93,6 +95,7 @@ import org.jetbrains.compose.resources.painterResource
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
+import kotlin.math.floor
 import kotlin.math.ln
 import kotlin.math.max
 import kotlin.math.min
@@ -186,18 +189,29 @@ fun MapTilerComposable(
     val visibleTiles by remember(localCenterGeo, integerZoom, localZoom, viewportSize) {
         derivedStateOf {
             if (viewportSize == IntSize.Zero) emptyList() else {
-                calculateVisibleTiles(localCenterGeo, integerZoom, localZoom, viewportSize, tilServer.id)
+                // Restore individual tile projection for butter-smooth rendering
+                com.paul.infrastructure.service.calculateVisibleTiles(
+                    localCenterGeo, integerZoom, viewportSize, tilServer.id, localZoom
+                )
             }
         }
     }
     val visibleOverlayTiles by remember(localCenterGeo, localZoom, viewportSize) {
         derivedStateOf {
-            if (viewportSize == IntSize.Zero) emptyList() else {
-                val indexLevel = com.paul.infrastructure.repositories.SpatialIndexRepository.SPATIAL_INDEX_ZOOM_LEVELS
-                    .filter { it >= localZoom.toInt() }
-                    .minOrNull() ?: com.paul.infrastructure.repositories.SpatialIndexRepository.SPATIAL_INDEX_ZOOM_LEVELS.max()
-                
-                calculateVisibleTiles(localCenterGeo, indexLevel, localZoom, viewportSize, "overlay")
+            if (viewportSize == IntSize.Zero || (!isStravaEnabled && !isRoutesEnabled)) emptyList() else {
+                val currentZ = localZoom.toInt()
+                com.paul.infrastructure.repositories.SpatialIndexRepository.SPATIAL_INDEX_ZOOM_LEVELS
+                    .filter { level -> 
+                        // Only calculate tiles for layers that are visually relevant.
+                        // Zooming out from 14 to 4 shouldn't trigger level 14 calculations.
+                        level <= currentZ + 1 && level >= currentZ - 4
+                    }
+                    .sorted()
+                    .flatMap { level ->
+                        com.paul.infrastructure.service.calculateVisibleTiles(
+                            localCenterGeo, level, viewportSize, "overlay", localZoom
+                        )
+                    }
             }
         }
     }
@@ -394,11 +408,9 @@ fun MapTilerComposable(
                     )
                 } ?: run {
                     drawRect(
-                        color = Color.DarkGray.copy(alpha = 0.5f), topLeft = Offset(
-                            tileInfo.screenOffset.x.toFloat(), tileInfo.screenOffset.y.toFloat()
-                        ), size = androidx.compose.ui.geometry.Size(
-                            tileInfo.size.width.toFloat(), tileInfo.size.height.toFloat()
-                        )
+                        color = Color.DarkGray.copy(alpha = 0.5f), 
+                        topLeft = Offset(tileInfo.screenOffset.x.toFloat(), tileInfo.screenOffset.y.toFloat()), 
+                        size = androidx.compose.ui.geometry.Size(tileInfo.size.width.toFloat(), tileInfo.size.height.toFloat())
                     )
                 }
             }
@@ -720,39 +732,4 @@ fun MappingModeSelectionDialog(
             }
         }
     )
-}
-
-fun calculateVisibleTiles(
-    mapCenterGeo: GeoPosition, tileZoom: Int, viewportZoom: Float, viewportSize: IntSize, serverId: String
-): List<TileInfo> {
-    if (viewportSize == IntSize.Zero) return emptyList()
-    val tiles = mutableListOf<TileInfo>()
-    val topLeftGeo = screenPixelToGeo(IntOffset(0, 0), mapCenterGeo, viewportZoom, viewportSize)
-    val bottomRightGeo = screenPixelToGeo(
-        IntOffset(viewportSize.width, viewportSize.height), mapCenterGeo, viewportZoom, viewportSize
-    )
-    val (minTileX, minTileY) = latLonToTileXY(topLeftGeo.latitude, topLeftGeo.longitude, tileZoom)
-    val (maxTileX, maxTileY) = latLonToTileXY(
-        bottomRightGeo.latitude, bottomRightGeo.longitude, tileZoom
-    )
-    val n = 1 shl tileZoom
-    val buffer = 1
-    val startX = (minTileX - buffer).coerceAtLeast(0)
-    val startY = (minTileY - buffer).coerceAtLeast(0)
-    val endX = (maxTileX + buffer).coerceAtMost(n - 1)
-    val endY = (maxTileY + buffer).coerceAtMost(n - 1)
-    
-    val scaleFactor = 2.0.pow((viewportZoom - tileZoom).toDouble())
-    val tileSizeOnScreen = (256 * scaleFactor).roundToInt()
-    val tileSize = IntSize(tileSizeOnScreen, tileSizeOnScreen)
-
-    for (x in startX..endX) {
-        for (y in startY..endY) {
-            val tileId = TileId(x, y, tileZoom, serverId)
-            val tileTopLeftGeo = worldPixelToGeo(x.toDouble() / n, y.toDouble() / n)
-            val screenOffset = geoToScreenPixel(tileTopLeftGeo, mapCenterGeo, viewportZoom, viewportSize)
-            tiles.add(TileInfo(id = tileId, screenOffset = screenOffset, size = tileSize))
-        }
-    }
-    return tiles
 }
