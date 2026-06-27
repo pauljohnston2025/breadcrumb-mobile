@@ -87,8 +87,8 @@ fun RouteMiniMap(
         val integerZoom = mapParams.third
 
         // 2. Determine visible tiles
-        val visibleTiles = remember(centerGeo, integerZoom, viewportSize) {
-            calculateVisibleTiles(centerGeo, integerZoom, viewportSize, "minimap")
+        val visibleTiles = remember(centerGeo, integerZoom, localZoom, viewportSize) {
+            calculateVisibleTiles(centerGeo, integerZoom, localZoom, viewportSize, "minimap")
         }
 
         // 3. Handle Suspend Loading: Fetch tiles from repo and update local state
@@ -109,46 +109,39 @@ fun RouteMiniMap(
 
         // 4. Draw Logic mirroring MapTilerComposable
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val scale = 2.0.pow((localZoom - integerZoom).toDouble()).toFloat()
-
-            withTransform({
-                // Scaling around the center keeps the path and tiles locked together
-                scale(scale, scale, pivot = Offset(size.width / 2f, size.height / 2f))
-            }) {
-                // Draw Tiles from local state
-                visibleTiles.forEach { tileInfo ->
-                    localBitmaps[tileInfo.id.toString()]?.let { bitmap ->
-                        drawImage(
-                            image = bitmap,
-                            dstOffset = tileInfo.screenOffset,
-                            dstSize = tileInfo.size
-                        )
-                    }
-                }
-
-                // Draw Route Path (calculated at integerZoom to match tiles)
-                val path = Path()
-                route.route.forEachIndexed { index, point ->
-                    val pos = geoToScreenPixel(
-                        GeoPosition(point.latitude.toDouble(), point.longitude.toDouble()),
-                        centerGeo,
-                        integerZoom.toFloat(),
-                        viewportSize
+            // Draw Tiles from local state
+            visibleTiles.forEach { tileInfo ->
+                localBitmaps[tileInfo.id.toString()]?.let { bitmap ->
+                    drawImage(
+                        image = bitmap,
+                        dstOffset = tileInfo.screenOffset,
+                        dstSize = tileInfo.size
                     )
-                    if (index == 0) path.moveTo(pos.x.toFloat(), pos.y.toFloat())
-                    else path.lineTo(pos.x.toFloat(), pos.y.toFloat())
                 }
-
-                drawPath(
-                    path = path,
-                    color = lineColor,
-                    style = Stroke(
-                        width = 3.dp.toPx() / scale,
-                        cap = androidx.compose.ui.graphics.StrokeCap.Round,
-                        join = androidx.compose.ui.graphics.StrokeJoin.Round
-                    )
-                )
             }
+
+            // Draw Route Path (calculated directly at localZoom)
+            val path = Path()
+            route.route.forEachIndexed { index, point ->
+                val pos = geoToScreenPixel(
+                    GeoPosition(point.latitude.toDouble(), point.longitude.toDouble()),
+                    centerGeo,
+                    localZoom,
+                    viewportSize
+                )
+                if (index == 0) path.moveTo(pos.x.toFloat(), pos.y.toFloat())
+                else path.lineTo(pos.x.toFloat(), pos.y.toFloat())
+            }
+
+            drawPath(
+                path = path,
+                color = lineColor,
+                style = Stroke(
+                    width = 3.dp.toPx(),
+                    cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                    join = androidx.compose.ui.graphics.StrokeJoin.Round
+                )
+            )
         }
     }
 }

@@ -8,6 +8,23 @@ import com.paul.domain.MapSegmentTile
 import com.paul.domain.SegmentInfo
 import com.paul.domain.SegmentType
 
+data class SegmentWithTile(
+    val x: Int,
+    val y: Int,
+    val z: Int,
+    val type: SegmentType,
+    val ownerId: String,
+    val segmentIndex: Int,
+    val worldX1: Double,
+    val worldY1: Double,
+    val worldX2: Double,
+    val worldY2: Double,
+    val lat1: Double,
+    val lon1: Double,
+    val lat2: Double,
+    val lon2: Double
+)
+
 @Dao
 interface SpatialIndexDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -70,4 +87,12 @@ interface SpatialIndexDao {
         ORDER BY si.type, si.ownerId, si.segmentIndex
     """)
     suspend fun getFilteredSegmentsInTiles(xMin: Int, xMax: Int, yMin: Int, yMax: Int, z: Int, filteredOwnerIds: List<String>): List<SegmentInfo>
+
+    @Query("""
+        SELECT mst.x, mst.y, si.* FROM segment_info si
+        INNER JOIN map_segment_tile mst ON si.type = mst.type AND si.ownerId = mst.ownerId AND si.segmentIndex = mst.segmentIndex AND si.z = mst.z
+        WHERE mst.z = :z AND mst.x BETWEEN :xMin AND :xMax AND mst.y BETWEEN :yMin AND :yMax AND si.ownerId IN (:filteredOwnerIds)
+        ORDER BY mst.x, mst.y, si.type, si.ownerId, si.segmentIndex
+    """)
+    suspend fun getSegmentsForTiles(xMin: Int, xMax: Int, yMin: Int, yMax: Int, z: Int, filteredOwnerIds: List<String>): List<SegmentWithTile>
 }

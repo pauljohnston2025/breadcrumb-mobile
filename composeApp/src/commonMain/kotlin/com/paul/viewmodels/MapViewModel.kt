@@ -41,8 +41,12 @@ import com.paul.domain.RouteEntry
 import com.paul.domain.SegmentType
 import com.paul.domain.StravaStreamEntity
 import com.paul.infrastructure.dao.SpatialIndexDao
+import com.paul.infrastructure.dao.SegmentWithTile
 import com.paul.infrastructure.service.MigrationService
+import com.paul.infrastructure.repositories.SpatialIndexRepository
 import com.paul.infrastructure.service.geoToScreenPixel
+import com.paul.infrastructure.service.screenPixelToGeo
+import com.paul.infrastructure.service.latLonToTileXY
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -157,6 +161,10 @@ class MapViewModel(
     private val _tileCacheState = MutableStateFlow<Map<TileId, ImageBitmap?>>(emptyMap())
     val tileCacheState: StateFlow<Map<TileId, ImageBitmap?>> = _tileCacheState // Expose state
 
+    private val _overlayTileCache = mutableMapOf<TileId, ImageBitmap?>()
+    private val _overlayCacheState = MutableStateFlow<Map<TileId, ImageBitmap?>>(emptyMap())
+    val overlayCacheState: StateFlow<Map<TileId, ImageBitmap?>> = _overlayCacheState
+
     private val _loadingTiles = mutableSetOf<TileId>() // Track loading IDs
 // private val _loadingTilesState = MutableStateFlow<Set<TileId>>(emptySet()) // Optionally expose loading state too
 // val loadingTilesState: StateFlow<Set<TileId>> = _loadingTilesState
@@ -266,13 +274,21 @@ class MapViewModel(
                     snackbarHostState.showSnackbar("Please sync or import some Strava activities first")
                 } else {
                     _isStravaEnabled.value = true
-                    updateVisibleSegments(currentVisibleTiles)
+                    updateVisibleSegments(
+                        GeoPosition(_mapCenter.value.latitude.toDouble(), _mapCenter.value.longitude.toDouble()),
+                        _mapZoom.value,
+                        IntSize.Zero // Correct later
+                    )
                 }
             }
         } else {
             stravaToggleJob?.cancel()
             _isStravaEnabled.value = false
-            updateVisibleSegments(currentVisibleTiles)
+            updateVisibleSegments(
+                GeoPosition(_mapCenter.value.latitude.toDouble(), _mapCenter.value.longitude.toDouble()),
+                _mapZoom.value,
+                IntSize.Zero
+            )
         }
     }
 
@@ -284,7 +300,11 @@ class MapViewModel(
             return
         }
         _isRoutesEnabled.value = enabled
-        updateVisibleSegments(currentVisibleTiles)
+        updateVisibleSegments(
+            GeoPosition(_mapCenter.value.latitude.toDouble(), _mapCenter.value.longitude.toDouble()),
+            _mapZoom.value,
+            IntSize.Zero
+        )
     }
 
     fun clearNearbyActivities() {
@@ -302,10 +322,10 @@ class MapViewModel(
         val HIT_THRESHOLD_PIXELS = 24.0
 
         viewModelScope.launch(Dispatchers.Default) {
-            // Pick best index level for touch too
+            // Pick best index level for touch too: prefer the higher resolution index (>= current zoom)
             val indexLevel = com.paul.infrastructure.repositories.SpatialIndexRepository.SPATIAL_INDEX_ZOOM_LEVELS
-                .filter { it <= currentZoom }
-                .maxOrNull() ?: com.paul.infrastructure.repositories.SpatialIndexRepository.SPATIAL_INDEX_ZOOM_LEVELS.min()
+                .filter { it >= currentZoom }
+                .minOrNull() ?: com.paul.infrastructure.repositories.SpatialIndexRepository.SPATIAL_INDEX_ZOOM_LEVELS.max()
 
             val n = 1 shl indexLevel
             val latRad = tappedGeo.latitude * kotlin.math.PI / 180.0
@@ -471,47 +491,74 @@ class MapViewModel(
     fun refresh() {
         val serverId = tileServerRepository.currentServerFlow().value.id
         currentVisibleTiles = currentVisibleTiles.map { it.copy(serverId = serverId) }.toSet()
-        requestTilesForViewport(currentVisibleTiles)
+        val currentCenter = GeoPosition(_mapCenter.value.latitude.toDouble(), _mapCenter.value.longitude.toDouble())
+        requestTilesForViewport(currentVisibleTiles, currentCenter, _mapZoom.value, IntSize.Zero)
     }
 
-    private fun updateVisibleSegments(visibleTileIds: Set<TileId>) {
+    private fun updateVisibleSegments(centerGeo: GeoPosition, zoom: Float, viewportSize: IntSize) {
         visibleSegmentsJob?.cancel()
-        if (visibleTileIds.isEmpty() || (!_isStravaEnabled.value && !_isRoutesEnabled.value) || migrationService.isMigrating.value) {
-            _visibleSegments.value = emptyList()
+        if (viewportSize == IntSize.Zero || (!_isStravaEnabled.value && !_isRoutesEnabled.value) || migrationService.isMigrating.value) {
+            _overlayTileCache.clear()
+            _overlayCacheState.value = emptyMap()
             return
         }
 
         // Optimization: Don't fetch segments if zoomed out too far
-        if (_mapZoom.value < 2f) { // Adjusted from 10f as we now have lower zoom layers
-            _visibleSegments.value = emptyList()
+        if (zoom < 2f) { // Adjusted from 10f as we now have lower zoom layers
+            _overlayTileCache.clear()
+            _overlayCacheState.value = emptyMap()
             return
         }
 
         visibleSegmentsJob = viewModelScope.launch(Dispatchers.Default) {
             // Add a small delay to debounce rapid pans
-            delay(50)
+            delay(150) // Increased debounce for overlay rendering
             
-            val zoom = visibleTileIds.first().z
-            // Find best index level: the highest level <= zoom, or the lowest available
+            // Find best index level: prefer the higher resolution index (>= zoom)
             val indexLevel = com.paul.infrastructure.repositories.SpatialIndexRepository.SPATIAL_INDEX_ZOOM_LEVELS
-                .filter { it <= zoom }
-                .maxOrNull() ?: com.paul.infrastructure.repositories.SpatialIndexRepository.SPATIAL_INDEX_ZOOM_LEVELS.min()
+                .filter { it >= zoom.toInt() }
+                .minOrNull() ?: com.paul.infrastructure.repositories.SpatialIndexRepository.SPATIAL_INDEX_ZOOM_LEVELS.max()
+
+            // Calculate visible tiles at indexLevel
+            val n = 1 shl indexLevel
+            val topLeftGeo = screenPixelToGeo(IntOffset(0, 0), centerGeo, zoom, viewportSize)
+            val bottomRightGeo = screenPixelToGeo(
+                IntOffset(viewportSize.width, viewportSize.height), centerGeo, zoom, viewportSize
+            )
+            val (minTileX, minTileY) = latLonToTileXY(topLeftGeo.latitude, topLeftGeo.longitude, indexLevel)
+            val (maxTileX, maxTileY) = latLonToTileXY(
+                bottomRightGeo.latitude, bottomRightGeo.longitude, indexLevel
+            )
+
+            val buffer = 1
+            val overlayTileIds = mutableSetOf<TileId>()
+            for (x in (minTileX - buffer).coerceAtLeast(0)..(maxTileX + buffer).coerceAtMost(n - 1)) {
+                for (y in (minTileY - buffer).coerceAtLeast(0)..(maxTileY + buffer).coerceAtMost(n - 1)) {
+                    overlayTileIds.add(TileId(x, y, indexLevel, "overlay"))
+                }
+            }
+
+            // 1. Cleanup overlay cache
+            if (_overlayTileCache.size > 100) {
+                val toRemove = _overlayTileCache.keys.filter { it !in overlayTileIds }.take(30)
+                toRemove.forEach { _overlayTileCache.remove(it) }
+                _overlayCacheState.value = _overlayTileCache.toMap()
+            }
+
+            // 2. Identify missing tiles
+            val missingTiles = overlayTileIds.filter { !_overlayTileCache.containsKey(it) }
+            if (missingTiles.isEmpty()) return@launch
 
             var minX = Int.MAX_VALUE; var maxX = Int.MIN_VALUE
             var minY = Int.MAX_VALUE; var maxY = Int.MIN_VALUE
 
-            visibleTileIds.forEach {
+            overlayTileIds.forEach {
                 minX = min(minX, it.x); maxX = max(maxX, it.x)
                 minY = min(minY, it.y); maxY = max(maxY, it.y)
             }
 
-            // Convert bounds from viewport zoom to indexLevel
-            // Add a 1-tile buffer to ensure segments spanning across tile edges are included
-            val scale = 2.0.pow((indexLevel - zoom).toDouble())
-            val ixMin = floor(minX * scale).toInt() - 1
-            val ixMax = floor((maxX + 1) * scale - 0.0001).toInt() + 1
-            val iyMin = floor(minY * scale).toInt() - 1
-            val iyMax = floor((maxY + 1) * scale - 0.0001).toInt() + 1
+            // ix bounds are the same as tile bounds for indexLevel
+            val ixMin = minX; val ixMax = maxX; val iyMin = minY; val iyMax = maxY
 
             try {
                 // Get filtered owner IDs for Strava
@@ -526,10 +573,76 @@ class MapViewModel(
                 
                 val allFilteredIds = filteredStravaIds + routeIds
 
-                val segments = if (allFilteredIds.isEmpty()) emptyList() else {
-                    spatialIndexDao.getFilteredSegmentsInTiles(ixMin, ixMax, iyMin, iyMax, indexLevel, allFilteredIds)
+                if (allFilteredIds.isEmpty()) {
+                    _overlayTileCache.clear()
+                    _overlayCacheState.value = emptyMap()
+                    return@launch
                 }
-                _visibleSegments.value = segments
+
+                // FETCH ALL SEGMENTS FOR VIEWPORT IN ONE TRANSACTION
+                val allSegments = spatialIndexDao.getSegmentsForTiles(ixMin, ixMax, iyMin, iyMax, indexLevel, allFilteredIds)
+                
+                // Group by the index-level tile (x, y)
+                val grouped = allSegments.groupBy { it.x to it.y }
+                
+                val stravaColor = androidx.compose.ui.graphics.Color(0xFFFC4C02).copy(alpha = 0.7f)
+                val routeColorStored = androidx.compose.ui.graphics.Color(0xFFD01E18)
+                
+                overlayTileIds.forEach { tileId ->
+                    if (_overlayTileCache.containsKey(tileId)) return@forEach
+                    
+                    val segmentsInTile = grouped[tileId.x to tileId.y] ?: emptyList()
+                    
+                    if (segmentsInTile.isEmpty()) {
+                        _overlayTileCache[tileId] = null // Cache empty
+                        return@forEach
+                    }
+
+                    // RENDER TILE
+                    val bitmap = ImageBitmap(256, 256)
+                    val canvas = androidx.compose.ui.graphics.Canvas(bitmap)
+                    val baseStrokeWidth = 8f 
+                    
+                    // Group segments by owner within this viewport tile to draw continuous paths
+                    val segmentsByOwner = segmentsInTile.groupBy { it.ownerId to it.type }
+
+                    segmentsByOwner.forEach { (idKey, segments) ->
+                        val (ownerId, type) = idKey
+                        val color = if (type == SegmentType.STRAVA) stravaColor else routeColorStored
+                        val path = androidx.compose.ui.graphics.Path()
+                        var expectedIdx = -1
+
+                        // Sort segments of this specific owner to ensure path continuity
+                        segments.sortedBy { it.segmentIndex }.forEach { seg ->
+                            val px1 = (seg.worldX1 * n - tileId.x) * 256.0
+                            val py1 = (seg.worldY1 * n - tileId.y) * 256.0
+                            val px2 = (seg.worldX2 * n - tileId.x) * 256.0
+                            val py2 = (seg.worldY2 * n - tileId.y) * 256.0
+
+                            if (seg.segmentIndex != expectedIdx) {
+                                path.moveTo(px1.toFloat(), py1.toFloat())
+                            }
+                            path.lineTo(px2.toFloat(), py2.toFloat())
+                            expectedIdx = seg.segmentIndex + 1
+                        }
+                        
+                        canvas.drawPath(
+                            path = path,
+                            paint = androidx.compose.ui.graphics.Paint().apply {
+                                this.color = color
+                                style = androidx.compose.ui.graphics.PaintingStyle.Stroke
+                                strokeWidth = baseStrokeWidth
+                                strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
+                                strokeJoin = androidx.compose.ui.graphics.StrokeJoin.Round
+                            }
+                        )
+                    }
+
+                    _overlayTileCache[tileId] = bitmap
+                }
+                
+                _overlayCacheState.value = _overlayTileCache.toMap()
+
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 Napier.e("Failed to update visible segments", e, tag = TAG)
@@ -538,9 +651,9 @@ class MapViewModel(
     }
 
     // Function called by Composable
-    fun requestTilesForViewport(visibleTileIds: Set<TileId>) {
+    fun requestTilesForViewport(visibleTileIds: Set<TileId>, centerGeo: GeoPosition, zoom: Float, viewportSize: IntSize) {
         currentVisibleTiles = visibleTileIds
-        updateVisibleSegments(visibleTileIds)
+        updateVisibleSegments(centerGeo, zoom, viewportSize)
         // 1. Cancel jobs for tiles no longer needed
         val jobsToCancel = loadingJobs.filterKeys { it !in visibleTileIds }
         jobsToCancel.forEach { (_, job) -> job.cancel() }
