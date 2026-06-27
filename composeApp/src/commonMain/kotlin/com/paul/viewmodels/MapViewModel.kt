@@ -255,15 +255,22 @@ class MapViewModel(
     // When the repo's date range changes, 'activities' emits, and this transforms them
     val stravaRoutes: StateFlow<Map<StravaActivity, Route>> = stravaRepo.activitiesByDateRangeAndPage
         .map { activities ->
+//            val ids = activities.map { it.id }
+
+//            val streamsMap = stravaRepo.getStreamsForActivityIds(ids)
+
             kotlinx.coroutines.coroutineScope {
                 activities.map { activity ->
                     async(Dispatchers.Default) {
-                        // Use the summary polyline for map display.
-                        // Significantly fewer points and resolution is sufficient for the map.
-                        // Note: summary polyline does not contain elevation data.
+//                        val stream = streamsMap[activity.id]
+                        // significantly less points when using the summary polyline
+                        // and i can't tell the difference (resolution seems fine)
+                        // note: the summary polyline does not have elevation data,
+                        // but we do not need that for display and click functionality
                         val route = activity.summaryToRoute()
 
-                        // Trigger lazy calculation of projected points
+                        // Accessing projectedPoints here triggers the lazy
+                        // calculation in the background.
                         val _trigger = route.projectedPoints
 
                         activity to route
@@ -288,7 +295,7 @@ class MapViewModel(
         }
 
         viewModelScope.launch {
-            combine(stravaRoutes, storedRoutes, _isStravaEnabled, _isRoutesEnabled) { _, _, _, _ -> 
+            combine(stravaRoutes, storedRoutes, _isStravaEnabled, _isRoutesEnabled) { _, _, _, _ ->
                 updateFilterHash()
             }.collect()
         }
@@ -549,7 +556,7 @@ class MapViewModel(
         visibleSegmentsJob = viewModelScope.launch(Dispatchers.Default) {
             // Add a small delay to debounce rapid pans
             delay(150) // Increased debounce for overlay rendering
-            
+
             // Find best index level: prefer the higher resolution index (>= zoom)
             val indexLevel = com.paul.infrastructure.repositories.SpatialIndexRepository.SPATIAL_INDEX_ZOOM_LEVELS
                 .filter { it >= zoom.toInt() }
@@ -575,11 +582,11 @@ class MapViewModel(
             }
 
             // 1. Cleanup overlay cache
-            if (_overlayTileCache.size > 150) {
-                val toRemove = _overlayTileCache.keys.filter { it !in overlayTileIds }.take(50)
-                toRemove.forEach { _overlayTileCache.remove(it) }
-                _overlayCacheState.value = _overlayTileCache.toMap()
-            }
+//            if (_overlayTileCache.size > 150) {
+//                val toRemove = _overlayTileCache.keys.filter { it !in overlayTileIds }.take(50)
+//                toRemove.forEach { _overlayTileCache.remove(it) }
+//                _overlayCacheState.value = _overlayTileCache.toMap()
+//            }
 
             // 2. Identify missing tiles
             val missingTiles = overlayTileIds.filter { !_overlayTileCache.containsKey(it) }
@@ -601,12 +608,12 @@ class MapViewModel(
                 val filteredStravaIds = if (_isStravaEnabled.value) {
                     stravaRoutes.value.keys.map { it.id.toString() }
                 } else emptyList()
-                
+
                 // Get all route IDs if enabled
                 val routeIds = if (_isRoutesEnabled.value) {
                     storedRoutes.value.keys.map { it.id }
                 } else emptyList()
-                
+
                 val allFilteredIds = filteredStravaIds + routeIds
 
                 if (allFilteredIds.isEmpty()) {
@@ -662,15 +669,15 @@ class MapViewModel(
 
                 val allSegments = spatialIndexDao.getSegmentsForTiles(dbMinX, dbMaxX, dbMinY, dbMaxY, indexLevel, allFilteredIds)
                 val grouped = allSegments.groupBy { it.x to it.y }
-                
+
                 val stravaColor = androidx.compose.ui.graphics.Color(0xFFFC4C02).copy(alpha = 0.7f)
                 val routeColorStored = androidx.compose.ui.graphics.Color(0xFFD01E18)
-                
+
                 // 3. Render missing tiles in parallel
                 val renderResults = tilesToFetchFromDb.map { tileId ->
                     async(Dispatchers.Default) {
                         val segmentsInTile = grouped[tileId.x to tileId.y] ?: emptyList()
-                        
+
                         if (segmentsInTile.isEmpty()) {
                             return@async tileId to null
                         }
@@ -678,8 +685,8 @@ class MapViewModel(
                         // RENDER TILE
                         val bitmap = ImageBitmap(256, 256)
                         val canvas = androidx.compose.ui.graphics.Canvas(bitmap)
-                        val baseStrokeWidth = 8f 
-                        
+                        val baseStrokeWidth = 8f
+
                         val segmentsByOwner = segmentsInTile.groupBy { it.ownerId to it.type }
                         segmentsByOwner.forEach { (idKey, segments) ->
                             val (_, type) = idKey
@@ -699,7 +706,7 @@ class MapViewModel(
                                 path.lineTo(px2.toFloat(), py2.toFloat())
                                 expectedIdx = seg.segmentIndex + 1
                             }
-                            
+
                             canvas.drawPath(
                                 path = path,
                                 paint = androidx.compose.ui.graphics.Paint().apply {
@@ -711,7 +718,7 @@ class MapViewModel(
                                 }
                             )
                         }
-                        
+
                         // Save to disk cache in background
                         val bytesToSave = imageBitmapToByteArray(bitmap)
                         if (bytesToSave != null) {
@@ -722,7 +729,7 @@ class MapViewModel(
                                 Napier.e("Failed to write overlay cache: $cacheFileName", e, tag = TAG)
                             }
                         }
-                        
+
                         tileId to bitmap
                     }
                 }.awaitAll()
@@ -752,16 +759,16 @@ class MapViewModel(
         jobsToCancel.keys.forEach { loadingJobs.remove(it) }
         _loadingTiles.removeAll(jobsToCancel.keys)
 
-        // 2. Cleanup cache - prevent infinite growth
-        // Keep visible tiles + a buffer of others. 
-        // 100 tiles is roughly 25MB of bitmap data.
-        if (_tileBitmapCache.size > 150) {
-            val toRemove = _tileBitmapCache.keys.filter { it !in visibleTileIds }.take(50)
-            if (toRemove.isNotEmpty()) {
-                toRemove.forEach { _tileBitmapCache.remove(it) }
-                _tileCacheState.value = _tileBitmapCache.toMap()
-            }
-        }
+//        // 2. Cleanup cache - prevent infinite growth
+//        // Keep visible tiles + a buffer of others.
+//        // 100 tiles is roughly 25MB of bitmap data.
+//        if (_tileBitmapCache.size > 150) {
+//            val toRemove = _tileBitmapCache.keys.filter { it !in visibleTileIds }.take(50)
+//            if (toRemove.isNotEmpty()) {
+//                toRemove.forEach { _tileBitmapCache.remove(it) }
+//                _tileCacheState.value = _tileBitmapCache.toMap()
+//            }
+//        }
 
         // 3. Request missing tiles
         visibleTileIds.forEach { tileId ->
@@ -1288,15 +1295,11 @@ class MapViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val stream = stravaRepo.getStreamForActivity(activity.id)
-                if (stream != null) {
-                    displayRoute(stream.toRouteForDevice(activity.name), StravaIRoute(activity, stream))
-                } else {
-                    // Fallback to summary if stream hasn't been synced yet
-                    val summary = activity.summaryToRoute()
-                    displayRoute(summary, StravaIRoute(activity,
-                        StravaStreamEntity(activity.id, summary.route)
-                    ))
+                if (stream == null) {
+                    snackbarHostState.showSnackbar("Failed to load activity stream, please do a full delete/resync")
+                    return@launch
                 }
+                displayRoute(stream.toRouteForDevice(activity.name), StravaIRoute(activity, stream))
                 clearNearbyActivities()
             } catch (t: Throwable) {
                 snackbarHostState.showSnackbar("Failed to load activity preview")

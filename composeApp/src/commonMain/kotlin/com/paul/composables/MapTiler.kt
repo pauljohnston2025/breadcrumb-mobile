@@ -186,30 +186,26 @@ fun MapTilerComposable(
     LaunchedEffect(vmZoom) {
         localZoom = vmZoom
     }
-    val visibleTiles by remember(localCenterGeo, integerZoom, localZoom, viewportSize) {
+    val visibleTiles by remember(localCenterGeo, integerZoom, viewportSize) {
         derivedStateOf {
             if (viewportSize == IntSize.Zero) emptyList() else {
-                // Restore individual tile projection for butter-smooth rendering
-                com.paul.infrastructure.service.calculateVisibleTiles(
-                    localCenterGeo, integerZoom, viewportSize, tilServer.id, localZoom
-                )
+                calculateVisibleTiles(localCenterGeo, integerZoom, viewportSize, tilServer.id)
             }
         }
     }
-    val visibleOverlayTiles by remember(localCenterGeo, localZoom, viewportSize) {
+    val visibleOverlayTiles by remember(localCenterGeo, integerZoom, viewportSize) {
         derivedStateOf {
             if (viewportSize == IntSize.Zero || (!isStravaEnabled && !isRoutesEnabled)) emptyList() else {
-                val currentZ = localZoom.toInt()
                 com.paul.infrastructure.repositories.SpatialIndexRepository.SPATIAL_INDEX_ZOOM_LEVELS
-                    .filter { level -> 
+                    .filter { level ->
                         // Only calculate tiles for layers that are visually relevant.
                         // Zooming out from 14 to 4 shouldn't trigger level 14 calculations.
-                        level <= currentZ + 1 && level >= currentZ - 4
+                        level <= integerZoom + 1 && level >= integerZoom - 4
                     }
                     .sorted()
                     .flatMap { level ->
                         com.paul.infrastructure.service.calculateVisibleTiles(
-                            localCenterGeo, level, viewportSize, "overlay", localZoom
+                            localCenterGeo, level, viewportSize, "overlay"
                         )
                     }
             }
@@ -399,54 +395,213 @@ fun MapTilerComposable(
                 .fillMaxSize()
                 .clipToBounds()
         ) {
-            visibleTiles.forEach { tileInfo ->
-                tileCache[tileInfo.id]?.let { imageBitmap ->
-                    drawImage(
-                        image = imageBitmap,
-                        dstOffset = tileInfo.screenOffset,
-                        dstSize = tileInfo.size
-                    )
-                } ?: run {
-                    drawRect(
-                        color = Color.DarkGray.copy(alpha = 0.5f), 
-                        topLeft = Offset(tileInfo.screenOffset.x.toFloat(), tileInfo.screenOffset.y.toFloat()), 
-                        size = androidx.compose.ui.geometry.Size(tileInfo.size.width.toFloat(), tileInfo.size.height.toFloat())
-                    )
-                }
-            }
-
-            visibleOverlayTiles.forEach { tileInfo ->
-                overlayTiles[tileInfo.id]?.let { imageBitmap ->
-                    drawImage(
-                        image = imageBitmap,
-                        dstOffset = tileInfo.screenOffset,
-                        dstSize = tileInfo.size
-                    )
-                }
-            }
-
-            routeToDisplay?.let { route ->
-                if (route.route.size >= 2) {
-                    val path = Path()
-                    route.route.forEachIndexed { index, point ->
-                        val screenPos = geoToScreenPixel(
-                            GeoPosition(point.latitude.toDouble(), point.longitude.toDouble()),
-                            localCenterGeo,
-                            localZoom,
-                            viewportSize
+            val scale = 2.0.pow((localZoom - integerZoom).toDouble()).toFloat()
+            withTransform({
+                scale(scale, scale, pivot = Offset(size.width / 2f, size.height / 2f))
+            }) {
+                visibleTiles.forEach { tileInfo ->
+                    tileCache[tileInfo.id]?.let { imageBitmap ->
+                        drawImage(
+                            image = imageBitmap,
+                            dstOffset = tileInfo.screenOffset,
+                            dstSize = tileInfo.size
                         )
-                        val offset = Offset(screenPos.x.toFloat(), screenPos.y.toFloat())
-                        if (index == 0) path.moveTo(offset.x, offset.y)
-                        else path.lineTo(offset.x, offset.y)
+                    } ?: run {
+                        drawRect(
+                            color = Color.DarkGray.copy(alpha = 0.5f), topLeft = Offset(
+                                tileInfo.screenOffset.x.toFloat(), tileInfo.screenOffset.y.toFloat()
+                            ), size = androidx.compose.ui.geometry.Size(
+                                tileInfo.size.width.toFloat(), tileInfo.size.height.toFloat()
+                            )
+                        )
                     }
-                    drawPath(
-                        path = path,
-                        color = routeColor,
-                        style = Stroke(width = routeStrokeWidth, cap = StrokeCap.Round)
-                    )
+                }
+
+                visibleOverlayTiles.forEach { tileInfo ->
+                    overlayTiles[tileInfo.id]?.let { imageBitmap ->
+                        drawImage(
+                            image = imageBitmap,
+                            dstOffset = tileInfo.screenOffset,
+                            dstSize = tileInfo.size
+                        )
+                    }
+                }
+
+                routeToDisplay?.let { route ->
+                    if (route.route.size >= 2) {
+                        val path = Path()
+                        val startPoint = geoToScreenPixel(
+                            GeoPosition(
+                                route.route.first().latitude.toDouble(),
+                                route.route.first().longitude.toDouble()
+                            ), localCenterGeo, integerZoom.toFloat(), viewportSize
+                        )
+                        path.moveTo(startPoint.x.toFloat(), startPoint.y.toFloat())
+                        val screenPoints = mutableListOf<Offset>()
+                        screenPoints.add(Offset(startPoint.x.toFloat(), startPoint.y.toFloat()))
+                        route.route.drop(1).forEach { point ->
+                            val screenPoint = geoToScreenPixel(
+                                GeoPosition(
+                                    point.latitude.toDouble(), point.longitude.toDouble()
+                                ), localCenterGeo, integerZoom.toFloat(), viewportSize
+                            )
+                            val offset = Offset(screenPoint.x.toFloat(), screenPoint.y.toFloat())
+                            path.lineTo(offset.x, offset.y)
+                            screenPoints.add(offset)
+                        }
+                        drawPath(
+                            path = path,
+                            color = routeColor,
+                            style = Stroke(width = routeStrokeWidth / scale, cap = StrokeCap.Round)
+                        )
+
+                        if (routeSettings.showRoutePoints) {
+                            val dotRadius = 10f / scale
+                            screenPoints.forEach { offset ->
+                                drawCircle(
+                                    color = Color.White, // High contrast against the blue line
+                                    radius = dotRadius,
+                                    center = offset,
+                                    style = Fill
+                                )
+                            }
+                        }
+
+                        // Draw hovered distance cursor
+                        hoveredDistance?.let { dist ->
+                            // Find the point on the route for this distance
+                            findPointAtDistance(route.route, dist)?.let { point ->
+                                val screenPos = geoToScreenPixel(
+                                    GeoPosition(point.latitude.toDouble(), point.longitude.toDouble()),
+                                    localCenterGeo,
+                                    integerZoom.toFloat(),
+                                    viewportSize
+                                )
+                                val cursorOffset = Offset(screenPos.x.toFloat(), screenPos.y.toFloat())
+
+                                drawCircle(
+                                    color = Color.White,
+                                    radius = 12f / scale,
+                                    center = cursorOffset
+                                )
+                                drawCircle(
+                                    color = routeColor,
+                                    radius = 8f / scale,
+                                    center = cursorOffset
+                                )
+                            }
+                        }
+
+                        // ... inside the Canvas composable, after drawing the blue route path ...
+
+                        routeToDisplay?.let { route ->
+                            // Draw direction arrows and angle text for each turn
+                            route.directions.forEach { direction ->
+                                val turnIndex = direction.routeIndex
+                                if (turnIndex > 0 && turnIndex < route.route.size) {
+                                    val turnPointGeo = route.route[turnIndex]
+                                    val prevPointGeo = route.route[turnIndex - 1]
+
+                                    val turnScreenPoint = geoToScreenPixel(
+                                        GeoPosition(
+                                            turnPointGeo.latitude.toDouble(),
+                                            turnPointGeo.longitude.toDouble()
+                                        ), localCenterGeo, integerZoom.toFloat(), viewportSize
+                                    ).let { Offset(it.x.toFloat(), it.y.toFloat()) }
+
+                                    val prevScreenPoint = geoToScreenPixel(
+                                        GeoPosition(
+                                            prevPointGeo.latitude.toDouble(),
+                                            prevPointGeo.longitude.toDouble()
+                                        ), localCenterGeo, integerZoom.toFloat(), viewportSize
+                                    ).let { Offset(it.x.toFloat(), it.y.toFloat()) }
+
+                                    val dx = turnScreenPoint.x - prevScreenPoint.x
+                                    val dy = turnScreenPoint.y - prevScreenPoint.y
+                                    val incomingBearingOnScreen =
+                                        Math.toDegrees(kotlin.math.atan2(dy, dx).toDouble())
+                                            .toFloat()
+
+                                    val finalAngleDeg = incomingBearingOnScreen + direction.angleDeg
+
+                                    // --- 1. Draw the Arrow ---
+                                    // The arrow is now defined with its BASE at (0,0) and pointing to the right.
+                                    val arrowLength = 35f / scale
+                                    val arrowPath = Path().apply {
+                                        val headWidth = arrowLength / 2.5f
+                                        val headLength = arrowLength / 2f
+
+                                        // Main tail line of the arrow
+                                        moveTo(0f, 0f)      // Base of the tail
+                                        lineTo(arrowLength, 0f) // Tip of the arrow
+
+                                        // The two lines that form the arrowhead
+                                        moveTo(arrowLength - headLength, -headWidth)
+                                        lineTo(arrowLength, 0f)
+                                        lineTo(arrowLength - headLength, headWidth)
+                                    }
+
+                                    // The transformation logic is the same, but now it correctly positions the arrow's base.
+                                    withTransform({
+                                        translate(left = turnScreenPoint.x, top = turnScreenPoint.y)
+                                        rotate(degrees = finalAngleDeg, pivot = Offset.Zero)
+                                    }) {
+                                        drawPath(
+                                            path = arrowPath, color = Color.Red, style = Stroke(
+                                                width = 7f / scale, cap = StrokeCap.Round
+                                            )
+                                        )
+                                    }
+
+                                    // --- 2. Draw the Angle Text ---
+//                                    drawIntoCanvas { canvas ->
+//                                        textPaint.textSize = 30f / scale
+//                                        textBackgroundStrokePaint.strokeWidth = 2f / scale
+//
+//                                        val angleText = direction.angleDeg.roundToInt().toString() + "°"
+//                                        val textBounds = Rect()
+//                                        textPaint.getTextBounds(angleText, 0, angleText.length, textBounds)
+//
+//                                        // Position the text just off the tip of the arrow.
+//                                        // The position is calculated from the base (turnScreenPoint) along the arrow's angle.
+//                                        val textOffset = arrowLength + 10f // Place it slightly beyond the arrow's tip
+//                                        val angleRad = Math.toRadians(finalAngleDeg.toDouble())
+//                                        val textX = turnScreenPoint.x + textOffset * cos(angleRad).toFloat()
+//                                        val textY = turnScreenPoint.y + textOffset * sin(angleRad).toFloat() + textBounds.height() / 2f
+//
+//                                        // Draw a background for readability
+//                                        val padding = 8f
+//                                        canvas.nativeCanvas.drawRoundRect(
+//                                            textX - textBounds.width() / 2f - padding,
+//                                            textY - textBounds.height() - padding,
+//                                            textX + textBounds.width() / 2f + padding,
+//                                            textY + padding,
+//                                            10f, 10f, // corner radius
+//                                            textBackgroundPaint
+//                                        )
+//                                        canvas.nativeCanvas.drawRoundRect(
+//                                            textX - textBounds.width() / 2f - padding,
+//                                            textY - textBounds.height() - padding,
+//                                            textX + textBounds.width() / 2f + padding,
+//                                            textY + padding,
+//                                            10f, 10f, // corner radius
+//                                            textBackgroundStrokePaint
+//                                        )
+//
+//                                        // Draw the actual text
+//                                        canvas.nativeCanvas.drawText(
+//                                            angleText,
+//                                            textX,
+//                                            textY,
+//                                            textPaint
+//                                        )
+//                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
-
             userLocation?.let { loc ->
                 val screenPos = geoToScreenPixel(
                     geo = loc.position,
@@ -513,6 +668,24 @@ fun MapTilerComposable(
                     .padding(horizontal = 8.dp, vertical = 4.dp)
             ) {
                 Text(text = "Zoom: %.1f".format(localZoom), color = Color.White, fontSize = 12.sp)
+            }
+
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(Color.Black.copy(alpha = 0.5f))
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Text(text = "Base Tiles: %d".format(tileCache.size), color = Color.White, fontSize = 12.sp)
+            }
+
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(Color.Black.copy(alpha = 0.5f))
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Text(text = "Overlay Tiles: %d".format(overlayTiles.size), color = Color.White, fontSize = 12.sp)
             }
 
             if (routeSettings.showRoutePoints && routeToDisplay != null) {
