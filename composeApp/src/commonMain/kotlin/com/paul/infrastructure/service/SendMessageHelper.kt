@@ -12,12 +12,16 @@ class SendMessageHelper {
             viewModelScope: CoroutineScope,
             message: MutableState<String>,
             msg: String,
-            cb: suspend () -> T): T? {
+            cb: suspend (updateMsg: suspend (String) -> Unit) -> T): T? {
             try {
                 viewModelScope.launch(Dispatchers.Main) {
                     message.value = msg
                 }
-                return cb()
+                return cb { newMsg ->
+                    viewModelScope.launch(Dispatchers.Main) {
+                        message.value = newMsg
+                    }
+                }
             } catch (t: Throwable) {
                 Napier.d("Failed to do operation: $msg $t")
             } finally {

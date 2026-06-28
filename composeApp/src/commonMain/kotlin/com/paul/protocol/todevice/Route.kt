@@ -2,6 +2,8 @@ package com.paul.protocol.todevice
 
 import com.paul.domain.DirectionInfo
 import com.paul.domain.RouteSettings
+import com.paul.infrastructure.connectiq.IConnection.Companion.BREADCRUMB_DATAFIELD_ID
+import com.paul.infrastructure.connectiq.IConnection.Companion.ULTRA_LIGHT_BREADCRUMB_DATAFIELD_ID
 import com.paul.infrastructure.repositories.RouteRepository
 import kotlinx.serialization.Serializable
 import kotlin.io.encoding.ExperimentalEncodingApi
@@ -758,6 +760,16 @@ class Route(
         return RouteUL(
             route.mapNotNull { it.convert2XY() },
         )
+    }
+
+    override fun transform(appId: String, version: Int): Protocol {
+        return when (appId) {
+            // simulator or side loaded is version 0
+            BREADCRUMB_DATAFIELD_ID -> if (version >= 10 || version == 0) toV2() else this
+            ULTRA_LIGHT_BREADCRUMB_DATAFIELD_ID -> toUl()
+            // all other apps were released much later after it stabilised, so all versions support v2 routes
+            else -> toV2()
+        }
     }
 }
 

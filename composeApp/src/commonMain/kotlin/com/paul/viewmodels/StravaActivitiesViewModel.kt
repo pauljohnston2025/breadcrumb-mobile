@@ -18,7 +18,6 @@ import com.paul.infrastructure.repositories.TileServerRepo
 import com.paul.infrastructure.service.IFileHelper
 import com.paul.infrastructure.service.ILocationService
 import com.paul.infrastructure.service.SendMessageHelper
-import com.paul.infrastructure.service.SendMessageHelper.Companion
 import com.paul.infrastructure.service.SendRoute
 import com.paul.infrastructure.service.StravaImportService
 import com.paul.ui.Screen
@@ -202,7 +201,7 @@ class StravaActivitiesViewModel(
         }
     }
 
-    private suspend fun sendingMessage(msg: String, cb: suspend () -> Unit) {
+    private suspend fun sendingMessage(msg: String, cb: suspend (updateMsg: suspend (String) -> Unit) -> Unit) {
         SendMessageHelper.sendingMessage(viewModelScope, sendingFile, msg, cb)
     }
 }

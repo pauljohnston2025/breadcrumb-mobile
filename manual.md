@@ -52,7 +52,9 @@ Configure the app settings. Note some of the tile server settings will clear the
 
 ### Connect IQ App
 
-You must set the connect iq app you wish to talk to (this is the app/datafield installed on the watch)
+You must set the connect iq app you wish to talk to (this is the app/datafield installed on the watch). 
+
+**Auto/All** - When this setting is selected, the app will attempt to communicate with all supported Connect IQ apps installed on your device. When sending data (like routes or settings), it will be sent to all detected apps. When querying data from the device, you will be prompted to select which app to query from if multiple apps are installed.
 
 ### Phone Hosted Tile Server
 

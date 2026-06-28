@@ -23,6 +23,9 @@ class DeviceList(private val connection: Connection) : IDeviceList {
     private var deviceListFlow: MutableStateFlow<List<CommonDeviceImpl>> =
         MutableStateFlow(listOf())
     private var job: Job? = null
+    private var subscriptionJob: Job? = null
+    private var _isLoaded = MutableStateFlow(false)
+    override val isLoaded: Flow<Boolean> = _isLoaded
 
     private val mDeviceEventListener = IQDeviceEventListener { device, status ->
         Napier.v("onDeviceStatusChanged():" + device + ": " + status.name, tag = TAG)
@@ -64,19 +67,35 @@ class DeviceList(private val connection: Connection) : IDeviceList {
 
     override suspend fun subscribe(): Flow<List<IqDevice>> {
         connection.start()
-        loadDevicesLoop()
+
+        synchronized(this) {
+            if (subscriptionJob == null) {
+                subscriptionJob = CoroutineScope(Dispatchers.IO).launch {
+                    deviceListFlow.subscriptionCount.collect { count ->
+                        if (count > 0) {
+                            loadDevicesLoop()
+                        } else {
+                            job?.cancel()
+                            job = null
+                            _isLoaded.value = false
+                        }
+                    }
+                }
+            }
+        }
+
         return deviceListFlow
     }
 
     private suspend fun loadDevicesLoop() {
-        // battery performance of calling this in a tight loop?
         if (job == null) {
             job = CoroutineScope(Dispatchers.IO).launch(Dispatchers.IO) {
                 var backoff = 1000L
                 while (true) {
                     try {
                         loadDevices()
-                        backoff = 1000L // Reset on success
+                        _isLoaded.value = true
+                        backoff = 30000L // Polling once every 30s is plenty if we have events
                     } catch (e: Exception) {
                         Napier.e("loadDevices failed, backing off", e, tag = TAG)
                         backoff = (backoff * 2).coerceAtMost(30000L) // Exponential backoff up to 30s

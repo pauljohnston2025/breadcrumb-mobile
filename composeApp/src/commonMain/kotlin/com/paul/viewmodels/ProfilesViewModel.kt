@@ -12,7 +12,9 @@ import com.paul.domain.IqDevice
 import com.paul.domain.LastKnownDevice
 import com.paul.domain.Profile
 import com.paul.domain.ProfileSettings
+import com.paul.domain.ProfileAppInfo
 import com.paul.infrastructure.connectiq.IConnection
+import com.paul.infrastructure.connectiq.QueryResult
 import com.paul.infrastructure.repositories.ColourPaletteRepository
 import com.paul.infrastructure.repositories.GeneralSettingsRepository
 import com.paul.infrastructure.repositories.ProfileRepo
@@ -71,7 +73,7 @@ class ProfilesViewModel(
     val deletingProfile: StateFlow<Profile?> = _deletingProfile.asStateFlow()
 
     val settingsLoading: MutableState<Boolean> = mutableStateOf(false)
-    public var settingsJob: Deferred<Settings?>? = null
+    public var settingsJob: Deferred<QueryResult<Settings>?>? = null
 
     fun startCreate() {
         _creatingProfile.value = true
@@ -125,9 +127,10 @@ class ProfilesViewModel(
                 var lastKnownDevice = profile.lastKnownDevice
 
                 if (loadWatchSettings) {
-                    deviceSettings = that.loadDeviceSettings()?.settings
-                    val appVersion = getAppVersion()
-                    if (appVersion == null) {
+                    val settingsResult = that.loadDeviceSettings()
+                    deviceSettings = settingsResult?.response?.settings
+                    val installedApps = getInstalledApps()
+                    if (installedApps.isEmpty()) {
                         return@launch
                     }
 
@@ -137,7 +140,14 @@ class ProfilesViewModel(
                         return@launch
                     }
 
-                    lastKnownDevice = LastKnownDevice(appVersion, device.friendlyName)
+                    val settingsSourceAppId = settingsResult?.appId
+                    val profileApps = installedApps.map {
+                        ProfileAppInfo(it.version, it.appId, it.displayName, it.appId == settingsSourceAppId)
+                    }
+                    val primaryApp = profileApps.find { it.isSettingsSource } ?: profileApps.first()
+                    val primaryVersion = primaryApp.version
+
+                    lastKnownDevice = LastKnownDevice(primaryVersion, device.friendlyName, profileApps)
                 }
 
                 if (deviceSettings == null) {
@@ -201,22 +211,40 @@ class ProfilesViewModel(
     }
 
     suspend fun applyProfileInner(profile: Profile) {
-        val appVersion = getAppVersion()
+        val installedApps = getInstalledApps()
+        val currentAppId = connection.connectIqAppIdFlow().value
+        
+        // Find the app that was the source of settings in the profile
+        val sourceAppInProfile = profile.lastKnownDevice.installedApps.find { it.isSettingsSource }
+            ?: profile.lastKnownDevice.installedApps.firstOrNull()
+        
+        // Find that same app on the current device
+        val matchingAppOnDevice = if (sourceAppInProfile != null) {
+            installedApps.find { it.appId == sourceAppInProfile.appId }
+        } else {
+            installedApps.find { it.appId == currentAppId } ?: installedApps.firstOrNull()
+        }
+
+        val appVersion = matchingAppOnDevice?.version
+
         if (appVersion != null && profile.lastKnownDevice.appVersion > appVersion) {
             snackbarHostState.showSnackbar("Newer profile detected, some settings might not be applied")
         }
 
-        sendingMessage("Applying settings to device") {
+        val baseMsg = "Applying settings to device"
+        sendingMessage(baseMsg) { updateMsg ->
             val device = deviceSelector.currentDevice()
             if (device == null) {
                 snackbarHostState.showSnackbar("no devices selected")
                 return@sendingMessage
             }
 
-            connection.send(device, SaveSettings(profile.deviceSettings(), connection.connectIqAppIdFlow().value))
+            connection.send(device, SaveSettings(profile.deviceSettings())) { appName ->
+                updateMsg("$appName\n$baseMsg")
+            }
             delay(1000) // wait for a bit so users can read message (its almost instant in sim but real device goes slow anyway)
         }
-        sendingMessage("Applying app settings") {
+        sendingMessage("Applying app settings") { _ ->
             val tileServer = tileServerRepo.get(profile.appSettings.tileServerId)
             if (tileServer == null) {
                 snackbarHostState.showSnackbar("unknown tile server")
@@ -307,13 +335,13 @@ class ProfilesViewModel(
 
             val appSettings = loadAppSettings()
 
-            val deviceSettings = loadDeviceSettings()
-            if (deviceSettings == null) {
+            val settingsResult = loadDeviceSettings()
+            if (settingsResult == null) {
                 return@launch
             }
 
-            val appVersion = getAppVersion()
-            if (appVersion == null) {
+            val installedApps = getInstalledApps()
+            if (installedApps.isEmpty()) {
                 return@launch
             }
 
@@ -323,18 +351,25 @@ class ProfilesViewModel(
                 return@launch
             }
 
+            val settingsSourceAppId = settingsResult.appId
+            val profileApps = installedApps.map {
+                ProfileAppInfo(it.version, it.appId, it.displayName, it.appId == settingsSourceAppId)
+            }
+            val primaryApp = profileApps.find { it.isSettingsSource } ?: profileApps.first()
+            val primaryVersion = primaryApp.version
+
             val profile = Profile.build(
                 profileSettings,
                 appSettings,
-                deviceSettings.settings,
-                LastKnownDevice(appVersion, device.friendlyName)
+                settingsResult.response.settings,
+                LastKnownDevice(primaryVersion, device.friendlyName, profileApps)
             )
 
             profileRepo.addProfile(profile)
         }
     }
 
-    private suspend fun <T> sendingMessage(msg: String, cb: suspend () -> T?): T? {
+    private suspend fun <T> sendingMessage(msg: String, cb: suspend (updateMsg: suspend (String) -> Unit) -> T?): T? {
         return SendMessageHelper.sendingMessage(viewModelScope, sendingMessage, msg, cb)
     }
 
@@ -354,32 +389,35 @@ class ProfilesViewModel(
         )
     }
 
-    private suspend fun loadDeviceSettings(): Settings? {
+    private suspend fun loadDeviceSettings(): QueryResult<Settings>? {
         val device = deviceSelector.currentDevice()
         if (device == null) {
             snackbarHostState.showSnackbar("no devices selected")
             return null
         }
         settingsJob = viewModelScope.async(Dispatchers.IO) {
-            openDeviceSettingsSuspend(device)
+            loadDeviceSettingsSuspend(device)
         }
 
         return settingsJob!!.await()
     }
 
-    suspend fun openDeviceSettingsSuspend(device: IqDevice): Settings? {
+    suspend fun loadDeviceSettingsSuspend(device: IqDevice): QueryResult<Settings>? {
         settingsLoading.value = true
-        return sendingMessage("Loading Settings From Device.\n" +
-                "Ensure an activity with the datafield is running (or at least open) or this will fail. Note: this can take a long time (up to 5 minutes) on older devices, be patient. Press back to cancel") {
+        val baseMsg = "Loading Settings From Device.\n" +
+                "Ensure the datafield/app is running (or at least open) or this will fail. Note: this can take a long time (up to 5 minutes) on older devices, be patient. Press back to cancel"
+        return sendingMessage(baseMsg) { updateMsg ->
             return@sendingMessage try {
-                val settings = connection.query<Settings>(
+                val result = connection.query<Settings>(
                     device,
                     RequestSettings(),
                     ProtocolResponse.PROTOCOL_SEND_SETTINGS
-                )
-                Napier.i("got settings $settings", tag = TAG)
+                ) { appName ->
+                    updateMsg("$appName\n$baseMsg")
+                }
+                Napier.i("got settings for ${result.appId}", tag = TAG)
                 settingsLoading.value = false
-                settings
+                result
             } catch (t: Throwable) {
                 Napier.e("Failed to load settings from device", t, tag = TAG)
                 settingsLoading.value = false
@@ -396,24 +434,21 @@ class ProfilesViewModel(
         settingsLoading.value = false
     }
 
-    private suspend fun getAppVersion(): Int? {
+    private suspend fun getInstalledApps(): List<com.paul.infrastructure.connectiq.AppInfo> {
         val device = deviceSelector.currentDevice()
         if (device == null) {
             snackbarHostState.showSnackbar("no devices selected")
-            return null
+            return emptyList()
         }
 
-        return sendingMessage("Loading App Version From Device.\nEnsure an activity with the datafield is running (or at least open) or this will fail.") {
+        return sendingMessage("Loading App Info From Device.\nEnsure an activity with the datafield is running (or at least open) or this will fail.") { _ ->
             return@sendingMessage try {
-                val appInfo = connection.appInfo(
-                    device
-                )
-                appInfo.version
+                connection.allAppInfos(device).values.toList()
             } catch (t: Throwable) {
-                Napier.e("Failed to load app version from device", t, tag = TAG)
+                Napier.e("Failed to load app info from device", t, tag = TAG)
                 snackbarHostState.showSnackbar("Failed to load settings. Please ensure an activity is running on the watch.")
-                null
+                emptyList()
             }
-        }
+        } ?: emptyList()
     }
 }

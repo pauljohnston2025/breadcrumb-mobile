@@ -16,4 +16,5 @@ enum class ProtocolType(val value: UByte) {
 interface Protocol {
     fun type(): ProtocolType
     fun payload(): List<Any>
+    fun transform(appId: String, version: Int): Protocol = this
 }

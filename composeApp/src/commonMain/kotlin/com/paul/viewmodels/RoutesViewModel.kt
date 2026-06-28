@@ -134,7 +134,7 @@ class RoutesViewModel(
         }
     }
 
-    private suspend fun sendingMessage(msg: String, cb: suspend () -> Unit) {
+    private suspend fun sendingMessage(msg: String, cb: suspend (updateMsg: suspend (String) -> Unit) -> Unit) {
         SendMessageHelper.sendingMessage(viewModelScope, sendingFile, msg, cb)
     }
 }

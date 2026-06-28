@@ -80,9 +80,9 @@ fun Start(
     viewModel: StartViewModel,
     tileRepository: ITileRepository,
 ) {
-    BackHandler(enabled = viewModel.sendingFile.value != "" || viewModel.deviceSelector.settingsLoading.value) {
+    BackHandler(enabled = viewModel.sendingFile.value != "" || viewModel.deviceSelector.settingsLoading.value != null) {
         // prevent back handler when we are trying to do things, todo cancel the job we are trying to do
-        if (viewModel.deviceSelector.settingsLoading.value) {
+        if (viewModel.deviceSelector.settingsLoading.value != null) {
             viewModel.deviceSelector.cancelDeviceSettingsLoading()
         }
     }

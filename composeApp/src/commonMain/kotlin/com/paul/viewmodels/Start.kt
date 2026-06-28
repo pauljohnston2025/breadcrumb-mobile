@@ -187,7 +187,7 @@ class StartViewModel(
         }
 
         viewModelScope.launch(Dispatchers.IO) {
-            sendingMessage("Loading route from history...") {
+            sendingMessage("Loading route from history...") { _ ->
                 val route = routeRepo.getRouteI(historyItem.routeId)
                 if (route == null) {
                     snackbarHostState.showSnackbar("Failed to find route for history item")
@@ -216,7 +216,7 @@ class StartViewModel(
 
     fun loadFitFile(fileName: String, displayName: String? = null) {
         viewModelScope.launch(Dispatchers.IO) {
-            sendingMessage("Parsing fit input stream...") {
+            sendingMessage("Parsing fit input stream...") { _ ->
                 try {
                     val name = displayName ?: fileHelper.getFileName(fileName) ?: "FIT Route"
                     val fileContents = fileHelper.readFile(fileName)!!
@@ -235,7 +235,7 @@ class StartViewModel(
 
     fun loadGpxFile(fileName: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            sendingMessage("Parsing gpx input stream...") {
+            sendingMessage("Parsing gpx input stream...") { _ ->
                 try {
                     val fileContents = fileHelper.readFile(fileName)!!
                     val gpxRoute = gpxFileLoader.loadGpxFromBytes(fileContents)
@@ -253,7 +253,7 @@ class StartViewModel(
 
     private fun loadFromGoogle(shortGoogleUrl: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            sendingMessage("Loading google route from mapstogpx...") {
+            sendingMessage("Loading google route from mapstogpx...") { _ ->
                 loadFromGoogleInner(shortGoogleUrl)
             }
         }
@@ -261,7 +261,7 @@ class StartViewModel(
 
     private fun loadFromKomoot(komootUrl: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            sendingMessage("Loading route from komoot...") {
+            sendingMessage("Loading route from komoot...") { _ ->
                 viewModelScope.launch(Dispatchers.IO) {
                     val gpxRoute = try {
                         komootRepo.getRoute(komootUrl)
@@ -303,7 +303,7 @@ class StartViewModel(
             return
         }
 
-        sendingMessage("Parsing gpx input stream...") {
+        sendingMessage("Parsing gpx input stream...") { _ ->
             try {
                 val gpxRoute = gpxFileLoader.loadGpxFromBytes(gpxBytes)
                 sendRoute(gpxRoute)
@@ -333,7 +333,7 @@ class StartViewModel(
         }
     }
 
-    private suspend fun sendingMessage(msg: String, cb: suspend () -> Unit) {
+    private suspend fun sendingMessage(msg: String, cb: suspend (updateMsg: suspend (String) -> Unit) -> Unit) {
         SendMessageHelper.sendingMessage(viewModelScope, sendingFile, msg, cb)
     }
 
@@ -376,8 +376,11 @@ class StartViewModel(
                 snackbarHostState.showSnackbar("no devices selected")
                 return@launch
             }
-            sendingMessage("Loading Settings From Device.\nEnsure an activity with the datafield is running (or at least open) or this will fail. Note: this can take a long time (up to 5 minutes) on older devices, be patient. Press back to cancel") {
-                deviceSelector.openDeviceSettingsSuspend(device)
+            val baseMsg = "Loading Settings From Device.\nEnsure the datafield/app is running (or at least open) or this will fail. Note: this can take a long time (up to 5 minutes) on older devices, be patient. Press back to cancel"
+            sendingMessage(baseMsg) { updateMsg ->
+                deviceSelector.openDeviceSettingsSuspend(device) { appName ->
+                    updateMsg("$appName\n$baseMsg")
+                }
             }
         }
     }

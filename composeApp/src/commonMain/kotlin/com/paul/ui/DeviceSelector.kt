@@ -49,7 +49,7 @@ fun DeviceSelector(
     viewModel: DeviceSelectorViewModel,
     selectingDevice: Boolean
 ) {
-    BackHandler(enabled = viewModel.settingsLoading.value) {
+    BackHandler(enabled = viewModel.settingsLoading.value != null) {
         // prevent back handler when we are trying to do things, todo cancel the job we are trying to do
         viewModel.cancelDeviceSettingsLoading()
     }
@@ -113,8 +113,8 @@ fun DeviceSelector(
             // --- Loading Overlay ---
             // Draws on top when isLoadingSettings is true
             LoadingOverlay(
-                isLoading = viewModel.settingsLoading.value,
-                loadingText = "Loading Settings From Device.\nEnsure an activity with the datafield is running (or at least open) or this will fail. Note: this can take a long time (up to 5 minutes) on older devices, be patient. Press back to cancel"
+                isLoading = viewModel.settingsLoading.value != null,
+                loadingText = viewModel.settingsLoading.value ?: "Loading Settings"
             )
         }
     }

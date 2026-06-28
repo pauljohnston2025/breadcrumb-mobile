@@ -5,8 +5,6 @@ import com.benasher44.uuid.uuid4
 import com.paul.domain.HistoryItem
 import com.paul.domain.IRoute
 import com.paul.infrastructure.connectiq.IConnection
-import com.paul.infrastructure.connectiq.IConnection.Companion.BREADCRUMB_DATAFIELD_ID
-import com.paul.infrastructure.connectiq.IConnection.Companion.ULTRA_LIGHT_BREADCRUMB_DATAFIELD_ID
 import com.paul.infrastructure.repositories.HistoryRepository
 import com.paul.infrastructure.repositories.RouteRepository
 import com.paul.protocol.todevice.Route
@@ -25,7 +23,7 @@ class SendRoute {
             connection: IConnection,
             routeRepo: RouteRepository,
             historyRepo: HistoryRepository,
-            sendingMessage: suspend (msg: String, cb: suspend () -> Unit) -> Unit
+            sendingMessage: suspend (msg: String, cb: suspend (updateMsg: suspend (String) -> Unit) -> Unit) -> Unit
         ) {
             val device = deviceSelector.currentDevice()
             if (device == null) {
@@ -34,7 +32,7 @@ class SendRoute {
             }
 
             var route: Route? = null
-            sendingMessage("Loading Route") {
+            sendingMessage("Loading Route") { _ ->
                 try {
                     if (!gpxRoute.isStrava() && routeRepo.getRouteEntry(gpxRoute.id) == null) {
                         routeRepo.saveRoute(gpxRoute)
@@ -57,25 +55,13 @@ class SendRoute {
                 return
             }
 
-            sendingMessage("Sending file") {
+            val baseMsg = "Sending file"
+            sendingMessage(baseMsg) { updateMsg ->
                 try {
-                    if (connection.connectIqAppIdFlow().value == BREADCRUMB_DATAFIELD_ID) {
-                        val version = connection.appInfo(device).version
-                        if (version >= 10 ||
-                            version == 0 // simulator or side loaded
-                        ) {
-                            connection.send(device, route!!.toV2())
-                        } else {
-                            connection.send(device, route!!)
-                        }
-                    } else if(connection.connectIqAppIdFlow().value == ULTRA_LIGHT_BREADCRUMB_DATAFIELD_ID) {
-                        connection.send(device, route!!.toUl())
+                    // Transformations are now handled by connection.send internally
+                    connection.send(device, route!!) { appName ->
+                        updateMsg("$appName\n$baseMsg")
                     }
-                    else {
-                        // all other apps were released much later after it stabalised, so all versions support v2 routes
-                        connection.send(device, route!!.toV2())
-                    }
-
                 } catch (t: TimeoutCancellationException) {
                     snackbarHostState.showSnackbar("Timed out sending file")
                     return@sendingMessage

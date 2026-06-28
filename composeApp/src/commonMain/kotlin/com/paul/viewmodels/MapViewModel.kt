@@ -25,7 +25,7 @@ import com.paul.infrastructure.repositories.TileServerRepo
 import com.paul.infrastructure.service.ColourPaletteConverter
 import com.paul.infrastructure.service.GeoPosition
 import com.paul.infrastructure.service.ILocationService
-import com.paul.infrastructure.service.SendMessageHelper.Companion.sendingMessage
+import com.paul.infrastructure.service.SendMessageHelper
 import com.paul.infrastructure.service.SendRoute
 import com.paul.infrastructure.service.TileId
 import com.paul.infrastructure.service.UserLocation
@@ -48,6 +48,8 @@ import com.paul.infrastructure.service.screenPixelToGeo
 import com.paul.infrastructure.service.latLonToTileXY
 import com.paul.composables.imageBitmapToByteArray
 import com.paul.composables.byteArrayToImageBitmap
+import com.paul.infrastructure.connectiq.IConnection.Companion.LIGHT_WEIGHT_BREADCRUMB_DATAFIELD_ID
+import com.paul.infrastructure.connectiq.IConnection.Companion.ULTRA_LIGHT_BREADCRUMB_DATAFIELD_ID
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -102,6 +104,8 @@ class MapViewModel(
     companion object {
         private const val TAG = "MapViewModel"
     }
+
+    val excludedApps = listOf(LIGHT_WEIGHT_BREADCRUMB_DATAFIELD_ID, ULTRA_LIGHT_BREADCRUMB_DATAFIELD_ID)
 
     val historyRepo = HistoryRepository()
 
@@ -556,7 +560,7 @@ class MapViewModel(
 
         visibleSegmentsJob = viewModelScope.launch(Dispatchers.Default) {
             // Add a small delay to debounce rapid pans
-            delay(150) // Increased debounce for overlay rendering
+//            delay(150) // Increased debounce for overlay rendering
 
             val mapZoomLevel = visibleTileIds.first().z
             val nMap = 1 shl mapZoomLevel
@@ -958,11 +962,17 @@ class MapViewModel(
                     return@launch
                 }
 
-                sendingMessage("Caching current map area on Device.\nEnsure an activity with the datafield is running. Progress will be shown on the datafield") {
+                val baseMsg = "Caching current map area on Device.\nEnsure the datafield/app is running. Progress will be shown on the datafield/app"
+                sendingMessage(baseMsg) { updateMsg ->
                     val toSend = _watchSendStarted.value!!
                     _watchSendStarted.value = null // clear the overlay so we can see our message
-                    connection.send(device, toSend)
-                    connection.send(device, CacheCurrentArea())
+                     "Caching current map area"
+                    connection.send(device, toSend, null, excludedApps) { appName ->
+                        updateMsg("$appName\n$baseMsg")
+                    }
+                    connection.send(device, CacheCurrentArea(), null, excludedApps) { appName ->
+                        updateMsg("$appName\n$baseMsg")
+                    }
                     // todo wait for response to say finished? its a very long process though
                     delay(5000) // wait for a bit so users can read message
 
@@ -985,8 +995,11 @@ class MapViewModel(
                     return@launch
                 }
 
-                sendingMessage("Returning watch to users location") {
-                    connection.send(device, ReturnToUser())
+                val baseMsg = "Returning watch to users location"
+                sendingMessage(baseMsg) { updateMsg ->
+                    connection.send(device, ReturnToUser(), null, excludedApps) { appName ->
+                        updateMsg("$appName\n$baseMsg")
+                    }
                 }
             } catch (t: Throwable) {
                 snackbarHostState.showSnackbar("Failed to return watch to users location")
@@ -1060,8 +1073,11 @@ class MapViewModel(
                     return@launch
                 }
 
-                sendingMessage("Showing current location on watch, ensure the datafield is open and running") {
-                    connection.send(device, location)
+                val baseMsg = "Showing current location on watch, ensure the datafield/app is open and running"
+                sendingMessage(baseMsg) { updateMsg ->
+                    connection.send(device, location) { appName ->
+                        updateMsg("$appName\n$baseMsg")
+                    }
                     delay(1000) // wait for a bit so users can read message
                 }
             } catch (t: Throwable) {
@@ -1073,8 +1089,8 @@ class MapViewModel(
         }
     }
 
-    private suspend fun sendingMessage(msg: String, cb: suspend () -> Unit) {
-        sendingMessage(viewModelScope, sendingFile, msg, cb)
+    private suspend fun sendingMessage(msg: String, cb: suspend (updateMsg: suspend (String) -> Unit) -> Unit) {
+        SendMessageHelper.sendingMessage(viewModelScope, sendingFile, msg, cb)
     }
 
     // Called by the user to start seeding an area

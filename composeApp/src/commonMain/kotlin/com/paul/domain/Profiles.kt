@@ -42,9 +42,18 @@ data class ProfileSettings(
 )
 
 @Serializable
+data class ProfileAppInfo(
+    val version: Int,
+    val appId: String,
+    val displayName: String,
+    val isSettingsSource: Boolean = false
+)
+
+@Serializable
 data class LastKnownDevice(
     val appVersion: Int,
-    val name: String
+    val name: String,
+    val installedApps: List<ProfileAppInfo> = emptyList()
 )
 
 @Serializable

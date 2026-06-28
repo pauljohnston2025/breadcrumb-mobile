@@ -36,6 +36,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -78,10 +79,22 @@ import com.paul.viewmodels.StravaActivitiesViewModel
 import com.paul.viewmodels.StravaNavigationEvent
 import io.github.aakira.napier.Napier
 import io.ktor.client.request.head
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
 import com.paul.viewmodels.DeviceSelector as DeviceSelectorModel
 import com.paul.viewmodels.DeviceSettings as DeviceSettingsModel
 import com.paul.viewmodels.Settings as SettingsViewModel
+import com.paul.infrastructure.connectiq.ConnectIqApp
+
+data class AppNotInstalledDialogData(
+    val appId: String,
+    val deferred: CompletableDeferred<Boolean>
+)
+
+data class AppSelectorDialogData(
+    val apps: List<ConnectIqApp>,
+    val deferred: CompletableDeferred<ConnectIqApp?>
+)
 
 @Composable
 fun App(
@@ -106,6 +119,22 @@ fun App(
     // Inside the App composable:
     var updateVersion by remember { mutableStateOf<String?>(null) }
     val currentVersion = versionName()
+
+    var appNotInstalledDialogData by remember { mutableStateOf<AppNotInstalledDialogData?>(null) }
+    var appSelectorDialogData by remember { mutableStateOf<AppSelectorDialogData?>(null) }
+
+    LaunchedEffect(connection) {
+        connection.appSelector = { apps ->
+            val deferred = CompletableDeferred<ConnectIqApp?>()
+            appSelectorDialogData = AppSelectorDialogData(apps, deferred)
+            deferred.await()
+        }
+        connection.appNotInstalledHandler = { appId ->
+            val deferred = CompletableDeferred<Boolean>()
+            appNotInstalledDialogData = AppNotInstalledDialogData(appId, deferred)
+            deferred.await()
+        }
+    }
 
     LaunchedEffect(Unit) {
         val latestUrl = "https://github.com/pauljohnston2025/breadcrumb-mobile/releases/latest"
@@ -452,6 +481,7 @@ fun App(
                                             deviceSelector.currentDevice.value!!,
                                             connection,
                                             scaffoldState.snackbarHostState,
+                                            deviceSelector.lastLoadedAppId!!,
                                         )
                                     }
                                     LaunchedEffect(key1 = Unit) {
@@ -520,6 +550,57 @@ fun App(
                                     Text("Later")
                                 }
                             })
+                    }
+
+                    appNotInstalledDialogData?.let { data ->
+                        val appName = IConnection.availableConnectIqApps.find { it.id == data.appId }?.name ?: data.appId
+                        AlertDialog(
+                            onDismissRequest = { data.deferred.complete(false); appNotInstalledDialogData = null },
+                            title = { Text("App Not Installed") },
+                            text = { Text("It looks like $appName is not installed on the watch") },
+                            confirmButton = {
+                                Button(onClick = {
+                                    data.deferred.complete(true)
+                                    appNotInstalledDialogData = null
+                                }) {
+                                    Text("Proceed anyway")
+                                }
+                            },
+                            dismissButton = {
+                                Button(onClick = {
+                                    data.deferred.complete(false)
+                                    appNotInstalledDialogData = null
+                                    navController.navigate(Screen.Settings.route)
+                                }) {
+                                    Text("Select ConnectIQ App")
+                                }
+                            }
+                        )
+                    }
+
+                    appSelectorDialogData?.let { data ->
+                        AlertDialog(
+                            onDismissRequest = { data.deferred.complete(null); appSelectorDialogData = null },
+                            title = { Text("Select App") },
+                            text = {
+                                Column {
+                                    data.apps.forEach { app ->
+                                        Button(modifier = Modifier.padding(top = 8.dp), onClick = {
+                                            data.deferred.complete(app)
+                                            appSelectorDialogData = null
+                                        }) {
+                                            Text(app.name)
+                                        }
+                                    }
+                                }
+                            },
+                            confirmButton = {},
+                            dismissButton = {
+                                Button(onClick = { data.deferred.complete(null); appSelectorDialogData = null }) {
+                                    Text("Cancel")
+                                }
+                            }
+                        )
                     }
                 } // End ModalDrawer
             }

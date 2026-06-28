@@ -105,8 +105,7 @@ fun MapScreen(
     val connectIqAppId by viewModel.connection.connectIqAppIdFlow().collectAsState()
 
     val isWatchFeatureDisabled = remember(connectIqAppId) {
-        connectIqAppId == LIGHT_WEIGHT_BREADCRUMB_DATAFIELD_ID ||
-                connectIqAppId == ULTRA_LIGHT_BREADCRUMB_DATAFIELD_ID
+        viewModel.excludedApps.contains(connectIqAppId)
     }
 
     // Box allows stacking the sending overlay
@@ -256,7 +255,7 @@ fun MapScreen(
                         Button(
                             modifier = mapButtonStyle,
                             onClick = { viewModel.sendRouteSync(currentRouteI!!) },
-                            enabled = !isWatchFeatureDisabled
+                            enabled = true
                         ) {
                             Icon(Icons.Default.PlayArrow, contentDescription = "Send to Device")
                         }

@@ -92,7 +92,7 @@ class Connection(private val context: Context) : IConnection() {
         deferred.await()
     }
 
-    override suspend fun send(device: CommonDevice, payload: Protocol): Unit {
+    override suspend fun send(device: IqDevice, payload: Protocol, targetAppId: String?, excludingApps : List<String>, onProgress: (suspend (String) -> Unit)?): Unit {
         try {
             // large routes being sent take some time
             // On my samsung galaxy tab a I could not get this to ever send, then it started working fine.
@@ -108,8 +108,59 @@ class Connection(private val context: Context) : IConnection() {
             // might have been install order? going to chalk it up to bad luck - no other user will ever experience this rando issue right? right?
             withTimeout(30000) {
                 start()
+                val currentAppId = targetAppId ?: connectIqAppIdFlow().value
                 val cd = device as CommonDeviceImpl
-                sendInternal(cd.device, payload)
+                
+                if (currentAppId == AUTO_CONNECT_IQ_APP_ID) {
+                    val installedApps = availableConnectIqApps.filter { it.id != AUTO_CONNECT_IQ_APP_ID && !excludingApps.contains(it.id) }.filter { app ->
+                        try {
+                            appInfo(device, app.id)
+                            true
+                        } catch (e: Exception) {
+                            false
+                        }
+                    }
+
+                    if (installedApps.isEmpty()) {
+                        val selected = appSelector?.invoke(availableConnectIqApps.filter { it.id != AUTO_CONNECT_IQ_APP_ID && !excludingApps.contains(it.id) }) ?: availableConnectIqApps[1]
+                        val appName = selected.name
+                        onProgress?.invoke(appName)
+                        appInfo(device, selected.id) // This will trigger the appNotInstalledHandler
+                        return@withTimeout
+                    }
+
+                    installedApps.forEach { app ->
+                        try {
+                            onProgress?.invoke(app.name)
+                            val info = appInfo(device, app.id)
+                            val transformed = payload.transform(app.id, info.version)
+                            sendInternal(cd.device, transformed, app.id)
+                        } catch (e: Exception) {
+                            Napier.e("Failed to send to ${app.name}: ${e.message}")
+                        }
+                    }
+                } else {
+                    val appName = availableConnectIqApps.find { it.id == currentAppId }?.name ?: currentAppId
+                    onProgress?.invoke(appName)
+                    try {
+                        val info = appInfo(device, currentAppId)
+                        val transformed = payload.transform(currentAppId, info.version)
+                        sendInternal(cd.device, transformed, currentAppId)
+                    } catch (e: ConnectIqAppNotInstalled) {
+                        val proceed = appNotInstalledHandler?.invoke(currentAppId) == true
+                        if (proceed) {
+                            // proceed anyway, assume latest version for transformation
+                            val transformed = payload.transform(currentAppId, 0)
+                            sendInternal(cd.device, transformed, currentAppId)
+                        } else {
+                            throw e
+                        }
+                    } catch (e: Exception) {
+                        // ignore other appInfo errors, just send transformed as version 0
+                        val transformed = payload.transform(currentAppId, 0)
+                        sendInternal(cd.device, transformed, currentAppId)
+                    }
+                }
             }
         } catch (e: Exception) {
             Napier.e("Failed to send payload to device: $e", e, tag = TAG)
@@ -117,11 +168,11 @@ class Connection(private val context: Context) : IConnection() {
         }
     }
 
-    private fun deviceMessages(device: IqDevice): Flow<Response?> = callbackFlow {
+    private fun deviceMessages(device: IqDevice, appId: String): Flow<Response?> = callbackFlow {
         val connectIQ = getInstance()
         // Register to receive messages from our application
         val cd = device as CommonDeviceImpl
-        val app = IQApp(connectIqAppIdFlow().value)
+        val app = IQApp(appId)
 
         fun handleMessage(device: IQDevice, status: IQMessageStatus, messageData: List<Any>) {
             // First inspect the status to make sure this
@@ -173,37 +224,62 @@ class Connection(private val context: Context) : IConnection() {
         awaitClose { connectIQ.unregisterForApplicationEvents(cd.device, app) }
     }
 
-    override suspend fun appInfo(device: IqDevice): AppInfo {
+    override suspend fun appInfo(device: IqDevice, appId: String?): AppInfo {
         val cd = device as CommonDeviceImpl
-        val currentApp = connectIqAppIdFlow().value
-        val deferred = CompletableDeferred<AppInfo>()
+        val currentApp = appId ?: connectIqAppIdFlow().value
         
-        connectIQ.getApplicationInfo(
-            currentApp,
-            cd.device,
-            object : ConnectIQ.IQApplicationInfoListener {
-                override fun onApplicationInfoReceived(iqApp: IQApp) {
-                    Napier.i(
-                        "Application info received: ver=${iqApp.version()}, name=${iqApp.displayName}, status=${iqApp.status}, id=${iqApp.applicationId}",
-                        tag = TAG
-                    )
-                    deferred.complete(AppInfo(iqApp.version()))
-                }
+        if (currentApp == AUTO_CONNECT_IQ_APP_ID) {
+            throw IllegalArgumentException("Cannot call appInfo with 'auto', use allAppInfos instead")
+        }
 
-                override fun onApplicationNotInstalled(var1: String) {
-                    Napier.w("Application not installed: $var1", tag = TAG)
-                    deferred.completeExceptionally(RuntimeException(var1))
-                }
-            })
-        return deferred.await()
+        return withTimeout(10000) {
+            val deferred = CompletableDeferred<AppInfo>()
+            connectIQ.getApplicationInfo(
+                currentApp,
+                cd.device,
+                object : ConnectIQ.IQApplicationInfoListener {
+                    override fun onApplicationInfoReceived(iqApp: IQApp) {
+                        Napier.i(
+                            "Application info received: ver=${iqApp.version()}, name=${iqApp.displayName}, status=${iqApp.status}, id=${iqApp.applicationId}",
+                            tag = TAG
+                        )
+                        val displayName = if (iqApp.displayName.isNullOrBlank()) {
+                            availableConnectIqApps.find { it.id.lowercase() == iqApp.applicationId.lowercase() || it.id.replace("-", "").lowercase() == iqApp.applicationId.lowercase() }?.name ?: iqApp.applicationId
+                        } else {
+                            iqApp.displayName
+                        }
+                        // apps returned from garmin are missing the hyphen
+                        val foundAppId = availableConnectIqApps.find { it.id.lowercase() == iqApp.applicationId.lowercase() || it.id.replace("-", "").lowercase() == iqApp.applicationId.lowercase() }?.id ?: iqApp.applicationId
+                        deferred.complete(AppInfo(iqApp.version(), foundAppId, displayName))
+                    }
+
+                    override fun onApplicationNotInstalled(var1: String) {
+                        Napier.w("Application not installed: $var1", tag = TAG)
+                        deferred.completeExceptionally(ConnectIqAppNotInstalled(currentApp))
+                    }
+                })
+            deferred.await()
+        }
+    }
+
+    override suspend fun allAppInfos(device: IqDevice): Map<String, AppInfo> {
+        val results = mutableMapOf<String, AppInfo>()
+        availableConnectIqApps.filter { it.id != AUTO_CONNECT_IQ_APP_ID }.forEach { app ->
+            try {
+                results[app.id] = appInfo(device, app.id)
+            } catch (e: Exception) {
+                // ignore not installed or timeouts
+            }
+        }
+        return results
     }
 
     // does not seem to work with data fields
     // get PROMPT_SHOWN_ON_DEVICE if we do not have an activity open (but not running), but no prompt is shown
     // get PROMPT_NOT_SHOWN_ON_DEVICE is the activity is open (but not started/running)
-    private suspend fun openApp(device: IqDevice): Unit {
+    private suspend fun openApp(device: IqDevice, appId: String): Unit {
         val cd = device as CommonDeviceImpl
-        val app = IQApp(connectIqAppIdFlow().value)
+        val app = IQApp(appId)
         val deferred = CompletableDeferred<Unit>()
 
         connectIQ.openApplication(
@@ -234,39 +310,86 @@ class Connection(private val context: Context) : IConnection() {
     override suspend fun <T : Response> query(
         device: IqDevice,
         payload: Protocol,
-        type: ProtocolResponse
-    ): T {
+        type: ProtocolResponse,
+        onProgress: (suspend (String) -> Unit)?
+    ): QueryResult<T> {
         // some devices can take up to 5 minutes for a response if they are old and using temporal events
         // wait for them, but allow the user to cancel it
         return withTimeout(5 * 60 * 1000 + 10000) {
             start()
-            try {
-                appInfo(device)
-                // we get a log saying PROMPT_SHOWN_ON_DEVICE, but i do to see anything
-                // leaving this here incase it does ever work
-                openApp(device) // we cannot run commands against the app unless it is open
-            } catch (e: Exception) {
-                Napier.w("Failed to get appInfo or openApp, ignoring: ${e.message}")
-            }
-            // pretty hacky impl, we should have the deviceMessages flow running all the time,
-            // and then complete futures as messages come in from the device
-            // they should be in order though, and this is hopefully ok for now
-            val fut = CompletableDeferred<T>()
-            val started = CompletableDeferred<Unit>()
-            CoroutineScope(Dispatchers.IO).launch {
-                started.complete(Unit)
-                deviceMessages(device).collect {
-                    if (it != null && it.type == type) {
-                        @Suppress("UNCHECKED_CAST")
-                        fut.complete(it as T)
-                        cancel()
+
+            val currentAppId = connectIqAppIdFlow().value
+            val targetAppId = if (currentAppId == AUTO_CONNECT_IQ_APP_ID) {
+                val installedApps = availableConnectIqApps.filter { it.id != AUTO_CONNECT_IQ_APP_ID }.filter { app ->
+                    try {
+                        appInfo(device, app.id)
+                        true
+                    } catch (e: Exception) {
+                        false
                     }
                 }
+                if (installedApps.isEmpty()) {
+                    val selected = appSelector?.invoke(availableConnectIqApps.filter { it.id != AUTO_CONNECT_IQ_APP_ID }) ?: availableConnectIqApps[1]
+                    selected.id
+                } else if (installedApps.size == 1) {
+                    installedApps[0].id
+                } else {
+                    val selected = appSelector?.invoke(installedApps) ?: installedApps[0]
+                    selected.id
+                }
+            } else {
+                currentAppId
             }
-            started.await() // make sure we have launched the coroutine, probably need to make sure the flow of messages has actually started too
-            delay(1000) // wait for a bit to ensure the flow has started
-            send(device, payload) // send the payload after we are all hooked up and waiting
-            fut.await()
+
+            try {
+                val appName = availableConnectIqApps.find { it.id == targetAppId }?.name ?: targetAppId
+                onProgress?.invoke(appName)
+
+                val info = try {
+                    appInfo(device, targetAppId)
+                } catch (e: ConnectIqAppNotInstalled) {
+                    val proceed = appNotInstalledHandler?.invoke(targetAppId) == true
+                    if (proceed) {
+                        // proceed anyway, assume latest version for transformation
+                        AppInfo(0, targetAppId, appName)
+                    } else {
+                        throw e
+                    }
+                } catch (e: Exception) {
+                    // ignore other appInfo errors, just assume version 0
+                    AppInfo(0, targetAppId, appName)
+                }
+
+                val transformed = payload.transform(targetAppId, info.version)
+                // we get a log saying PROMPT_SHOWN_ON_DEVICE, but i do to see anything
+                // leaving this here incase it does ever work
+                openApp(device, targetAppId) // we cannot run commands against the app unless it is open
+                
+                // pretty hacky impl, we should have the deviceMessages flow running all the time,
+                // and then complete futures as messages come in from the device
+                // they should be in order though, and this is hopefully ok for now
+                val fut = CompletableDeferred<T>()
+                val started = CompletableDeferred<Unit>()
+                val cd = device as CommonDeviceImpl
+                CoroutineScope(Dispatchers.IO).launch {
+                    started.complete(Unit)
+                    deviceMessages(device, targetAppId).collect {
+                        if (it != null && it.type == type) {
+                            @Suppress("UNCHECKED_CAST")
+                            fut.complete(it as T)
+                            cancel()
+                        }
+                    }
+                }
+                started.await() // make sure we have launched the coroutine, probably need to make sure the flow of messages has actually started too
+                delay(1000) // wait for a bit to ensure the flow has started
+                sendInternal(cd.device, transformed, targetAppId) // send the payload after we are all hooked up and waiting
+                val result = fut.await()
+                QueryResult(result, targetAppId)
+            } catch (e: Exception) {
+                Napier.w("Failed to query device: ${e.message}")
+                throw e
+            }
         }
     }
 
@@ -274,8 +397,9 @@ class Connection(private val context: Context) : IConnection() {
     private suspend fun sendInternal(
         device: IQDevice,
         payload: Protocol,
+        appId: String
     ): Unit {
-        val app = IQApp(connectIqAppIdFlow().value)
+        val app = IQApp(appId)
         val deferred = CompletableDeferred<Unit>()
 
         val toSend = payload.payload().toMutableList()

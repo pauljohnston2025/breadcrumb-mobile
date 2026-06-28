@@ -7,6 +7,7 @@ import com.russhwolf.settings.Settings
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.serialization.Serializable
 import com.paul.protocol.fromdevice.Protocol as Response
 
 class ConnectIqNeedsInstall : Exception() {
@@ -19,9 +20,17 @@ class ConnectIqNeedsUpdate : Exception() {
         get() = "Connect Iq App needs to be updated"
 }
 
-data class AppInfo(val version: Int)
+class ConnectIqAppNotInstalled(val appId: String) : Exception() {
+    override val message: String
+        get() = "Connect Iq App $appId is not installed"
+}
+
+@Serializable
+data class AppInfo(val version: Int, val appId: String, val displayName: String)
 
 data class ConnectIqApp(val name: String, val id: String)
+
+data class QueryResult<T>(val response: T, val appId: String)
 
 abstract class IConnection {
 
@@ -34,13 +43,15 @@ abstract class IConnection {
         val BREADCRUMB_APP_GLANCE_ID = "54ea0621-918f-40ec-864e-d3fc7eb6ecbf"
         val LIGHT_WEIGHT_BREADCRUMB_DATAFIELD_ID = "65f96e86-28e7-4c92-9c5e-1bf7954bde41"
         val ULTRA_LIGHT_BREADCRUMB_DATAFIELD_ID = "ef62306c-4693-48e2-8f6b-beee5db9a2b8"
-        val defaultConnectIqAppId = BREADCRUMB_DATAFIELD_ID // default to breadcrumb datafields (the original)
+        val AUTO_CONNECT_IQ_APP_ID = "auto"
+        val defaultConnectIqAppId = AUTO_CONNECT_IQ_APP_ID
 
         fun getConnectIqAppIdOnStart(): String {
             return settings.getString(CONNECT_IQ_APP_ID_KEY, defaultConnectIqAppId)
         }
 
         val availableConnectIqApps = listOf(
+            ConnectIqApp("Auto/All", AUTO_CONNECT_IQ_APP_ID),
             ConnectIqApp("BreadcrumbDataField", BREADCRUMB_DATAFIELD_ID),
             ConnectIqApp("BreadcrumbApp", BREADCRUMB_APP_ID),
             ConnectIqApp("BreadcrumbAppGlance", BREADCRUMB_APP_GLANCE_ID),
@@ -59,6 +70,9 @@ abstract class IConnection {
         currentConnectIqAppId.value = getConnectIqAppIdOnStart()
     }
 
+    var appSelector: (suspend (List<ConnectIqApp>) -> ConnectIqApp?)? = null
+    var appNotInstalledHandler: (suspend (String) -> Boolean)? = null
+
     suspend fun updateConnectIqAppId(appId: String) {
         currentConnectIqAppId.emit(appId)
         settings.putString(CONNECT_IQ_APP_ID_KEY, appId)
@@ -66,7 +80,8 @@ abstract class IConnection {
 
     abstract suspend fun start()
 
-    abstract suspend fun appInfo(device: IqDevice): AppInfo
-    abstract suspend fun send(device: IqDevice, payload: Protocol)
-    abstract suspend fun <T: Response> query(device: IqDevice, payload: Protocol, type: ProtocolResponse): T
+    abstract suspend fun appInfo(device: IqDevice, appId: String? = null): AppInfo
+    abstract suspend fun allAppInfos(device: IqDevice): Map<String, AppInfo>
+    abstract suspend fun send(device: IqDevice, payload: Protocol, targetAppId: String? = null, excludingApps : List<String> = listOf(), onProgress: (suspend (String) -> Unit)?)
+    abstract suspend fun <T: Response> query(device: IqDevice, payload: Protocol, type: ProtocolResponse, onProgress: (suspend (String) -> Unit)? = null): QueryResult<T>
 }

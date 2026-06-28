@@ -18,6 +18,7 @@ import com.paul.infrastructure.repositories.RouteRepository
 import com.paul.infrastructure.repositories.StravaRepository
 import com.paul.infrastructure.repositories.TileServerRepo
 import com.paul.infrastructure.repositories.TileServerRepo.Companion.defaultWebPort
+import com.paul.infrastructure.service.SendMessageHelper
 import com.paul.infrastructure.web.TileType
 import com.paul.infrastructure.web.WebServerController
 import com.paul.protocol.todevice.CompanionAppTileServerChanged
@@ -149,7 +150,7 @@ class Settings(
     fun onTileTypeSelected(tileType: TileType) {
         viewModelScope.launch(Dispatchers.IO) {
             if (!tileServerRepo.currentlyEnabled()) {
-                sendingMessage("Setting tile type") {
+                sendingMessage("Setting tile type") { _ ->
                     try {
                         tileServerRepo.updateCurrentTileType(tileType)
                     } catch (e: Exception) {
@@ -167,7 +168,8 @@ class Settings(
                 return@launch
             }
 
-            sendingMessage("Setting tile type") {
+            val baseMsg = "Setting tile type"
+            sendingMessage(baseMsg) { updateMsg ->
                 try {
                     try {
                         tileServerRepo.updateCurrentTileType(tileType)
@@ -186,7 +188,9 @@ class Settings(
                             // though when tile type changes we send this again :shrug:
                             currentPalette
                         )
-                    )
+                    ) { appName ->
+                        updateMsg("$appName\n$baseMsg")
+                    }
                 } catch (t: TimeoutCancellationException) {
                     snackbarHostState.showSnackbar("Timed out setting tile type")
                     return@sendingMessage
@@ -202,7 +206,7 @@ class Settings(
     fun onServerSelected(tileServer: TileServerInfo) {
         viewModelScope.launch(Dispatchers.IO) {
             if (!tileServerRepo.currentlyEnabled()) {
-                sendingMessage("Setting tile server") {
+                sendingMessage("Setting tile server") { _ ->
                     try {
                         tileServerRepo.updateCurrentTileServer(tileServer)
                     } catch (e: Exception) {
@@ -221,7 +225,8 @@ class Settings(
                 return@launch
             }
 
-            sendingMessage("Setting tile server") {
+            val baseMsg = "Setting tile server"
+            sendingMessage(baseMsg) { updateMsg ->
                 try {
                     try {
                         tileServerRepo.updateCurrentTileServer(tileServer)
@@ -239,7 +244,9 @@ class Settings(
                             // though when tile type changes we send this again :shrug:
                             currentPalette
                         )
-                    )
+                    ) { appName ->
+                        updateMsg("$appName\n$baseMsg")
+                    }
                 } catch (t: TimeoutCancellationException) {
                     snackbarHostState.showSnackbar("Timed out setting tile server")
                     return@sendingMessage
@@ -252,19 +259,8 @@ class Settings(
         }
     }
 
-    private suspend fun sendingMessage(msg: String, cb: suspend () -> Unit) {
-        try {
-            viewModelScope.launch(Dispatchers.Main) {
-                sendingMessage.value = msg
-            }
-            cb()
-        } catch (t: Throwable) {
-            Napier.e("Failed to do operation: $msg", t, tag = TAG)
-        } finally {
-            viewModelScope.launch(Dispatchers.Main) {
-                sendingMessage.value = ""
-            }
-        }
+    private suspend fun sendingMessage(msg: String, cb: suspend (updateMsg: suspend (String) -> Unit) -> Unit) {
+        SendMessageHelper.sendingMessage(viewModelScope, sendingMessage, msg, cb)
     }
 
     /**
@@ -276,10 +272,11 @@ class Settings(
      */
     fun onSaveCustomServer(tileServer: TileServerInfo) {
         viewModelScope.launch(Dispatchers.IO) {
-            sendingMessage("Saving custom tile server...") {
+            val baseMsg = "Saving custom tile server..."
+            sendingMessage(baseMsg) { updateMsg ->
                 try {
                     if (tileServerRepo.saveCustomServer(tileServer) && tileServerRepo.currentlyEnabled()) {
-                        watchSendTileServerChanged()
+                        watchSendTileServerChanged(baseMsg, updateMsg)
                     }
                     snackbarHostState.showSnackbar("Tile server saved successfully")
                 } catch (e: Exception) {
@@ -292,7 +289,8 @@ class Settings(
 
     fun onTileServerEnabledChange(newVal: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
-            sendingMessage("Enabling tile server") {
+            val baseMsg = "Enabling tile server"
+            sendingMessage(baseMsg) { updateMsg ->
                 var oldVal = tileServerRepo.currentlyEnabled()
                 try {
                     tileServerRepo.onTileServerEnabledChange(newVal)
@@ -327,7 +325,9 @@ class Settings(
                             // though when tile type changes we send this again :shrug:
                             currentPalette
                         )
-                    )
+                    ) { appName ->
+                        updateMsg("$appName\n$baseMsg")
+                    }
                 } catch (t: TimeoutCancellationException) {
                     snackbarHostState.showSnackbar("Timed out enabling tile server")
                     return@sendingMessage
@@ -353,8 +353,11 @@ class Settings(
 
     fun onRemoveCustomServer(tileServer: TileServerInfo) {
         viewModelScope.launch(Dispatchers.IO) {
-            if (tileServerRepo.onRemoveCustomServer(tileServer) && tileServerRepo.currentlyEnabled()) {
-                watchSendTileServerChanged()
+            val baseMsg = "Setting colour palette"
+            sendingMessage(baseMsg) { updateMsg ->
+                if (tileServerRepo.onRemoveCustomServer(tileServer) && tileServerRepo.currentlyEnabled()) {
+                    watchSendTileServerChanged(baseMsg, updateMsg)
+                }
             }
         }
     }
@@ -362,10 +365,11 @@ class Settings(
     // --- Colour Palette specific functions ---
     fun onColourPaletteSelected(palette: ColourPalette) {
         viewModelScope.launch(Dispatchers.IO) {
-            sendingMessage("Setting colour palette") {
+            val baseMsg = "Setting colour palette"
+            sendingMessage(baseMsg) { updateMsg ->
                 try {
                     colourPaletteRepository.updateCurrentColourPalette(palette)
-                    watchSendTileServerChanged()
+                    watchSendTileServerChanged(baseMsg, updateMsg)
                 } catch (e: Exception) {
                     Napier.e("colour palette update failed", e, tag = TAG)
                     snackbarHostState.showSnackbar("Failed to update colour palette")
@@ -376,10 +380,11 @@ class Settings(
 
     fun onAddOrUpdateCustomPalette(palette: ColourPalette) {
         viewModelScope.launch(Dispatchers.IO) {
-            sendingMessage("Saving colour palette") {
+            val baseMsg = "Saving colour palette"
+            sendingMessage(baseMsg) { updateMsg ->
                 try {
                     if (colourPaletteRepository.addOrUpdateCustomPalette(palette)) {
-                        watchSendTileServerChanged()
+                        watchSendTileServerChanged(baseMsg, updateMsg)
                     }
                     snackbarHostState.showSnackbar("Colour palette saved")
                 } catch (e: Exception) {
@@ -392,10 +397,11 @@ class Settings(
 
     fun onRemoveCustomPalette(palette: ColourPalette) {
         viewModelScope.launch(Dispatchers.IO) {
-            sendingMessage("Removing colour palette") {
+            val baseMsg = "Removing colour palette"
+            sendingMessage(baseMsg) { updateMsg ->
                 try {
                     if (colourPaletteRepository.removeCustomPalette(palette)) {
-                        watchSendTileServerChanged()
+                        watchSendTileServerChanged(baseMsg, updateMsg)
                     }
                     snackbarHostState.showSnackbar("Colour palette removed")
                 } catch (e: Exception) {
@@ -406,7 +412,7 @@ class Settings(
         }
     }
 
-    suspend fun watchSendTileServerChanged() {
+    suspend fun watchSendTileServerChanged(baseMsg: String, updateMsg: suspend (String) -> Unit) {
         // If tile server is enabled, send update to watch
         if (tileServerRepo.currentlyEnabled()) {
             val device = deviceSelector.currentDevice()
@@ -424,7 +430,9 @@ class Settings(
                     // though when tile type changes we send this again :shrug:
                     currentPalette
                 )
-            )
+            ) { appName ->
+                updateMsg("$appName\n$baseMsg")
+            }
         }
     }
 }

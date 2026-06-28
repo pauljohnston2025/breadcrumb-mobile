@@ -15,6 +15,7 @@ import com.paul.infrastructure.connectiq.IConnection.Companion.LIGHT_WEIGHT_BREA
 import com.paul.infrastructure.connectiq.IConnection.Companion.ULTRA_LIGHT_BREADCRUMB_DATAFIELD_ID
 import com.paul.protocol.fromdevice.Settings
 import com.paul.protocol.todevice.SaveSettings
+import com.paul.infrastructure.service.SendMessageHelper
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -379,12 +380,14 @@ class DeviceSettings(
     private val device: IqDevice,
     private val connection: IConnection,
     private val snackbarHostState: SnackbarHostState,
+    private val appId: String,
 ) : ViewModel() {
     companion object {
         private const val TAG = "DeviceSettingsViewModel"
     }
 
     val settingsSaving: MutableState<Boolean> = mutableStateOf(false)
+    val sendingMessage: MutableState<String> = mutableStateOf("")
 
     private val _navigationEvents = MutableSharedFlow<DeviceSettingsNavigationEvent>()
     val navigationEvents: SharedFlow<DeviceSettingsNavigationEvent> =
@@ -429,7 +432,7 @@ class DeviceSettings(
                     label = label
                 )
             } else if (key == "uiMode") {
-                val currentAppId = connection.connectIqAppIdFlow().value
+                val currentAppId = appId
                 val isAppType =
                     currentAppId == BREADCRUMB_APP_ID || currentAppId == BREADCRUMB_APP_GLANCE_ID
 
@@ -456,7 +459,7 @@ class DeviceSettings(
                 )
             } else if (listOptionsMapping.containsKey(key)) {
                 var options = listOptionsMapping[key]!! // Safe due to containsKey check
-                val currentAppId = connection.connectIqAppIdFlow().value
+                val currentAppId = appId
 
                 if (key == "renderMode" && (currentAppId == LIGHT_WEIGHT_BREADCRUMB_DATAFIELD_ID || currentAppId == ULTRA_LIGHT_BREADCRUMB_DATAFIELD_ID)) {
                     options = options.filter { it.value != 0 && it.value != 2 }
@@ -484,7 +487,7 @@ class DeviceSettings(
                 val typesCsv = settings.settings["dataFieldPageTypes"] as? String ?: ""
                 val initialPages = createDataPagesFromCsv(countsCsv, typesCsv)
 
-                val currentAppId = connection.connectIqAppIdFlow().value
+                val currentAppId = appId
                 var options = dataFieldTypes
                 if (currentAppId == BREADCRUMB_APP_GLANCE_ID) {
                     options = dataFieldTypes.filter { it.value !in excludedAppGlanceDataFieldTypes }
@@ -770,25 +773,33 @@ class DeviceSettings(
         }
     }
 
+    val appDisplayName = IConnection.availableConnectIqApps.find { it.id == appId }?.name ?: appId
+
     fun onSave(updatedValues: Map<String, Any>) {
         settingsSaving.value = true
         viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val settings = connection.send(
-                    device,
-                    SaveSettings(updatedValues, connection.connectIqAppIdFlow().value)
-                )
-                Napier.i("Successfully saved settings: $updatedValues", tag = TAG)
-                settingsSaving.value = false
-                viewModelScope.launch {
-                    _navigationEvents.emit(DeviceSettingsNavigationEvent.PopBackStack)
-                }
-            } catch (t: Throwable) {
-                settingsSaving.value = false
-                Napier.e("Failed to save settings", t, tag = TAG)
-                snackbarHostState.showSnackbar("Failed to save settings")
-                viewModelScope.launch {
-                    _navigationEvents.emit(DeviceSettingsNavigationEvent.PopBackStack)
+            val baseMsg = "Saving settings"
+            SendMessageHelper.sendingMessage(viewModelScope, sendingMessage, baseMsg) { updateMsg ->
+                try {
+                    connection.send(
+                        device,
+                        SaveSettings(updatedValues),
+                        appId
+                    ) { appName ->
+                        updateMsg("$appName\n$baseMsg")
+                    }
+                    Napier.i("Successfully saved settings: $updatedValues", tag = TAG)
+                    settingsSaving.value = false
+                    viewModelScope.launch {
+                        _navigationEvents.emit(DeviceSettingsNavigationEvent.PopBackStack)
+                    }
+                } catch (t: Throwable) {
+                    settingsSaving.value = false
+                    Napier.e("Failed to save settings", t, tag = TAG)
+                    snackbarHostState.showSnackbar("Failed to save settings")
+                    viewModelScope.launch {
+                        _navigationEvents.emit(DeviceSettingsNavigationEvent.PopBackStack)
+                    }
                 }
             }
         }

@@ -235,6 +235,9 @@ fun DeviceSettings(
         ) {
             LazyColumn(modifier = Modifier.weight(1f)) {
                 item {
+                    SectionHeader("App: ${deviceSettings.appDisplayName}")
+                }
+                item {
                     CollapsibleSectionWithProperties("General", generalProps)
                 }
 
@@ -379,8 +382,8 @@ fun DeviceSettings(
         } // End Main Column
 
         LoadingOverlay(
-            isLoading = deviceSettings.settingsSaving.value,
-            loadingText = "Settings Saving",
+            isLoading = deviceSettings.settingsSaving.value || deviceSettings.sendingMessage.value.isNotEmpty(),
+            loadingText = deviceSettings.sendingMessage.value.ifEmpty { "Settings Saving" },
         )
     }
 }
