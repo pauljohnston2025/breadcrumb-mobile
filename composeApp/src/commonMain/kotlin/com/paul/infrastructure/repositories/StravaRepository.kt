@@ -42,7 +42,7 @@ import kotlin.time.Duration.Companion.days
 
 class StravaRepository(
     private val browserLauncher: IBrowserLauncher,
-    private val dao: StravaDao,
+    val dao: StravaDao,
     private val spatialIndexRepository: SpatialIndexRepository
 ) {
     private val settings = Settings()

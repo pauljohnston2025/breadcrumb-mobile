@@ -52,11 +52,19 @@ fun StorageScreen(
     val routesBeingDeleted by viewModel.deletingRoutes.collectAsState()
     val loadingTileServers by viewModel.loadingTileServer.collectAsState()
     val loadingRoutes by viewModel.loadingRoutes.collectAsState()
+    val loadingDatabase by viewModel.loadingDatabase.collectAsState()
+    val loadingOverlays by viewModel.loadingOverlays.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
 
     val segmentCount by viewModel.segmentCount.collectAsState()
     val tileMappingCount by viewModel.tileMappingCount.collectAsState()
+    val stravaActivityCount by viewModel.stravaActivityCount.collectAsState()
+    val stravaStreamCount by viewModel.stravaStreamCount.collectAsState()
+    val stravaGearCount by viewModel.stravaGearCount.collectAsState()
+    val routeCount by viewModel.routeCount.collectAsState()
     val overlayCount by viewModel.overlayCount.collectAsState()
+    val overlaysTotalSize by viewModel.overlaysTotalSize.collectAsState()
+    val databaseSize by viewModel.databaseSize.collectAsState()
     val deletingOverlays by viewModel.deletingOverlays.collectAsState()
     val migrationStatus by viewModel.migrationService.migrationStatus.collectAsState()
     val isMigrating by viewModel.migrationService.isMigrating.collectAsState()
@@ -89,6 +97,9 @@ fun StorageScreen(
                 tileServerRepo = tileServerRepo,
                 onDeleteClick = { viewModel.requestTileDelete(it) },
             )
+
+            Spacer(Modifier.height(24.dp))
+
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -102,41 +113,53 @@ fun StorageScreen(
                 spinner(loadingRoutes)
             }
 
-            Row(
-                verticalAlignment = Alignment.Top,
-                // Add some space between info and buttons if needed
+            Card(
                 modifier = Modifier
-                    .padding(start = 8.dp)
                     .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                elevation = 2.dp
             ) {
-
                 Row(
-                    verticalAlignment = Alignment.CenterVertically, // Center buttons vertically within this row
-                    horizontalArrangement = Arrangement.End // Arrange buttons closely together at the end
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .fillMaxWidth()
                 ) {
-                    Text(
-                        text = "Size: ${formatBytes(viewModel.routesTotalSize.value)}",
-                        style = MaterialTheme.typography.caption,
-                        maxLines = 1
-                    )
-                    Spacer(Modifier.weight(1f))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Imported Routes",
+                            style = MaterialTheme.typography.subtitle1,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Count: $routeCount, Size: ${formatBytes(viewModel.routesTotalSize.value)}",
+                            style = MaterialTheme.typography.body2
+                        )
+                    }
                     IconButton(onClick = { viewModel.requestRoutesDelete() }) {
                         Icon(
                             Icons.Default.Delete,
-                            contentDescription = "Delete Tiles",
+                            contentDescription = "Delete Routes",
                             tint = MaterialTheme.colors.error
-                        ) // Indicate destructive action
+                        )
                     }
                 }
             }
 
             Spacer(Modifier.height(24.dp))
 
-            Text(
-                text = "Spatial Index & Overlays:",
-                style = MaterialTheme.typography.h6,
-                maxLines = 1,
-            )
+            Row(
+                Modifier
+                    .fillMaxWidth()
+            ) {
+                Text(
+                    text = "App Database:",
+                    style = MaterialTheme.typography.h6,
+                    maxLines = 1,
+                )
+                Spacer(Modifier.weight(1f))
+                spinner(loadingDatabase)
+            }
 
             Card(
                 modifier = Modifier
@@ -147,31 +170,98 @@ fun StorageScreen(
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = com.paul.infrastructure.DATABASE_NAME,
+                                    style = MaterialTheme.typography.subtitle1,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(Modifier.weight(1f))
+                                Text(
+                                    text = formatBytes(databaseSize),
+                                    style = MaterialTheme.typography.caption,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                             Text(
-                                text = "Database Index",
-                                style = MaterialTheme.typography.subtitle1,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "$segmentCount Segments across all layers",
-                                style = MaterialTheme.typography.body2
-                            )
-                            Text(
-                                text = "$tileMappingCount Tile mappings",
-                                style = MaterialTheme.typography.body2
+                                text = "Contains Strava activities, routes, and index data",
+                                style = MaterialTheme.typography.body2,
+                                color = Color.Gray
                             )
                         }
                     }
-                    
+
                     Divider(modifier = Modifier.padding(vertical = 12.dp))
 
+                    Text(
+                        text = "Table Breakdown",
+                        style = MaterialTheme.typography.caption,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colors.primary
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    
+                    StorageDetailRow("Strava Activities", stravaActivityCount)
+                    StorageDetailRow("Strava Streams (High Res)", stravaStreamCount)
+                    StorageDetailRow("Strava Gear", stravaGearCount)
+                    StorageDetailRow("Index Segments", segmentCount)
+                    StorageDetailRow("Index Tile Mappings", tileMappingCount)
+
+                    if (isMigrating || migrationStatus != null) {
+                        Spacer(Modifier.height(12.dp))
+                        Surface(
+                            color = MaterialTheme.colors.primary.copy(alpha = 0.1f),
+                            shape = RoundedCornerShape(4.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = migrationStatus ?: "Migrating...",
+                                style = MaterialTheme.typography.caption,
+                                color = MaterialTheme.colors.primary,
+                                modifier = Modifier.padding(8.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(24.dp))
+
+            Row(
+                Modifier
+                    .fillMaxWidth()
+            ) {
+                Text(
+                    text = "Raster Overlays:",
+                    style = MaterialTheme.typography.h6,
+                    maxLines = 1,
+                )
+                Spacer(Modifier.weight(1f))
+                spinner(loadingOverlays)
+            }
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                elevation = 2.dp
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Raster Cache",
-                                style = MaterialTheme.typography.subtitle1,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "Raster Cache",
+                                    style = MaterialTheme.typography.subtitle1,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(Modifier.weight(1f))
+                                Text(
+                                    text = formatBytes(overlaysTotalSize),
+                                    style = MaterialTheme.typography.caption,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                             Text(
                                 text = "$overlayCount tiles persisted to disk",
                                 style = MaterialTheme.typography.body2
@@ -187,22 +277,6 @@ fun StorageScreen(
                                 Icons.Default.Delete,
                                 contentDescription = "Clear Overlays",
                                 tint = MaterialTheme.colors.error
-                            )
-                        }
-                    }
-                    
-                    if (isMigrating || migrationStatus != null) {
-                        Spacer(Modifier.height(12.dp))
-                        Surface(
-                            color = MaterialTheme.colors.primary.copy(alpha = 0.1f),
-                            shape = RoundedCornerShape(4.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(
-                                text = migrationStatus ?: "Migrating...",
-                                style = MaterialTheme.typography.caption,
-                                color = MaterialTheme.colors.primary,
-                                modifier = Modifier.padding(8.dp)
                             )
                         }
                     }
@@ -251,6 +325,14 @@ fun StorageScreen(
             )
         }
         PullRefreshIndicator(isRefreshing, pullRefreshState, Modifier.align(Alignment.TopCenter))
+    }
+}
+
+@Composable
+private fun StorageDetailRow(label: String, count: Long) {
+    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+        Text(text = label, style = MaterialTheme.typography.body2, modifier = Modifier.weight(1f))
+        Text(text = count.toString(), style = MaterialTheme.typography.body2, fontWeight = FontWeight.Medium)
     }
 }
 

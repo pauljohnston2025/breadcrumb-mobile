@@ -18,6 +18,12 @@ interface IFileHelper {
     /** The number of files in a directory */
     suspend fun localFileCount(directory: String): Int
 
+    /** The size of a file in bytes. If it's a relative path, it's relative to filesDir. */
+    suspend fun localFileSize(path: String): Long
+
+    /** Returns the absolute path to a database file with the given name. */
+    fun getDatabasePath(name: String): String
+
     suspend fun deleteDir(directory: String)
     suspend fun delete(file: String)
 

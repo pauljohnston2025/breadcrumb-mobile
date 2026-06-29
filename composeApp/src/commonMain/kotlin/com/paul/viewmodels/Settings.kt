@@ -4,6 +4,7 @@ package com.paul.viewmodels
 import androidx.compose.material.SnackbarHostState
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -11,6 +12,8 @@ import com.paul.domain.ColourPalette
 import com.paul.domain.RouteSettings
 import com.paul.domain.TileServerInfo
 import com.paul.infrastructure.connectiq.IConnection
+import com.paul.infrastructure.connectiq.IConnection.Companion.LIGHT_WEIGHT_BREADCRUMB_DATAFIELD_ID
+import com.paul.infrastructure.connectiq.IConnection.Companion.ULTRA_LIGHT_BREADCRUMB_DATAFIELD_ID
 import com.paul.infrastructure.repositories.ColourPaletteRepository
 import com.paul.infrastructure.repositories.GeneralSettingsRepository
 import com.paul.infrastructure.repositories.ITileRepository
@@ -161,12 +164,6 @@ class Settings(
                 }
                 return@launch
             }
-            // we also need to tell the watch about the changes
-            val device = deviceSelector.currentDevice()
-            if (device == null) {
-                snackbarHostState.showSnackbar("no devices selected")
-                return@launch
-            }
 
             val baseMsg = "Setting tile type"
             sendingMessage(baseMsg) { updateMsg ->
@@ -178,19 +175,12 @@ class Settings(
                         snackbarHostState.showSnackbar("Failed to update tile type")
                         return@sendingMessage
                     }
-                    val tilServer = tileServerRepo.currentServerFlow().value
-                    val currentPalette = colourPaletteRepository.currentColourPaletteFlow.value
-                    connection.send(
-                        device, CompanionAppTileServerChanged(
-                            tilServer.tileLayerMin,
-                            tilServer.tileLayerMax,
-                            // always send it even if we are not in 'TILE_DATA_TYPE_64_COLOUR format, since it will be the next pallet to use if that mode is enabled'
-                            // though when tile type changes we send this again :shrug:
-                            currentPalette
-                        )
-                    ) { appName ->
-                        updateMsg("$appName\n$baseMsg")
-                    }
+                    watchSendTileServerChanged(
+                        baseMsg,
+                        tileServerRepo.currentServerFlow().value,
+                        colourPaletteRepository.currentColourPaletteFlow.value,
+                        updateMsg
+                    )
                 } catch (t: TimeoutCancellationException) {
                     snackbarHostState.showSnackbar("Timed out setting tile type")
                     return@sendingMessage
@@ -218,13 +208,6 @@ class Settings(
                 return@launch
             }
 
-            // we also need to tell the watch about the changes
-            val device = deviceSelector.currentDevice()
-            if (device == null) {
-                snackbarHostState.showSnackbar("no devices selected")
-                return@launch
-            }
-
             val baseMsg = "Setting tile server"
             sendingMessage(baseMsg) { updateMsg ->
                 try {
@@ -235,18 +218,12 @@ class Settings(
                         snackbarHostState.showSnackbar("Failed to update tile server")
                         return@sendingMessage
                     }
-                    val currentPalette = colourPaletteRepository.currentColourPaletteFlow.value
-                    connection.send(
-                        device, CompanionAppTileServerChanged(
-                            tileServer.tileLayerMin,
-                            tileServer.tileLayerMax,
-                            // always send it even if we are not in 'TILE_DATA_TYPE_64_COLOUR format, since it will be the next pallet to use if that mode is enabled'
-                            // though when tile type changes we send this again :shrug:
-                            currentPalette
-                        )
-                    ) { appName ->
-                        updateMsg("$appName\n$baseMsg")
-                    }
+                    watchSendTileServerChanged(
+                        baseMsg,
+                        tileServer,
+                        colourPaletteRepository.currentColourPaletteFlow.value,
+                        updateMsg
+                    )
                 } catch (t: TimeoutCancellationException) {
                     snackbarHostState.showSnackbar("Timed out setting tile server")
                     return@sendingMessage
@@ -259,7 +236,10 @@ class Settings(
         }
     }
 
-    private suspend fun sendingMessage(msg: String, cb: suspend (updateMsg: suspend (String) -> Unit) -> Unit) {
+    private suspend fun sendingMessage(
+        msg: String,
+        cb: suspend (updateMsg: suspend (String) -> Unit) -> Unit
+    ) {
         SendMessageHelper.sendingMessage(viewModelScope, sendingMessage, msg, cb)
     }
 
@@ -276,7 +256,12 @@ class Settings(
             sendingMessage(baseMsg) { updateMsg ->
                 try {
                     if (tileServerRepo.saveCustomServer(tileServer) && tileServerRepo.currentlyEnabled()) {
-                        watchSendTileServerChanged(baseMsg, updateMsg)
+                        watchSendTileServerChanged(
+                            baseMsg,
+                            tileServerRepo.currentServerFlow().value,
+                            colourPaletteRepository.currentColourPaletteFlow.value,
+                            updateMsg
+                        )
                     }
                     snackbarHostState.showSnackbar("Tile server saved successfully")
                 } catch (e: Exception) {
@@ -306,28 +291,13 @@ class Settings(
                     return@sendingMessage
                 }
 
-                // we also need to tell the watch about the changes
-                val device = deviceSelector.currentDevice()
-                if (device == null) {
-                    snackbarHostState.showSnackbar("no devices selected")
-                    return@sendingMessage
-                }
-
                 try {
-
-                    val tilServer = tileServerRepo.currentServerFlow().value
-                    val currentPalette = colourPaletteRepository.currentColourPaletteFlow.value
-                    connection.send(
-                        device, CompanionAppTileServerChanged(
-                            tilServer.tileLayerMin,
-                            tilServer.tileLayerMax,
-                            // always send it even if we are not in 'TILE_DATA_TYPE_64_COLOUR format, since it will be the next pallet to use if that mode is enabled'
-                            // though when tile type changes we send this again :shrug:
-                            currentPalette
-                        )
-                    ) { appName ->
-                        updateMsg("$appName\n$baseMsg")
-                    }
+                    watchSendTileServerChanged(
+                        baseMsg,
+                        tileServerRepo.currentServerFlow().value,
+                        colourPaletteRepository.currentColourPaletteFlow.value,
+                        updateMsg
+                    )
                 } catch (t: TimeoutCancellationException) {
                     snackbarHostState.showSnackbar("Timed out enabling tile server")
                     return@sendingMessage
@@ -356,7 +326,12 @@ class Settings(
             val baseMsg = "Setting colour palette"
             sendingMessage(baseMsg) { updateMsg ->
                 if (tileServerRepo.onRemoveCustomServer(tileServer) && tileServerRepo.currentlyEnabled()) {
-                    watchSendTileServerChanged(baseMsg, updateMsg)
+                    watchSendTileServerChanged(
+                        baseMsg,
+                        tileServerRepo.currentServerFlow().value,
+                        colourPaletteRepository.currentColourPaletteFlow.value,
+                        updateMsg
+                    )
                 }
             }
         }
@@ -369,7 +344,12 @@ class Settings(
             sendingMessage(baseMsg) { updateMsg ->
                 try {
                     colourPaletteRepository.updateCurrentColourPalette(palette)
-                    watchSendTileServerChanged(baseMsg, updateMsg)
+                    watchSendTileServerChanged(
+                        baseMsg,
+                        tileServerRepo.currentServerFlow().value,
+                        colourPaletteRepository.currentColourPaletteFlow.value,
+                        updateMsg
+                    )
                 } catch (e: Exception) {
                     Napier.e("colour palette update failed", e, tag = TAG)
                     snackbarHostState.showSnackbar("Failed to update colour palette")
@@ -384,7 +364,12 @@ class Settings(
             sendingMessage(baseMsg) { updateMsg ->
                 try {
                     if (colourPaletteRepository.addOrUpdateCustomPalette(palette)) {
-                        watchSendTileServerChanged(baseMsg, updateMsg)
+                        watchSendTileServerChanged(
+                            baseMsg,
+                            tileServerRepo.currentServerFlow().value,
+                            colourPaletteRepository.currentColourPaletteFlow.value,
+                            updateMsg
+                        )
                     }
                     snackbarHostState.showSnackbar("Colour palette saved")
                 } catch (e: Exception) {
@@ -401,7 +386,12 @@ class Settings(
             sendingMessage(baseMsg) { updateMsg ->
                 try {
                     if (colourPaletteRepository.removeCustomPalette(palette)) {
-                        watchSendTileServerChanged(baseMsg, updateMsg)
+                        watchSendTileServerChanged(
+                            baseMsg,
+                            tileServerRepo.currentServerFlow().value,
+                            colourPaletteRepository.currentColourPaletteFlow.value,
+                            updateMsg
+                        )
                     }
                     snackbarHostState.showSnackbar("Colour palette removed")
                 } catch (e: Exception) {
@@ -412,7 +402,20 @@ class Settings(
         }
     }
 
-    suspend fun watchSendTileServerChanged(baseMsg: String, updateMsg: suspend (String) -> Unit) {
+    suspend fun watchSendTileServerChanged(
+        baseMsg: String,
+        tileServer: TileServerInfo,
+        palette: ColourPalette,
+        updateMsg: suspend (String) -> Unit
+    ) {
+        val excludedApps =
+            listOf(LIGHT_WEIGHT_BREADCRUMB_DATAFIELD_ID, ULTRA_LIGHT_BREADCRUMB_DATAFIELD_ID)
+
+        val connectIqAppId = connection.connectIqAppIdFlow().value
+        if (excludedApps.contains(connectIqAppId)) {
+            return
+        }
+
         // If tile server is enabled, send update to watch
         if (tileServerRepo.currentlyEnabled()) {
             val device = deviceSelector.currentDevice()
@@ -420,16 +423,16 @@ class Settings(
                 snackbarHostState.showSnackbar("no devices selected")
                 return
             }
-            val tilServer = tileServerRepo.currentServerFlow().value
-            val currentPalette = colourPaletteRepository.currentColourPaletteFlow.value
             connection.send(
                 device, CompanionAppTileServerChanged(
-                    tilServer.tileLayerMin,
-                    tilServer.tileLayerMax,
+                    tileServer.tileLayerMin,
+                    tileServer.tileLayerMax,
                     // always send it even if we are not in 'TILE_DATA_TYPE_64_COLOUR format, since it will be the next pallet to use if that mode is enabled'
                     // though when tile type changes we send this again :shrug:
-                    currentPalette
-                )
+                    palette
+                ),
+                null,
+                excludedApps
             ) { appName ->
                 updateMsg("$appName\n$baseMsg")
             }

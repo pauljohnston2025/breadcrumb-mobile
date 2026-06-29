@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.paul.infrastructure.repositories.RouteRepository
 import com.paul.infrastructure.repositories.SpatialIndexRepository
+import com.paul.infrastructure.dao.StravaDao
 import com.paul.infrastructure.service.IFileHelper
 import com.paul.infrastructure.service.MigrationService
 import kotlinx.coroutines.Dispatchers
@@ -19,6 +20,7 @@ class StorageViewModel(
     private val fileHelper: IFileHelper,
     private var routesRepository: RouteRepository,
     private val spatialIndexRepository: SpatialIndexRepository,
+    private val stravaDao: StravaDao,
     val migrationService: MigrationService,
 ) : ViewModel() {
     val tileServers: MutableState<Map<String, Long>> = mutableStateOf(mapOf())
@@ -26,7 +28,13 @@ class StorageViewModel(
 
     val segmentCount = MutableStateFlow(0L)
     val tileMappingCount = MutableStateFlow(0L)
+    val stravaActivityCount = MutableStateFlow(0L)
+    val stravaStreamCount = MutableStateFlow(0L)
+    val stravaGearCount = MutableStateFlow(0L)
+    val routeCount = MutableStateFlow(0)
     val overlayCount = MutableStateFlow(0)
+    val overlaysTotalSize = MutableStateFlow(0L)
+    val databaseSize = MutableStateFlow(0L)
 
     private val _deletingTileServer = MutableStateFlow<String?>(null)
     val deletingTileServer: StateFlow<String?> = _deletingTileServer.asStateFlow()
@@ -43,6 +51,12 @@ class StorageViewModel(
     private val _loadingRoutes = MutableStateFlow<Boolean>(false)
     val loadingRoutes: StateFlow<Boolean> = _loadingRoutes.asStateFlow()
 
+    private val _loadingDatabase = MutableStateFlow<Boolean>(false)
+    val loadingDatabase: StateFlow<Boolean> = _loadingDatabase.asStateFlow()
+
+    private val _loadingOverlays = MutableStateFlow<Boolean>(false)
+    val loadingOverlays: StateFlow<Boolean> = _loadingOverlays.asStateFlow()
+
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing
 
@@ -51,27 +65,40 @@ class StorageViewModel(
     }
 
     private suspend fun updateTileServers() {
-        viewModelScope.launch(Dispatchers.Main) {
-            _loadingTileServer.value = true
-        }
+        _loadingTileServer.value = true
         val result = fileHelper.localContentsSize("tiles")
         delay(500) // delay for a bit, otherwise it looks like the ui is broken (immediately updates - spinners never start but refresh does)
-        viewModelScope.launch(Dispatchers.Main) {
-            tileServers.value = result
-            _loadingTileServer.value = false
-        }
+        tileServers.value = result
+        _loadingTileServer.value = false
     }
 
     private suspend fun updateRouteTotalSize() {
-        viewModelScope.launch(Dispatchers.Main) {
-            _loadingRoutes.value = true
-        }
+        _loadingRoutes.value = true
+        routeCount.value = routesRepository.routes.size
         val result = fileHelper.localDirectorySize("routes")
         delay(500) // delay for a bit, otherwise it looks like the ui is broken (immediately updates - spinners never start but refresh does)
-        viewModelScope.launch(Dispatchers.Main) {
-            routesTotalSize.value = result
-            _loadingRoutes.value = false
-        }
+        routesTotalSize.value = result
+        _loadingRoutes.value = false
+    }
+
+    private suspend fun updateDatabaseInfo() {
+        _loadingDatabase.value = true
+        segmentCount.value = spatialIndexRepository.getSegmentCount()
+        tileMappingCount.value = spatialIndexRepository.getTileMappingCount()
+        stravaActivityCount.value = stravaDao.size()
+        stravaStreamCount.value = stravaDao.streamCount()
+        stravaGearCount.value = stravaDao.gearCount()
+
+        val path = fileHelper.getDatabasePath(com.paul.infrastructure.DATABASE_NAME)
+        databaseSize.value = fileHelper.localFileSize(path)
+        _loadingDatabase.value = false
+    }
+
+    private suspend fun updateOverlays() {
+        _loadingOverlays.value = true
+        overlayCount.value = fileHelper.localFileCount("overlays")
+        overlaysTotalSize.value = fileHelper.localDirectorySize("overlays")
+        _loadingOverlays.value = false
     }
 
     fun requestTileDelete(tileServer: String) {
@@ -113,7 +140,7 @@ class StorageViewModel(
             if (_deletingOverlays.value) {
                 fileHelper.deleteDir("overlays")
             }
-            refresh()
+            updateOverlays()
             _deletingOverlays.value = false
         }
     }
@@ -133,14 +160,10 @@ class StorageViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             updateTileServers()
             updateRouteTotalSize()
-            
-            segmentCount.value = spatialIndexRepository.getSegmentCount()
-            tileMappingCount.value = spatialIndexRepository.getTileMappingCount()
-            overlayCount.value = fileHelper.localFileCount("overlays")
+            updateDatabaseInfo()
+            updateOverlays()
 
-            viewModelScope.launch(Dispatchers.Main) {
-                _isRefreshing.value = false
-            }
+            _isRefreshing.value = false
         }
     }
 }

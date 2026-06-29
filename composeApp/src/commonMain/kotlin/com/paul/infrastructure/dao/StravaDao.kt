@@ -37,6 +37,12 @@ interface StravaDao {
     @Query("SELECT COUNT(*) FROM strava_activities")
     suspend fun size(): Long
 
+    @Query("SELECT COUNT(*) FROM strava_streams")
+    suspend fun streamCount(): Long
+
+    @Query("SELECT COUNT(*) FROM strava_gear")
+    suspend fun gearCount(): Long
+
     @Query("SELECT COUNT(*) FROM strava_activities")
     fun sizeFlow(): Flow<Long>
 

@@ -50,6 +50,7 @@ import com.paul.composables.imageBitmapToByteArray
 import com.paul.composables.byteArrayToImageBitmap
 import com.paul.infrastructure.connectiq.IConnection.Companion.LIGHT_WEIGHT_BREADCRUMB_DATAFIELD_ID
 import com.paul.infrastructure.connectiq.IConnection.Companion.ULTRA_LIGHT_BREADCRUMB_DATAFIELD_ID
+import com.paul.infrastructure.repositories.SpatialIndexRepository.Companion.SPATIAL_INDEX_VERSION
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -188,13 +189,23 @@ class MapViewModel(
         val routeIds = if (_isRoutesEnabled.value) {
             storedRoutes.value.keys.map { it.id }
         } else emptyList()
-        val allIds = (filteredStravaIds + routeIds).sorted()
+        // Include spatial index version so when that changes we regenerate everything
+        val allIds = (filteredStravaIds + routeIds + SPATIAL_INDEX_VERSION.toString()).sorted()
         val newHash = allIds.hashCode()
         if (newHash != currentFilterHash) {
             Napier.d("Filter hash changed: $currentFilterHash -> $newHash", tag = TAG)
+            val oldHash = currentFilterHash
             currentFilterHash = newHash
             _overlayTileCache.clear()
             _overlayCacheState.value = emptyMap()
+
+            // Cleanup old overlay files from disk if this is not the first time
+            if (oldHash != 0) {
+                viewModelScope.launch(Dispatchers.IO) {
+                    cleanupOldOverlays(newHash)
+                }
+            }
+
             // Trigger a refresh of visible segments using last known viewport size
             if (lastViewportSize != IntSize.Zero) {
                 updateVisibleSegments(
@@ -203,6 +214,29 @@ class MapViewModel(
                     lastViewportSize
                 )
             }
+        }
+    }
+
+    private suspend fun cleanupOldOverlays(currentHash: Int) {
+        // We don't want to delete too often, but when the hash changes it's a good time.
+        // We also want to keep files from the current hash obviously.
+        // To avoid constant deletion if user is toggling things, maybe we only delete
+        // if the file count is large, or just delete anything that doesn't match the current hash
+        // but perhaps keep the "common" combinations if we can identify them?
+        // For now, let's just delete everything that isn't the current hash if there are too many files.
+        try {
+            val count = fileHelper.localFileCount("overlays")
+            if (count > 10000) {
+                Napier.d("Cleaning up overlays, count is $count", tag = TAG)
+                // Ideally we'd have a way to list files and filter, 
+                // but IFileHelper only has deleteDir and delete.
+                // If I had a listFiles method I could be more surgical.
+                // For now, let's just clear the whole directory if it gets too big.
+                // The user did say "this should be only done rarely, we dont want to remove file constantly"
+                fileHelper.deleteDir("overlays")
+            }
+        } catch (e: Exception) {
+            Napier.e("Failed to cleanup overlays", e, tag = TAG)
         }
     }
 

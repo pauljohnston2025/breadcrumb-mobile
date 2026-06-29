@@ -11,7 +11,7 @@ fun initAndroidDatabase(context: Context) {
 }
 
 actual fun getDatabaseBuilder(): RoomDatabase.Builder<AppDatabase> {
-    val dbFile = appContext.getDatabasePath("strava_room.db")
+    val dbFile = appContext.getDatabasePath(DATABASE_NAME)
     return Room.databaseBuilder<AppDatabase>(
         context = appContext,
         name = dbFile.absolutePath

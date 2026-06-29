@@ -21,6 +21,8 @@ import kotlinx.coroutines.Dispatchers
 // This tells the compiler each platform will provide its own builder
 expect fun getDatabaseBuilder(): RoomDatabase.Builder<AppDatabase>
 
+const val DATABASE_NAME = "strava_room.db"
+
 // This is the common entry point to build the DB once the builder is provided
 fun getRoomDatabase(builder: RoomDatabase.Builder<AppDatabase>): AppDatabase {
     return builder

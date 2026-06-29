@@ -516,6 +516,7 @@ fun App(
                                             fileHelper,
                                             startViewModel.routeRepo,
                                             spatialIndexRepository,
+                                            stravaRepository.dao,
                                             migrationService,
                                         )
                                     }
