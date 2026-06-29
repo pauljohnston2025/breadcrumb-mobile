@@ -173,10 +173,6 @@ class MapViewModel(
     private val _overlayCacheState = MutableStateFlow<Map<TileId, ImageBitmap?>>(emptyMap())
     val overlayCacheState: StateFlow<Map<TileId, ImageBitmap?>> = _overlayCacheState
 
-    private val _loadingTiles = mutableSetOf<TileId>() // Track loading IDs
-// private val _loadingTilesState = MutableStateFlow<Set<TileId>>(emptySet()) // Optionally expose loading state too
-// val loadingTilesState: StateFlow<Set<TileId>> = _loadingTilesState
-
     private val _visibleSegments = MutableStateFlow<List<com.paul.domain.SegmentInfo>>(emptyList())
     val visibleSegments: StateFlow<List<com.paul.domain.SegmentInfo>> = _visibleSegments.asStateFlow()
 
@@ -613,7 +609,9 @@ class MapViewModel(
 
             // 2. Identify missing tiles
             val missingTiles = visibleTileIds.filter { !_overlayTileCache.containsKey(it) }
-            if (missingTiles.isEmpty()) return@launch
+            if (missingTiles.isEmpty()) {
+                return@launch
+            }
 
             // 3. Scan disk in parallel
             val diskLoadResults = missingTiles.map { tileId ->
@@ -788,7 +786,6 @@ class MapViewModel(
         val jobsToCancel = loadingJobs.filterKeys { it !in visibleTileIds }
         jobsToCancel.forEach { (_, job) -> job.cancel() }
         jobsToCancel.keys.forEach { loadingJobs.remove(it) }
-        _loadingTiles.removeAll(jobsToCancel.keys)
 
 //        // 2. Cleanup cache - prevent infinite growth
 //        // Keep visible tiles + a buffer of others.
@@ -807,7 +804,6 @@ class MapViewModel(
                 // Launch within viewModelScope - won't be cancelled by recomposition
                 val job = viewModelScope.launch(Dispatchers.IO) {
                     var bitmapResult: ImageBitmap? = null
-                    _loadingTiles.add(tileId) // Mark as loading (update state flow if exposing)
                     try {
                         // Napier.v("VM Fetching $tileId", tag = TAG)
                         val data = tileRepository.getTile(
@@ -839,12 +835,10 @@ class MapViewModel(
                             _tileCacheState.value = _tileBitmapCache.toMap()
                         }.join()
                     } finally {
-                        // Always remove from loading state and jobs map
+                        // Always remove from jobs map
                         launch(Dispatchers.Main) {
-                            _loadingTiles.remove(tileId)
                             loadingJobs.remove(tileId)
                         }.join()
-                        // _loadingTilesState.value = _loadingTiles.toSet() // Emit loading state change
                     }
                 }
                 viewModelScope.launch(Dispatchers.Main) {

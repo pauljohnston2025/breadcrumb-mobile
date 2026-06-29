@@ -1,5 +1,10 @@
 package com.paul.composables
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import android.graphics.Paint
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -121,35 +126,17 @@ fun MapTilerComposable(
     hoveredDistance: Float? = null
 ) {
     val isStravaEnabled by viewModel.isStravaEnabled.collectAsState()
-    val stravaRoutes by viewModel.stravaRoutes.collectAsState()
     val isRoutesEnabled by viewModel.isRoutesEnabled.collectAsState()
-    val storedRoutes by viewModel.storedRoutes.collectAsState()
     val overlayTiles by viewModel.overlayCacheState.collectAsState()
 
-    // Create and remember Paint objects for drawing the angle text
-    val textPaint = remember {
-        Paint().apply {
-            color = android.graphics.Color.BLACK
-            textSize = 30f // Pixel size, adjust as needed
-            textAlign = Paint.Align.CENTER
-            isAntiAlias = true
-        }
-    }
-    val textBackgroundPaint = remember {
-        Paint().apply {
-            color = android.graphics.Color.WHITE
-            style = Paint.Style.FILL
-            isAntiAlias = true
-        }
-    }
-    val textBackgroundStrokePaint = remember {
-        Paint().apply {
-            color = android.graphics.Color.DKGRAY
-            style = Paint.Style.STROKE
-            strokeWidth = 2f
-            isAntiAlias = true
-        }
-    }
+    val infiniteTransition = rememberInfiniteTransition()
+    val rotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = LinearEasing)
+        )
+    )
 
     val vmMapCenter by viewModel.mapCenter.collectAsState()
     val vmZoom by viewModel.mapZoom.collectAsState()
@@ -382,7 +369,13 @@ fun MapTilerComposable(
                 scale(scale, scale, pivot = Offset(size.width / 2f, size.height / 2f))
             }) {
                 visibleTiles.forEach { tileInfo ->
-                    tileCache[tileInfo.id]?.let { imageBitmap ->
+                    val baseImage = tileCache[tileInfo.id]
+                    val overlayImage = overlayTiles[tileInfo.id]
+                    
+                    val isBaseLoading = !tileCache.containsKey(tileInfo.id)
+                    val isOverlayLoading = (isStravaEnabled || isRoutesEnabled) && !overlayTiles.containsKey(tileInfo.id)
+
+                    baseImage?.let { imageBitmap ->
                         drawImage(
                             image = imageBitmap,
                             dstOffset = tileInfo.screenOffset,
@@ -398,12 +391,58 @@ fun MapTilerComposable(
                         )
                     }
 
-                    overlayTiles[tileInfo.id]?.let { imageBitmap ->
+                    overlayImage?.let { imageBitmap ->
                         drawImage(
                             image = imageBitmap,
                             dstOffset = tileInfo.screenOffset,
                             dstSize = tileInfo.size
                         )
+                    }
+
+                    if (isBaseLoading || isOverlayLoading) {
+                        val centerX = tileInfo.screenOffset.x + tileInfo.size.width / 2f
+                        val centerY = tileInfo.screenOffset.y + tileInfo.size.height / 2f
+
+                        // Subtle dark tint to make loading indicators pop
+                        drawRect(
+                            color = Color.Black.copy(alpha = 0.2f),
+                            topLeft = Offset(tileInfo.screenOffset.x.toFloat(), tileInfo.screenOffset.y.toFloat()),
+                            size = androidx.compose.ui.geometry.Size(tileInfo.size.width.toFloat(), tileInfo.size.height.toFloat())
+                        )
+
+                        if (isBaseLoading) {
+                            val radius = 40f / scale
+                            withTransform({
+                                rotate(-rotation, Offset(centerX, centerY)) // Counter-clockwise
+                            }) {
+                                drawArc(
+                                    color = Color.Cyan.copy(alpha = 0.6f),
+                                    startAngle = 0f,
+                                    sweepAngle = 270f,
+                                    useCenter = false,
+                                    topLeft = Offset(centerX - radius, centerY - radius),
+                                    size = androidx.compose.ui.geometry.Size(radius * 2, radius * 2),
+                                    style = Stroke(width = 6f / scale, cap = StrokeCap.Round)
+                                )
+                            }
+                        }
+
+                        if (isOverlayLoading) {
+                            val radius = 25f / scale
+                            withTransform({
+                                rotate(rotation, Offset(centerX, centerY)) // Clockwise
+                            }) {
+                                drawArc(
+                                    color = Color.White.copy(alpha = 0.8f),
+                                    startAngle = 0f,
+                                    sweepAngle = 270f,
+                                    useCenter = false,
+                                    topLeft = Offset(centerX - radius, centerY - radius),
+                                    size = androidx.compose.ui.geometry.Size(radius * 2, radius * 2),
+                                    style = Stroke(width = 4f / scale, cap = StrokeCap.Round)
+                                )
+                            }
+                        }
                     }
                 }
 
