@@ -104,6 +104,7 @@ fun AddCustomServerDialog(
     var tileLayerMinString by remember(serverToEdit) { mutableStateOf(tileLayerMin.toString()) }
     var tileLayerMax by remember(serverToEdit) { mutableStateOf(serverToEdit?.tileLayerMax ?: 15) }
     var tileLayerMaxString by remember(serverToEdit) { mutableStateOf(tileLayerMax.toString()) }
+    var fallbackToUpscaled by remember(serverToEdit) { mutableStateOf(serverToEdit?.fallbackToUpscaled ?: true) }
 
     var nameError by remember { mutableStateOf<String?>(null) }
     var urlError by remember { mutableStateOf<String?>(null) }
@@ -203,6 +204,25 @@ fun AddCustomServerDialog(
                         modifier = Modifier.weight(1f)
                     )
                 }
+
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Fallback to Upscaled Tiles", style = MaterialTheme.typography.body2)
+                        Text(
+                            "If a tile is missing (404), try to generate it by zooming in on a parent tile.",
+                            style = MaterialTheme.typography.caption,
+                            color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                    Switch(
+                        checked = fallbackToUpscaled,
+                        onCheckedChange = { fallbackToUpscaled = it }
+                    )
+                }
             }
         },
         confirmButton = {
@@ -217,7 +237,8 @@ fun AddCustomServerDialog(
                             url = url,
                             tileLayerMin = tileLayerMin,
                             tileLayerMax = tileLayerMax,
-                            isCustom = true // Any saved server from this dialog is custom
+                            isCustom = true, // Any saved server from this dialog is custom
+                            fallbackToUpscaled = fallbackToUpscaled
                         )
                         onSave(finalServer)
                     }

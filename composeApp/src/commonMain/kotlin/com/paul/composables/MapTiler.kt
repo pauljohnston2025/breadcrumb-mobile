@@ -64,7 +64,9 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
@@ -156,6 +158,16 @@ fun MapTilerComposable(
         )
     }
     var localZoom by remember { mutableStateOf(vmZoom) }
+
+    // Create and remember Paint objects for drawing text on canvas
+    val textPaint = remember {
+        Paint().apply {
+            color = android.graphics.Color.WHITE
+            textSize = 24f
+            textAlign = Paint.Align.CENTER
+            isAntiAlias = true
+        }
+    }
 
     val minZoom = remember { tilServer.tileLayerMin.toFloat() }
     val maxZoom = remember { tilServer.tileLayerMax.toFloat() }
@@ -365,6 +377,13 @@ fun MapTilerComposable(
                 .clipToBounds()
         ) {
             val scale = 2.0.pow((localZoom - integerZoom).toDouble()).toFloat()
+            
+            // Calculate viewport bounds in the local coordinate system (before scaling)
+            val localViewportMinX = (size.width / 2f) - (size.width / 2f) / scale
+            val localViewportMaxX = (size.width / 2f) + (size.width / 2f) / scale
+            val localViewportMinY = (size.height / 2f) - (size.height / 2f) / scale
+            val localViewportMaxY = (size.height / 2f) + (size.height / 2f) / scale
+
             withTransform({
                 scale(scale, scale, pivot = Offset(size.width / 2f, size.height / 2f))
             }) {
@@ -399,48 +418,68 @@ fun MapTilerComposable(
                         )
                     }
 
-                    if (isBaseLoading || isOverlayLoading) {
-                        val centerX = tileInfo.screenOffset.x + tileInfo.size.width / 2f
-                        val centerY = tileInfo.screenOffset.y + tileInfo.size.height / 2f
+                    if (isBaseLoading || isOverlayLoading || (baseImage == null && !isBaseLoading)) {
+                        // Calculate the visible part of the tile to keep indicators on screen
+                        val interMinX = max(tileInfo.screenOffset.x.toFloat(), localViewportMinX)
+                        val interMaxX = min(tileInfo.screenOffset.x.toFloat() + tileInfo.size.width, localViewportMaxX)
+                        val interMinY = max(tileInfo.screenOffset.y.toFloat(), localViewportMinY)
+                        val interMaxY = min(tileInfo.screenOffset.y.toFloat() + tileInfo.size.height, localViewportMaxY)
 
-                        // Subtle dark tint to make loading indicators pop
-                        drawRect(
-                            color = Color.Black.copy(alpha = 0.2f),
-                            topLeft = Offset(tileInfo.screenOffset.x.toFloat(), tileInfo.screenOffset.y.toFloat()),
-                            size = androidx.compose.ui.geometry.Size(tileInfo.size.width.toFloat(), tileInfo.size.height.toFloat())
-                        )
+                        if (interMinX < interMaxX && interMinY < interMaxY) {
+                            val centerX = (interMinX + interMaxX) / 2f
+                            val centerY = (interMinY + interMaxY) / 2f
 
-                        if (isBaseLoading) {
-                            val radius = 40f / scale
-                            withTransform({
-                                rotate(-rotation, Offset(centerX, centerY)) // Counter-clockwise
-                            }) {
-                                drawArc(
-                                    color = Color.Cyan.copy(alpha = 0.6f),
-                                    startAngle = 0f,
-                                    sweepAngle = 270f,
-                                    useCenter = false,
-                                    topLeft = Offset(centerX - radius, centerY - radius),
-                                    size = androidx.compose.ui.geometry.Size(radius * 2, radius * 2),
-                                    style = Stroke(width = 6f / scale, cap = StrokeCap.Round)
-                                )
+                            // Subtle dark tint to make loading indicators pop
+                            drawRect(
+                                color = Color.Black.copy(alpha = 0.2f),
+                                topLeft = Offset(tileInfo.screenOffset.x.toFloat(), tileInfo.screenOffset.y.toFloat()),
+                                size = androidx.compose.ui.geometry.Size(tileInfo.size.width.toFloat(), tileInfo.size.height.toFloat())
+                            )
+
+                            if (isBaseLoading) {
+                                val radius = 40f / scale
+                                withTransform({
+                                    rotate(-rotation, Offset(centerX, centerY)) // Counter-clockwise
+                                }) {
+                                    drawArc(
+                                        color = Color.Cyan.copy(alpha = 0.6f),
+                                        startAngle = 0f,
+                                        sweepAngle = 270f,
+                                        useCenter = false,
+                                        topLeft = Offset(centerX - radius, centerY - radius),
+                                        size = androidx.compose.ui.geometry.Size(radius * 2, radius * 2),
+                                        style = Stroke(width = 6f / scale, cap = StrokeCap.Round)
+                                    )
+                                }
+                            } else if (baseImage == null) {
+                                // Tile fetch finished but returned null (failed permanently for this session)
+                                drawIntoCanvas { canvas ->
+                                    textPaint.color = android.graphics.Color.WHITE
+                                    textPaint.textSize = 24f / scale
+                                    canvas.nativeCanvas.drawText(
+                                        "Not Available",
+                                        centerX,
+                                        centerY,
+                                        textPaint
+                                    )
+                                }
                             }
-                        }
 
-                        if (isOverlayLoading) {
-                            val radius = 25f / scale
-                            withTransform({
-                                rotate(rotation, Offset(centerX, centerY)) // Clockwise
-                            }) {
-                                drawArc(
-                                    color = Color.White.copy(alpha = 0.8f),
-                                    startAngle = 0f,
-                                    sweepAngle = 270f,
-                                    useCenter = false,
-                                    topLeft = Offset(centerX - radius, centerY - radius),
-                                    size = androidx.compose.ui.geometry.Size(radius * 2, radius * 2),
-                                    style = Stroke(width = 4f / scale, cap = StrokeCap.Round)
-                                )
+                            if (isOverlayLoading) {
+                                val radius = 25f / scale
+                                withTransform({
+                                    rotate(rotation, Offset(centerX, centerY)) // Clockwise
+                                }) {
+                                    drawArc(
+                                        color = Color.White.copy(alpha = 0.8f),
+                                        startAngle = 0f,
+                                        sweepAngle = 270f,
+                                        useCenter = false,
+                                        topLeft = Offset(centerX - radius, centerY - radius),
+                                        size = androidx.compose.ui.geometry.Size(radius * 2, radius * 2),
+                                        style = Stroke(width = 4f / scale, cap = StrokeCap.Round)
+                                    )
+                                }
                             }
                         }
                     }

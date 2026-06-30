@@ -41,7 +41,8 @@ class TileServerRepo(
             "Open Topo Map",
             "https://a.tile.opentopomap.org/{z}/{x}/{y}.png",
             0,
-            15
+            15,
+            fallbackToUpscaled = true
         )
 
         fun getWebPortOnStart(): Int = settings.getInt(WEB_SERVER_PORT_KEY, defaultWebPort)

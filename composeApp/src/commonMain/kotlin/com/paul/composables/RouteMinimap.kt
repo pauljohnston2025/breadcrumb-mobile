@@ -98,10 +98,8 @@ fun RouteMiniMap(
                 if (!localBitmaps.containsKey(tileInfo.id.toString())) {
                     launch {
                         val data = tileRepository.getTile(tileInfo.id.x, tileInfo.id.y, tileInfo.id.z)
-                        if (data.first == 200 && data.second != null) {
-                            byteArrayToImageBitmap(data.second!!)?.let { bitmap ->
-                                localBitmaps[tileInfo.id.toString()] = bitmap
-                            }
+                        if (data.statusCode == 200 && data.bitmap != null) {
+                            localBitmaps[tileInfo.id.toString()] = data.bitmap
                         }
                     }
                 }

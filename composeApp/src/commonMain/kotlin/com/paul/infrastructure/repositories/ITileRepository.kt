@@ -5,7 +5,6 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
-import com.paul.composables.byteArrayToImageBitmap
 import com.paul.domain.ColourPalette
 import com.paul.domain.TileServerInfo
 import com.paul.infrastructure.repositories.ColourPaletteRepository.Companion.getSelectedPaletteOnStart
@@ -21,16 +20,35 @@ import com.paul.infrastructure.web.TileType
 import com.paul.infrastructure.web.platformInfo
 import com.paul.protocol.todevice.MapTile
 import io.github.aakira.napier.Napier
+import io.ktor.client.plugins.ClientRequestException
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.statement.bodyAsChannel
+import io.ktor.http.HttpStatusCode
 import io.ktor.http.isSuccess
 import io.ktor.utils.io.toByteArray
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.datetime.Clock
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import java.util.concurrent.atomic.AtomicLong
+
+@Serializable
+data class TileMetadata(
+    val statusCode: Int,
+    val expiryMillis: Long,
+    val retryAfterMillis: Long? = null
+)
+
+data class TileResult(
+    val statusCode: Int,
+    val bitmap: ImageBitmap?,
+    val metadata: TileMetadata
+)
 
 class ITileRepository(private val fileHelper: IFileHelper) {
 
@@ -82,22 +100,11 @@ class ITileRepository(private val fileHelper: IFileHelper) {
         Napier.v("getWatchTile: tileId=($x, $y, ${req.z}), smallTile=(${req.x}, ${req.y})", tag = TAG)
 
         val tileContents = getTile(x, y, req.z)
-        if (tileContents.first != 200 || tileContents.second == null) {
-            return Pair(tileContents.first, null)
+        if (tileContents.statusCode != 200 || tileContents.bitmap == null) {
+            return Pair(tileContents.statusCode, null)
         }
 
-        // 1. Decode byte array to a multiplatform ImageBitmap
-        val sourceBitmap = try {
-            byteArrayToImageBitmap(tileContents.second!!)
-        } catch (e: Throwable) {
-            Napier.e("Failed to parse tile bitmap from bytes", e, tag = TAG)
-            return Pair(500, null)
-        }
-
-        if (sourceBitmap == null) {
-            Napier.e("Decoded tile bitmap is null", tag = TAG)
-            return Pair(500, null)
-        }
+        val sourceBitmap = tileContents.bitmap
 
         // 2. Resize the ImageBitmap by drawing it to a new, larger canvas
         val resizedBitmap = ImageBitmap(scaleUpSize, scaleUpSize)
@@ -234,50 +241,193 @@ class ITileRepository(private val fileHelper: IFileHelper) {
         }
     }
 
-    suspend fun getTile(x: Int, y: Int, z: Int): Pair<Int, ByteArray?> {
+    suspend fun getTile(x: Int, y: Int, z: Int): TileResult {
+        return getTileInternal(x, y, z, allowFallback = tileServer.fallbackToUpscaled)
+    }
+
+    private suspend fun getTileInternal(x: Int, y: Int, z: Int, allowFallback: Boolean): TileResult {
         val tileUrl = tileServer.url
             .replace("{x}", "${x}")
             .replace("{y}", "${y}")
             .replace("{z}", "${z}")
             .replace("{authToken}", this.authToken)
-//        Napier.d("Loading tile $tileUrl")
 
         if (z < tileServer.tileLayerMin || z > tileServer.tileLayerMax) {
-            Napier.w("Tile url outsize z layer $tileUrl")
-            return Pair(404, null)
+            return TileResult(404, null, TileMetadata(404, Long.MAX_VALUE))
         }
-        //        val brisbaneUrl = "https://a.tile.opentopomap.org/11/1894/1186.png"
-        //        var tileUrl = brisbaneUrl;
 
-        val fileName = "tiles/${tileServer.id}/${z}/${x}/${y}.png"
+        val metaFileName = "tiles/${tileServer.id}/${z}/${x}/${y}.meta"
+        val dataFileName = "tiles/${tileServer.id}/${z}/${x}/${y}.png"
 
         try {
-            var tileContents = fileHelper.readLocalFile(fileName)
-            if (tileContents == null) {
-                val response = withContext(Dispatchers.IO) {
-                    return@withContext client.get(tileUrl) {
-                        // required by openstreetmaps, not sure how to get this to work
-                        // https://operations.osmfoundation.org/policies/tiles/
-                        // https://help.openstreetmap.org/questions/29938/in-my-app-problem-downloading-maptile-000-http-response-http11-403-forbidden
-                        header("User-Agent", "Breadcrumb/1.0 ${platformInfo()}")
-                    }
-                }
-                if (!response.status.isSuccess()) {
-                    Napier.w("Fetching tile failed: status=${response.status}, url=$tileUrl", tag = TAG)
-                    // todo: cache tile errors, and show them to user to (especially for map page)
-                    return Pair(response.status.value, null)
-                }
+            val now = Clock.System.now().toEpochMilliseconds()
+            val metaBytes = fileHelper.readLocalFile(metaFileName)
+            var cachedMeta: TileMetadata? = null
 
-                tileContents = withContext(Dispatchers.IO) {
-                    return@withContext response.bodyAsChannel().toByteArray()
+            if (metaBytes != null) {
+                cachedMeta = try {
+                    Json.decodeFromString<TileMetadata>(metaBytes.decodeToString())
+                } catch (_: Exception) {
+                    null
                 }
-                fileHelper.writeLocalFile(fileName, tileContents)
             }
 
-            return Pair(200, tileContents)
+            // Migration / Legacy support: if PNG exists but no meta, treat as 200 but expired
+            if (cachedMeta == null) {
+                val legacyPng = fileHelper.readLocalFile(dataFileName)
+                if (legacyPng != null) {
+                    cachedMeta = TileMetadata(200, 0)
+                }
+            }
+
+            // 1. If we have a valid, non-expired cache, use it immediately
+            if (cachedMeta != null && (cachedMeta.retryAfterMillis ?: 0L) < now && cachedMeta.expiryMillis > now) {
+                if (cachedMeta.statusCode == 200) {
+                    val data = fileHelper.readLocalFile(dataFileName)
+                    if (data != null) {
+                        val bitmap = com.paul.composables.byteArrayToImageBitmap(data) as ImageBitmap?
+                        if (bitmap != null) return TileResult(200, bitmap, cachedMeta)
+                    }
+                } else if (cachedMeta.statusCode == 404) {
+                    return TileResult(cachedMeta.statusCode, null, cachedMeta)
+                }
+            }
+
+            // 2. Try to fetch from network
+            val networkResult = fetchFromNetwork(tileUrl)
+
+            if (networkResult.first == 200) {
+                // Success, update cache and return bitmap
+                saveToCache(metaFileName, dataFileName, networkResult.first, networkResult.second)
+                val metadata = TileMetadata(200, Clock.System.now().toEpochMilliseconds() + 30L * 24 * 60 * 60 * 1000)
+                val bitmap = com.paul.composables.byteArrayToImageBitmap(networkResult.second) as ImageBitmap?
+                return TileResult(200, bitmap, metadata)
+            } else if (networkResult.first == 404) {
+                // Not found on server. Check for upscaling fallback.
+                if (allowFallback && z > tileServer.tileLayerMin) {
+                    val upscaled = getUpscaledTile(x, y, z)
+                    if (upscaled != null) {
+                        // We found a parent to upscale from.
+                        // We store the UPSCALED tile to disk so we don't have to keep doing it.
+                        // We mark it as 200 in metadata because it's "valid" imagery for the user.
+                        val upscaledBytes = com.paul.composables.imageBitmapToByteArray(upscaled)
+                        saveToCache(metaFileName, dataFileName, 200, upscaledBytes)
+                        val metadata = TileMetadata(200, Clock.System.now().toEpochMilliseconds() + 30L * 24 * 60 * 60 * 1000)
+                        return TileResult(200, upscaled, metadata)
+                    }
+                }
+                
+                // If no fallback or fallback failed, cache the 404
+                saveToCache(metaFileName, dataFileName, 404, null)
+                return TileResult(404, null, TileMetadata(404, Clock.System.now().toEpochMilliseconds() + 7L * 24 * 60 * 60 * 1000))
+            } else {
+                // Network failed (500, timeout, offline, etc.)
+                // 3. Fallback to expired cache if we have it
+                if (cachedMeta != null) {
+                    if (cachedMeta.statusCode == 200) {
+                        val data = fileHelper.readLocalFile(dataFileName)
+                        if (data != null) {
+                            val bitmap = com.paul.composables.byteArrayToImageBitmap(data) as ImageBitmap?
+                            if (bitmap != null) {
+                                Napier.d("Using expired tile from cache due to fetch failure: $tileUrl")
+                                return TileResult(200, bitmap, cachedMeta)
+                            }
+                        }
+                    } else {
+                        return TileResult(cachedMeta.statusCode, null, cachedMeta)
+                    }
+                }
+                
+                val errorMetadata = TileMetadata(networkResult.first, Clock.System.now().toEpochMilliseconds() + 10 * 60 * 1000, networkResult.third)
+                saveToCache(metaFileName, dataFileName, networkResult.first, null, networkResult.third)
+                return TileResult(networkResult.first, null, errorMetadata)
+            }
         } catch (e: Throwable) {
-            Napier.e("Fetching tile failed: exception=${e.message}, url=$tileUrl", e, tag = TAG)
-            return Pair(500, null)
+            Napier.e("getTile unexpected error: exception=${e.message}, url=$tileUrl", e, tag = TAG)
+            return TileResult(500, null, TileMetadata(500, Clock.System.now().toEpochMilliseconds() + 60 * 1000))
+        }
+    }
+
+    private suspend fun getUpscaledTile(x: Int, y: Int, z: Int): ImageBitmap? {
+        val parentX = x / 2
+        val parentY = y / 2
+        val parentZ = z - 1
+        
+        // We only want REAL tiles for the parent to avoid infinite low-quality recursion 
+        // though one level of upscaling might be okay. Let's allow fallback for parent too
+        // but limit how far we go by just calling getTileInternal which already handles zoom range.
+        val parentResult = getTileInternal(parentX, parentY, parentZ, allowFallback = true)
+        val parentBitmap = parentResult.bitmap ?: return null
+        
+        val targetSize = 256
+        val upscaledBitmap = ImageBitmap(targetSize, targetSize)
+        val canvas = Canvas(upscaledBitmap)
+        val paint = Paint()
+        
+        val srcX = (x % 2) * 128
+        val srcY = (y % 2) * 128
+        
+        canvas.drawImageRect(
+            image = parentBitmap,
+            srcOffset = IntOffset(srcX, srcY),
+            srcSize = IntSize(128, 128),
+            dstSize = IntSize(targetSize, targetSize),
+            paint = paint
+        )
+        
+        return upscaledBitmap
+    }
+
+    private suspend fun fetchFromNetwork(url: String): Triple<Int, ByteArray?, Long?> {
+        return try {
+            val response = withContext(Dispatchers.IO) {
+                client.get(url) {
+                    header("User-Agent", "Breadcrumb/1.0 ${platformInfo()}")
+                }
+            }
+            
+            val retryAfter = response.headers["Retry-After"]?.toLongOrNull()?.let {
+                Clock.System.now().toEpochMilliseconds() + (it * 1000)
+            }
+
+            if (response.status.isSuccess()) {
+                val bytes = response.bodyAsChannel().toByteArray()
+                Triple(200, bytes, null)
+            } else {
+                Triple(response.status.value, null, retryAfter)
+            }
+        } catch (e: ClientRequestException) {
+            val retryAfter = e.response.headers["Retry-After"]?.toLongOrNull()?.let {
+                Clock.System.now().toEpochMilliseconds() + (it * 1000)
+            }
+            if (e.response.status == HttpStatusCode.NotFound) {
+                Triple(404, null, null)
+            } else {
+                Triple(e.response.status.value, null, retryAfter)
+            }
+        } catch (_: Throwable) {
+            Triple(500, null, null)
+        }
+    }
+
+    private suspend fun saveToCache(metaFile: String, dataFile: String, statusCode: Int, data: ByteArray?, retryAfter: Long? = null) {
+        val ttlMillis = if (statusCode == 200) {
+            30L * 24 * 60 * 60 * 1000 // 30 days for successful tiles
+        } else if (statusCode == 404) {
+            7L * 24 * 60 * 60 * 1000 // 7 days for 404
+        } else {
+            10L * 60 * 1000 // 10 minutes for other errors (e.g. 500, 429)
+        }
+        val expiry = Clock.System.now().toEpochMilliseconds() + ttlMillis
+        val meta = TileMetadata(statusCode, expiry, retryAfter)
+
+        try {
+            if (data != null) {
+                fileHelper.writeLocalFile(dataFile, data)
+            }
+            fileHelper.writeLocalFile(metaFile, Json.encodeToString(meta).encodeToByteArray())
+        } catch (e: Exception) {
+            Napier.e("Failed to write tile to cache", e, tag = TAG)
         }
     }
 }
