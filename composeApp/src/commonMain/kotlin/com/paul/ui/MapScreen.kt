@@ -96,6 +96,7 @@ fun MapScreen(
     // Collect the new state for profile visibility
     val isElevationProfileVisible by viewModel.isElevationProfileVisible.collectAsState()
     val hoveredDistance by viewModel.hoveredDistance.collectAsState()
+    val mapRotation by viewModel.mapRotation.collectAsState()
 
     val migrationStatus by viewModel.migrationService.migrationStatus.collectAsState()
     val isMigrating by viewModel.migrationService.isMigrating.collectAsState()
@@ -327,7 +328,8 @@ fun MapScreen(
                                             viewModel.mapCenter.value.longitude.toDouble()
                                         ),
                                         viewModel.mapZoom.value,
-                                        viewportSize
+                                        viewportSize,
+                                        mapRotation
                                     )
                                     val bottomRightGeo = screenPixelToGeo(
                                         IntOffset(viewportSize.width, viewportSize.height),
@@ -336,7 +338,8 @@ fun MapScreen(
                                             viewModel.mapCenter.value.longitude.toDouble()
                                         ),
                                         viewModel.mapZoom.value,
-                                        viewportSize
+                                        viewportSize,
+                                        mapRotation
                                     )
                                     viewModel.startSeedingAreaToWatch(
                                         centerGeo = GeoPosition(
@@ -379,13 +382,14 @@ fun MapScreen(
                                 )
                                 val currentZoom = viewModel.mapZoom.value
                                 val topLeftGeo = screenPixelToGeo(
-                                    IntOffset(0, 0), currentCenter, currentZoom, viewportSize
+                                    IntOffset(0, 0), currentCenter, currentZoom, viewportSize, mapRotation
                                 )
                                 val bottomRightGeo = screenPixelToGeo(
                                     IntOffset(viewportSize.width, viewportSize.height),
                                     currentCenter,
                                     currentZoom,
-                                    viewportSize
+                                    viewportSize,
+                                    mapRotation
                                 )
 
                                 viewModel.startSeedingArea(

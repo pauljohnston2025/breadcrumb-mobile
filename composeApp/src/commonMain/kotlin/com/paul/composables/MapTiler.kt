@@ -14,6 +14,7 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateRotation
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -36,11 +37,13 @@ import androidx.compose.material.Icon
 import androidx.compose.material.LocalContentColor
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.RadioButton
+import androidx.compose.material.Surface
 import androidx.compose.material.Text
 import androidx.compose.material.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Colorize
+import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.RemoveRedEye
 import androidx.compose.material.icons.filled.Route
@@ -66,6 +69,7 @@ import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -90,6 +94,7 @@ import com.paul.infrastructure.service.geoToScreenPixel
 import com.paul.infrastructure.service.geoToWorldPixel
 import com.paul.infrastructure.service.getScaleFactor
 import com.paul.infrastructure.service.latLonToTileXY
+import com.paul.infrastructure.service.rotateOffset
 import com.paul.infrastructure.service.screenPixelToGeo
 import com.paul.infrastructure.service.worldPixelToGeo
 import com.paul.protocol.todevice.Point
@@ -142,6 +147,7 @@ fun MapTilerComposable(
 
     val vmMapCenter by viewModel.mapCenter.collectAsState()
     val vmZoom by viewModel.mapZoom.collectAsState()
+    val vmRotation by viewModel.mapRotation.collectAsState()
     val userLocation by viewModel.userLocation.collectAsState()
     val tilServer by viewModel.tileServerRepository.currentServerFlow().collectAsState()
     val tileCache by viewModel.tileCacheState.collectAsState()
@@ -158,6 +164,7 @@ fun MapTilerComposable(
         )
     }
     var localZoom by remember { mutableStateOf(vmZoom) }
+    var localRotation by remember { mutableStateOf(vmRotation) }
 
     // Create and remember Paint objects for drawing text on canvas
     val textPaint = remember {
@@ -185,10 +192,13 @@ fun MapTilerComposable(
     LaunchedEffect(vmZoom) {
         localZoom = vmZoom
     }
-    val visibleTiles by remember(localCenterGeo, integerZoom, viewportSize) {
+    LaunchedEffect(vmRotation) {
+        localRotation = vmRotation
+    }
+    val visibleTiles by remember(localCenterGeo, integerZoom, viewportSize, localRotation) {
         derivedStateOf {
             if (viewportSize == IntSize.Zero) emptyList() else {
-                calculateVisibleTiles(localCenterGeo, integerZoom, viewportSize, tilServer.id)
+                calculateVisibleTiles(localCenterGeo, integerZoom, viewportSize, tilServer.id, localRotation)
             }
         }
     }
@@ -291,7 +301,8 @@ fun MapTilerComposable(
                             ),
                             localCenterGeo,
                             localZoom, // Use localZoom for better accuracy than integerZoom
-                            size
+                            size,
+                            localRotation
                         )
                         viewModel.findNearbyActivities(tappedGeo, viewportSize)
                     }
@@ -306,20 +317,25 @@ fun MapTilerComposable(
 
                         val pan = event.calculatePan()
                         val zoom = event.calculateZoom()
+                        val rotation = event.calculateRotation()
                         val centroid = event.calculateCentroid()
 
                         // 2. Only consume/calculate if actual movement occurred
-                        val isMoving = pan != Offset.Zero || zoom != 1f
+                        val isMoving = pan != Offset.Zero || zoom != 1f || rotation != 0f
 
                         if (event.changes.any { it.pressed }) {
                             // Calculate new zoom level
                             val newZoom = (localZoom + (ln(zoom) / ln(2.0f))).coerceIn(
                                 minZoom, maxZoom + OVERZOOM_LEVELS
                             )
+                            
+                            val newRotation = (localRotation + rotation) % 360f
 
                             // Calculate where the center is now after the pan
+                            // When rotated, a pan of (dx, dy) on screen needs to be "un-rotated" 
+                            // to know how much to move the map center in its North-up coordinate system.
                             val pannedCenterScreenPixel =
-                                Offset(size.width / 2f, size.height / 2f) - pan
+                                Offset(size.width / 2f, size.height / 2f) - rotateOffset(pan, Offset.Zero, -localRotation)
 
                             val pannedCenterGeo = screenPixelToGeo(
                                 screenPixel = IntOffset(
@@ -338,19 +354,22 @@ fun MapTilerComposable(
                                 ),
                                 mapCenterGeo = pannedCenterGeo,
                                 zoom = localZoom,
-                                viewportSize = size
+                                viewportSize = size,
+                                rotation = localRotation
                             )
 
                             val finalNewCenterGeo = calculateNewCenter(
                                 targetGeo = geoUnderCentroid,
                                 targetScreenPx = centroid,
                                 newZoom = newZoom,
-                                viewportSize = size
+                                viewportSize = size,
+                                rotation = newRotation
                             )
 
                             // Update local state for smooth drawing
                             localZoom = newZoom
                             localCenterGeo = finalNewCenterGeo
+                            localRotation = newRotation
 
                             // 3. ONLY consume if we actually moved.
                             // This allows the Tap detector in the other block to work.
@@ -362,6 +381,7 @@ fun MapTilerComposable(
 
                     // Sync the ViewModel once the user lifts their fingers
                     viewModel.setMapZoom(localZoom)
+                    viewModel.setMapRotation(localRotation)
                     viewModel.centerMapOn(
                         Point(
                             localCenterGeo.latitude.toFloat(),
@@ -385,6 +405,7 @@ fun MapTilerComposable(
             val localViewportMaxY = (size.height / 2f) + (size.height / 2f) / scale
 
             withTransform({
+                rotate(localRotation, pivot = Offset(size.width / 2f, size.height / 2f))
                 scale(scale, scale, pivot = Offset(size.width / 2f, size.height / 2f))
             }) {
                 visibleTiles.forEach { tileInfo ->
@@ -665,14 +686,16 @@ fun MapTilerComposable(
                     geo = loc.position,
                     mapCenterGeo = localCenterGeo,
                     zoom = localZoom,
-                    viewportSize = viewportSize
+                    viewportSize = viewportSize,
+                    rotation = localRotation
                 )
                 val circleRadius = 20f
                 val arrowSize = 22f // Half the base width of the arrow
                 val screenOffset = Offset(screenPos.x.toFloat(), screenPos.y.toFloat())
                 loc.bearing?.let { nonNullBearing ->
+                    val finalBearing = nonNullBearing + localRotation
                     // Convert bearing to radians. Subtract 90 degrees (PI/2) to align 0 degrees with the top.
-                    val angleRad = Math.toRadians(nonNullBearing - 90.0).toFloat()
+                    val angleRad = Math.toRadians(finalBearing - 90.0).toFloat()
 
                     // Calculate the arrow's center position on the edge of the circle
                     // The arrow will be placed just outside the main circle.
@@ -687,7 +710,7 @@ fun MapTilerComposable(
                         // First, translate the canvas to the arrow's target position
                         translate(left = arrowCenter.x, top = arrowCenter.y)
                         // Then, rotate around this new origin (0,0) which is now the arrow's center
-                        rotate(degrees = nonNullBearing, pivot = Offset.Zero)
+                        rotate(degrees = finalBearing, pivot = Offset.Zero)
                     }) {
                         // Define the arrow path relative to its own center (0,0)
                         val arrowPath = Path().apply {
@@ -719,6 +742,54 @@ fun MapTilerComposable(
             horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            // Compass / Reset North Button
+            if (abs(localRotation) > 0.5f) {
+                Button(
+                    modifier = mapButtonStyle,
+                    onClick = { 
+                        viewModel.resetMapRotation()
+                        localRotation = 0f
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        backgroundColor = Color.Black.copy(alpha = 0.5f),
+                        contentColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(4.dp),
+                    elevation = ButtonDefaults.elevation(0.dp, 0.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                        Canvas(modifier = Modifier.size(24.dp)) {
+                            withTransform({
+                                rotate(localRotation)
+                            }) {
+                                val halfW = size.width / 2f
+                                val halfH = size.height / 2f
+                                val needleWidth = 6f
+                                val needleHeight = size.height * 0.4f
+
+                                // North (Red)
+                                val northPath = Path().apply {
+                                    moveTo(halfW, halfH - needleHeight)
+                                    lineTo(halfW - needleWidth, halfH)
+                                    lineTo(halfW + needleWidth, halfH)
+                                    close()
+                                }
+                                drawPath(northPath, Color.Red)
+
+                                // South (White)
+                                val southPath = Path().apply {
+                                    moveTo(halfW, halfH + needleHeight)
+                                    lineTo(halfW - needleWidth, halfH)
+                                    lineTo(halfW + needleWidth, halfH)
+                                    close()
+                                }
+                                drawPath(southPath, Color.White)
+                            }
+                        }
+                    }
+                }
+            }
+
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(4.dp))

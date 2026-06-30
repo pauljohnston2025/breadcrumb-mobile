@@ -133,6 +133,9 @@ class MapViewModel(
     private val _mapZoom = MutableStateFlow(10f)
     val mapZoom: StateFlow<Float> = _mapZoom
 
+    private val _mapRotation = MutableStateFlow(0f)
+    val mapRotation: StateFlow<Float> = _mapRotation.asStateFlow()
+
     val currentTileServer: StateFlow<TileServerInfo> = tileServerRepository.currentServerFlow()
 
     // --- Route State ---
@@ -1283,6 +1286,14 @@ class MapViewModel(
 
     fun setMapZoom(z: Float) {
         _mapZoom.value = z
+    }
+
+    fun setMapRotation(rotation: Float) {
+        _mapRotation.value = rotation
+    }
+
+    fun resetMapRotation() {
+        _mapRotation.value = 0f
     }
 
     // Essential: Convert Lat/Lon to Tile X/Y for a given zoom

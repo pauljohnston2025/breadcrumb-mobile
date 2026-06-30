@@ -60,7 +60,8 @@ fun geoToScreenPixel(
     geo: GeoPosition,
     mapCenterGeo: GeoPosition,
     zoom: Float, // Changed from Int to Float
-    viewportSize: IntSize
+    viewportSize: IntSize,
+    rotation: Float = 0f
 ): IntOffset {
     val scale = getScaleFactor(zoom) // This now handles the Float zoom
     val (worldCenterX, worldCenterY) = geoToWorldPixel(mapCenterGeo)
@@ -74,11 +75,16 @@ fun geoToScreenPixel(
     val dxScreen = dxWorld * scale
     val dyScreen = dyWorld * scale
 
-    // Screen coordinates relative to the viewport center
-    val screenX = viewportSize.width / 2.0 + dxScreen
-    val screenY = viewportSize.height / 2.0 + dyScreen
+    // Screen coordinates relative to the viewport center (Unrotated)
+    val unrotatedX = viewportSize.width / 2.0 + dxScreen
+    val unrotatedY = viewportSize.height / 2.0 + dyScreen
+    
+    if (rotation == 0f) return IntOffset(unrotatedX.roundToInt(), unrotatedY.roundToInt())
 
-    return IntOffset(screenX.roundToInt(), screenY.roundToInt())
+    val pivot = Offset(viewportSize.width / 2f, viewportSize.height / 2f)
+    val rotatedPx = rotateOffset(Offset(unrotatedX.toFloat(), unrotatedY.toFloat()), pivot, rotation)
+
+    return IntOffset(rotatedPx.x.roundToInt(), rotatedPx.y.roundToInt())
 }
 
 /**
@@ -89,14 +95,23 @@ fun screenPixelToGeo(
     screenPixel: IntOffset,
     mapCenterGeo: GeoPosition,
     zoom: Float, // Changed from Int to Float
-    viewportSize: IntSize
+    viewportSize: IntSize,
+    rotation: Float = 0f
 ): GeoPosition {
     val scale = getScaleFactor(zoom) // This now handles the Float zoom
     val (worldCenterX, worldCenterY) = geoToWorldPixel(mapCenterGeo)
 
+    // Un-rotate the screen pixel around the pivot
+    val unrotatedPx = if (rotation == 0f) {
+        Offset(screenPixel.x.toFloat(), screenPixel.y.toFloat())
+    } else {
+        val pivot = Offset(viewportSize.width / 2f, viewportSize.height / 2f)
+        rotateOffset(Offset(screenPixel.x.toFloat(), screenPixel.y.toFloat()), pivot, -rotation)
+    }
+
     // Screen coordinates relative to viewport center
-    val screenRelX = screenPixel.x - viewportSize.width / 2.0
-    val screenRelY = screenPixel.y - viewportSize.height / 2.0
+    val screenRelX = unrotatedPx.x - viewportSize.width / 2.0
+    val screenRelY = unrotatedPx.y - viewportSize.height / 2.0
 
     // World pixel coordinates relative to viewport center (at zoom 0)
     val dxWorld = screenRelX / scale
@@ -134,27 +149,63 @@ fun calculateNewCenter(
     targetGeo: GeoPosition,      // The geographic point that should be at a specific screen location
     targetScreenPx: Offset,      // The screen location (in pixels) where the targetGeo should be
     newZoom: Float,              // The new zoom level
-    viewportSize: IntSize
+    viewportSize: IntSize,
+    rotation: Float = 0f
 ): GeoPosition {
     val scale = getScaleFactor(newZoom)
     val (worldTargetX, worldTargetY) = geoToWorldPixel(targetGeo)
 
+    val pivot = Offset(viewportSize.width / 2f, viewportSize.height / 2f)
+    val unrotatedTargetPx = rotateOffset(targetScreenPx, pivot, -rotation)
+
     // Rearrange the formula from geoToScreenPixel to solve for worldCenter
-    val worldCenterX = worldTargetX - (targetScreenPx.x - viewportSize.width / 2.0) / scale
-    val worldCenterY = worldTargetY - (targetScreenPx.y - viewportSize.height / 2.0) / scale
+    val worldCenterX = worldTargetX - (unrotatedTargetPx.x - viewportSize.width / 2.0) / scale
+    val worldCenterY = worldTargetY - (unrotatedTargetPx.y - viewportSize.height / 2.0) / scale
 
     return worldPixelToGeo(worldCenterX, worldCenterY)
 }
 
+fun rotateOffset(offset: Offset, pivot: Offset, degrees: Float): Offset {
+    if (degrees == 0f) return offset
+    val angleRad = Math.toRadians(degrees.toDouble())
+    val cosA = cos(angleRad).toFloat()
+    val sinA = sin(angleRad).toFloat()
+
+    val dx = offset.x - pivot.x
+    val dy = offset.y - pivot.y
+
+    val rotatedX = dx * cosA - dy * sinA
+    val rotatedY = dx * sinA + dy * cosA
+
+    return Offset(pivot.x + rotatedX, pivot.y + rotatedY)
+}
+
 fun calculateVisibleTiles(
-    mapCenterGeo: GeoPosition, zoom: Int, viewportSize: IntSize, serverId: String
+    mapCenterGeo: GeoPosition, zoom: Int, viewportSize: IntSize, serverId: String, rotation: Float = 0f
 ): List<TileInfo> {
     if (viewportSize == IntSize.Zero) return emptyList()
     val zoomF = zoom.toFloat()
     val tiles = mutableListOf<TileInfo>()
-    val topLeftGeo = screenPixelToGeo(IntOffset(0, 0), mapCenterGeo, zoomF, viewportSize)
+    
+    // To handle rotation, we need to find the bounding box of the rotated viewport in the unrotated space.
+    val pivot = Offset(viewportSize.width / 2f, viewportSize.height / 2f)
+    val corners = listOf(
+        Offset(0f, 0f),
+        Offset(viewportSize.width.toFloat(), 0f),
+        Offset(0f, viewportSize.height.toFloat()),
+        Offset(viewportSize.width.toFloat(), viewportSize.height.toFloat())
+    )
+    
+    val unrotatedCorners = corners.map { rotateOffset(it, pivot, -rotation) }
+    
+    val minX = unrotatedCorners.minOf { it.x }
+    val maxX = unrotatedCorners.maxOf { it.x }
+    val minY = unrotatedCorners.minOf { it.y }
+    val maxY = unrotatedCorners.maxOf { it.y }
+
+    val topLeftGeo = screenPixelToGeo(IntOffset(minX.roundToInt(), minY.roundToInt()), mapCenterGeo, zoomF, viewportSize)
     val bottomRightGeo = screenPixelToGeo(
-        IntOffset(viewportSize.width, viewportSize.height), mapCenterGeo, zoomF, viewportSize
+        IntOffset(maxX.roundToInt(), maxY.roundToInt()), mapCenterGeo, zoomF, viewportSize
     )
     val (minTileX, minTileY) = latLonToTileXY(topLeftGeo.latitude, topLeftGeo.longitude, zoom)
     val (maxTileX, maxTileY) = latLonToTileXY(
