@@ -26,6 +26,7 @@ class FileHelper(
     private val context: Context
 ) : IFileHelper {
 
+    private val filesDir: File by lazy { context.filesDir }
     private var getContentLauncher: ActivityResultLauncher<Array<String>>? = null
     private var searchCompletion: ((Uri?) -> Unit)? = null
 
@@ -44,25 +45,38 @@ class FileHelper(
     }
 
     override suspend fun readLocalFile(filename: String): ByteArray? {
-        return readUri(Uri.fromFile(File(context.filesDir, filename)))
+        val file = File(filesDir, filename)
+        return try {
+            if (!file.exists()) return null
+            withContext(Dispatchers.IO) {
+                file.readBytes()
+            }
+        } catch (e: Exception) {
+            null
+        }
     }
 
     private suspend fun readUri(uri: Uri): ByteArray? {
         return try {
             withContext(Dispatchers.IO) {
+                if (uri.scheme == "file") {
+                    val path = uri.path ?: return@withContext null
+                    val file = File(path)
+                    if (!file.exists()) return@withContext null
+                    return@withContext file.readBytes()
+                }
                 val fileInputStream = context.contentResolver.openInputStream(uri)!!
                 val res = InputStreamHelpers.readAllBytes(fileInputStream)
                 fileInputStream.close()
                 return@withContext res
             }
-        } catch (e: IOException) {
-            // e.printStackTrace() // normally file not found
+        } catch (e: Exception) {
             null
         }
     }
 
     override suspend fun writeLocalFile(filename: String, data: ByteArray) {
-        val file = File(context.filesDir, filename)
+        val file = File(filesDir, filename)
 
         // Ensure the parent directory exists
         val parentDir = file.parentFile
@@ -153,17 +167,17 @@ class FileHelper(
     }
 
     override suspend fun localDirectorySize(directory: String): Long {
-        return getDirectorySize(File(context.filesDir, directory))
+        return getDirectorySize(File(filesDir, directory))
     }
 
     override suspend fun localFileCount(directory: String): Int {
-        val dir = File(context.filesDir, directory)
+        val dir = File(filesDir, directory)
         if (!dir.exists() || !dir.isDirectory) return 0
         return dir.listFiles()?.count { it.isFile } ?: 0
     }
 
     override suspend fun localFileSize(path: String): Long {
-        val file = if (path.startsWith("/")) File(path) else File(context.filesDir, path)
+        val file = if (path.startsWith("/")) File(path) else File(filesDir, path)
         return if (file.exists() && file.isFile) file.length() else 0L
     }
 
@@ -195,11 +209,11 @@ class FileHelper(
     }
 
     override suspend fun deleteDir(directory: String) {
-        File(context.filesDir, directory).deleteRecursively()
+        File(filesDir, directory).deleteRecursively()
     }
 
     override suspend fun delete(file: String) {
-        val f = if (file.startsWith("/")) File(file) else File(context.filesDir, file)
+        val f = if (file.startsWith("/")) File(file) else File(filesDir, file)
         f.delete()
     }
 
@@ -217,7 +231,7 @@ class FileHelper(
                         FileChannelZipArchive(pfd)
                     }
                 } else {
-                    val file = if (uri.startsWith("/")) File(uri) else File(context.filesDir, uri)
+                    val file = if (uri.startsWith("/")) File(uri) else File(filesDir, uri)
                     AndroidZipArchive(java.util.zip.ZipFile(file))
                 }
             } catch (e: Exception) {
@@ -233,7 +247,7 @@ class FileHelper(
 
     override suspend fun localContentsSize(directoryPath: String): Map<String, Long> =
         withContext(Dispatchers.IO) {
-            val directory = File(context.filesDir, directoryPath)
+            val directory = File(filesDir, directoryPath)
 
             // Basic validation
             if (!directory.exists() || !directory.isDirectory || !directory.canRead()) {

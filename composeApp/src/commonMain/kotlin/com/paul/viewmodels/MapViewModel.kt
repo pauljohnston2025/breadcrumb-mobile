@@ -54,6 +54,7 @@ import com.paul.infrastructure.repositories.SpatialIndexRepository.Companion.SPA
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
@@ -72,6 +73,8 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.datetime.Instant
 import kotlin.collections.toMap
 import kotlin.coroutines.cancellation.CancellationException
@@ -241,7 +244,7 @@ class MapViewModel(
 
     private var visibleSegmentsJob: Job? = null
     private val loadingJobs = mutableMapOf<TileId, Job>() // Still needed for cancellation
-    val isActive = true
+    private val tileFetchSemaphore = Semaphore(10) // Limit concurrent tile fetches
     private var currentVisibleTiles: Set<TileId> = setOf()
 
     val sendingFile: MutableState<String> = mutableStateOf("")
@@ -594,7 +597,7 @@ class MapViewModel(
 
         visibleSegmentsJob = viewModelScope.launch(Dispatchers.Default) {
             // Add a small delay to debounce rapid pans
-//            delay(150) // Increased debounce for overlay rendering
+            delay(150) // Increased debounce for overlay rendering
 
             val mapZoomLevel = visibleTileIds.first().z
             val nMap = 1 shl mapZoomLevel
@@ -812,12 +815,16 @@ class MapViewModel(
                 // Launch within viewModelScope - won't be cancelled by recomposition
                 val job = viewModelScope.launch(Dispatchers.IO) {
                     try {
-                        // Napier.v("VM Fetching $tileId", tag = TAG)
-                        val result = tileRepository.getTile(
-                            tileId.x,
-                            tileId.y,
-                            tileId.z
-                        ) // Use injected repo
+                        val result = tileFetchSemaphore.withPermit {
+                            if (!isActive) return@launch
+
+                            // Napier.v("VM Fetching $tileId", tag = TAG)
+                            tileRepository.getTile(
+                                tileId.x,
+                                tileId.y,
+                                tileId.z
+                            ) // Use injected repo
+                        }
 
                         if (!isActive) return@launch // Check cancellation *before* emission
 

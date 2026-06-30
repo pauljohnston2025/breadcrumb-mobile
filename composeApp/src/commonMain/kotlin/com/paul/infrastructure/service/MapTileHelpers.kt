@@ -16,7 +16,8 @@ data class TileId(val x: Int, val y: Int, val z: Int, val serverId: String)
 data class TileInfo(
     val id: TileId,
     val screenOffset: IntOffset, // Where to draw it on screen
-    val size: IntSize = IntSize(TILE_SIZE, TILE_SIZE) // Assuming fixed tile size
+    val size: IntSize = IntSize(TILE_SIZE, TILE_SIZE), // Assuming fixed tile size
+    val centerGeo: GeoPosition
 )
 
 // --- Constants ---
@@ -181,13 +182,20 @@ fun rotateOffset(offset: Offset, pivot: Offset, degrees: Float): Offset {
 }
 
 fun calculateVisibleTiles(
-    mapCenterGeo: GeoPosition, zoom: Int, viewportSize: IntSize, serverId: String, rotation: Float = 0f
+    mapCenterGeo: GeoPosition,
+    currentZoom: Float,  // The actual zoom level the user is at (e.g. 10.4)
+    targetZoom: Int,     // The zoom level of the tiles we want to fetch (e.g. 10)
+    viewportSize: IntSize,
+    serverId: String,
+    rotation: Float = 0f
 ): List<TileInfo> {
     if (viewportSize == IntSize.Zero) return emptyList()
-    val zoomF = zoom.toFloat()
     val tiles = mutableListOf<TileInfo>()
-    
-    // To handle rotation, we need to find the bounding box of the rotated viewport in the unrotated space.
+
+    // Use currentZoom and targetZoom to account for fractional scaling
+    val scale = 2.0.pow((currentZoom - targetZoom).toDouble())
+
+    // To handle rotation and scaling, we need to find the bounding box of the transformed viewport in the unrotated/unscaled space.
     val pivot = Offset(viewportSize.width / 2f, viewportSize.height / 2f)
     val corners = listOf(
         Offset(0f, 0f),
@@ -195,23 +203,39 @@ fun calculateVisibleTiles(
         Offset(0f, viewportSize.height.toFloat()),
         Offset(viewportSize.width.toFloat(), viewportSize.height.toFloat())
     )
-    
-    val unrotatedCorners = corners.map { rotateOffset(it, pivot, -rotation) }
-    
-    val minX = unrotatedCorners.minOf { it.x }
-    val maxX = unrotatedCorners.maxOf { it.x }
-    val minY = unrotatedCorners.minOf { it.y }
-    val maxY = unrotatedCorners.maxOf { it.y }
 
-    val topLeftGeo = screenPixelToGeo(IntOffset(minX.roundToInt(), minY.roundToInt()), mapCenterGeo, zoomF, viewportSize)
+    // Un-transform the corners
+    val unscaledUnrotatedCorners = corners.map { corner ->
+        // 1. Un-rotate around pivot
+        val unrotated = rotateOffset(corner, pivot, -rotation)
+        // 2. Un-scale around pivot
+        val dx = (unrotated.x - pivot.x) / scale
+        val dy = (unrotated.y - pivot.y) / scale
+        Offset((pivot.x + dx).toFloat(), (pivot.y + dy).toFloat())
+    }
+
+    val minX = unscaledUnrotatedCorners.minOf { it.x }
+    val maxX = unscaledUnrotatedCorners.maxOf { it.x }
+    val minY = unscaledUnrotatedCorners.minOf { it.y }
+    val maxY = unscaledUnrotatedCorners.maxOf { it.y }
+
+    val topLeftGeo = screenPixelToGeo(
+        IntOffset(minX.roundToInt(), minY.roundToInt()),
+        mapCenterGeo,
+        targetZoom.toFloat(),
+        viewportSize
+    )
     val bottomRightGeo = screenPixelToGeo(
-        IntOffset(maxX.roundToInt(), maxY.roundToInt()), mapCenterGeo, zoomF, viewportSize
+        IntOffset(maxX.roundToInt(), maxY.roundToInt()),
+        mapCenterGeo,
+        targetZoom.toFloat(),
+        viewportSize
     )
-    val (minTileX, minTileY) = latLonToTileXY(topLeftGeo.latitude, topLeftGeo.longitude, zoom)
+    val (minTileX, minTileY) = latLonToTileXY(topLeftGeo.latitude, topLeftGeo.longitude, targetZoom)
     val (maxTileX, maxTileY) = latLonToTileXY(
-        bottomRightGeo.latitude, bottomRightGeo.longitude, zoom
+        bottomRightGeo.latitude, bottomRightGeo.longitude, targetZoom
     )
-    val n = 1 shl zoom
+    val n = 1 shl targetZoom
     val buffer = 1
     val startX = (minTileX - buffer).coerceAtLeast(0)
     val startY = (minTileY - buffer).coerceAtLeast(0)
@@ -219,10 +243,11 @@ fun calculateVisibleTiles(
     val endY = (maxTileY + buffer).coerceAtMost(n - 1)
     for (x in startX..endX) {
         for (y in startY..endY) {
-            val tileId = TileId(x, y, zoom, serverId)
+            val tileId = TileId(x, y, targetZoom, serverId)
             val tileTopLeftGeo = worldPixelToGeo(x.toDouble() / n, y.toDouble() / n)
-            val screenOffset = geoToScreenPixel(tileTopLeftGeo, mapCenterGeo, zoomF, viewportSize)
-            tiles.add(TileInfo(id = tileId, screenOffset = screenOffset))
+            val tileCenterGeo = worldPixelToGeo((x + 0.5) / n, (y + 0.5) / n)
+            val screenOffset = geoToScreenPixel(tileTopLeftGeo, mapCenterGeo, targetZoom.toFloat(), viewportSize)
+            tiles.add(TileInfo(id = tileId, screenOffset = screenOffset, centerGeo = tileCenterGeo))
         }
     }
     return tiles

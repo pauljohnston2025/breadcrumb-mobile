@@ -27,9 +27,16 @@ import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.isSuccess
 import io.ktor.utils.io.toByteArray
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.Clock
 import kotlinx.serialization.Serializable
@@ -51,6 +58,8 @@ data class TileResult(
 )
 
 class ITileRepository(private val fileHelper: IFileHelper) {
+
+    private val ioSemaphore = Semaphore(30) // Limit total parallel IO (Network + Disk)
 
     companion object {
         private const val TAG = "ITileRepository"
@@ -379,36 +388,39 @@ class ITileRepository(private val fileHelper: IFileHelper) {
     }
 
     private suspend fun fetchFromNetwork(url: String): Triple<Int, ByteArray?, Long?> {
-        return try {
-            val response = withContext(Dispatchers.IO) {
-                client.get(url) {
-                    header("User-Agent", "Breadcrumb/1.0 ${platformInfo()}")
+        return ioSemaphore.withPermit {
+            try {
+                val response = withContext(Dispatchers.IO) {
+                    client.get(url) {
+                        header("User-Agent", "Breadcrumb/1.0 ${platformInfo()}")
+                    }
                 }
-            }
-            
-            val retryAfter = response.headers["Retry-After"]?.toLongOrNull()?.let {
-                Clock.System.now().toEpochMilliseconds() + (it * 1000)
-            }
+                
+                val retryAfter = response.headers["Retry-After"]?.toLongOrNull()?.let {
+                    Clock.System.now().toEpochMilliseconds() + (it * 1000)
+                }
 
-            if (response.status.isSuccess()) {
-                val bytes = response.bodyAsChannel().toByteArray()
-                Triple(200, bytes, null)
-            } else {
-                Triple(response.status.value, null, retryAfter)
+                if (response.status.isSuccess()) {
+                    val bytes = response.bodyAsChannel().toByteArray()
+                    Triple(200, bytes, null)
+                } else {
+                    Triple(response.status.value, null, retryAfter)
+                }
+            } catch (e: ClientRequestException) {
+                val retryAfter = e.response.headers["Retry-After"]?.toLongOrNull()?.let {
+                    Clock.System.now().toEpochMilliseconds() + (it * 1000)
+                }
+                if (e.response.status == HttpStatusCode.NotFound) {
+                    Triple(404, null, null)
+                } else {
+                    Triple(e.response.status.value, null, retryAfter)
+                }
+            } catch (_: Throwable) {
+                Triple(500, null, null)
             }
-        } catch (e: ClientRequestException) {
-            val retryAfter = e.response.headers["Retry-After"]?.toLongOrNull()?.let {
-                Clock.System.now().toEpochMilliseconds() + (it * 1000)
-            }
-            if (e.response.status == HttpStatusCode.NotFound) {
-                Triple(404, null, null)
-            } else {
-                Triple(e.response.status.value, null, retryAfter)
-            }
-        } catch (_: Throwable) {
-            Triple(500, null, null)
         }
     }
+
 
     private suspend fun saveToCache(metaFile: String, dataFile: String, statusCode: Int, data: ByteArray?, retryAfter: Long? = null) {
         val ttlMillis = if (statusCode == 200) {
@@ -421,13 +433,19 @@ class ITileRepository(private val fileHelper: IFileHelper) {
         val expiry = Clock.System.now().toEpochMilliseconds() + ttlMillis
         val meta = TileMetadata(statusCode, expiry, retryAfter)
 
-        try {
-            if (data != null) {
-                fileHelper.writeLocalFile(dataFile, data)
+        // Ensure cache is written even if the fetch job is cancelled.
+        // By making this a suspend function, it respects the Semaphore permit from the caller.
+        withContext(NonCancellable) {
+            try {
+                coroutineScope {
+                    if (data != null) {
+                        launch { fileHelper.writeLocalFile(dataFile, data) }
+                    }
+                    launch { fileHelper.writeLocalFile(metaFile, Json.encodeToString(meta).encodeToByteArray()) }
+                }
+            } catch (e: Exception) {
+                Napier.e("Failed to write tile to cache: $metaFile", e, tag = TAG)
             }
-            fileHelper.writeLocalFile(metaFile, Json.encodeToString(meta).encodeToByteArray())
-        } catch (e: Exception) {
-            Napier.e("Failed to write tile to cache", e, tag = TAG)
         }
     }
 }

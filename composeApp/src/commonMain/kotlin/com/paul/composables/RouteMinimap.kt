@@ -88,8 +88,8 @@ fun RouteMiniMap(
         val integerZoom = mapParams.third
 
         // 2. Determine visible tiles
-        val visibleTiles = remember(centerGeo, integerZoom, viewportSize) {
-            calculateVisibleTiles(centerGeo, integerZoom, viewportSize, "minimap")
+        val visibleTiles = remember(centerGeo, localZoom, integerZoom, viewportSize) {
+            calculateVisibleTiles(centerGeo, localZoom, integerZoom, viewportSize, "minimap")
         }
 
         // 3. Handle Suspend Loading: Fetch tiles from repo and update local state

@@ -102,6 +102,7 @@ import com.paul.protocol.todevice.Route
 import com.paul.viewmodels.MapViewModel
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
 import kotlin.math.abs
@@ -195,10 +196,17 @@ fun MapTilerComposable(
     LaunchedEffect(vmRotation) {
         localRotation = vmRotation
     }
-    val visibleTiles by remember(localCenterGeo, integerZoom, viewportSize, localRotation) {
+    val visibleTiles by remember(localCenterGeo, integerZoom, localZoom, viewportSize, localRotation) {
         derivedStateOf {
             if (viewportSize == IntSize.Zero) emptyList() else {
-                calculateVisibleTiles(localCenterGeo, integerZoom, viewportSize, tilServer.id, localRotation)
+                calculateVisibleTiles(
+                    localCenterGeo,
+                    localZoom,
+                    integerZoom,
+                    viewportSize,
+                    tilServer.id,
+                    localRotation
+                )
             }
         }
     }
@@ -423,9 +431,11 @@ fun MapTilerComposable(
                         )
                     } ?: run {
                         drawRect(
-                            color = Color.DarkGray.copy(alpha = 0.5f), topLeft = Offset(
+                            color = Color.DarkGray.copy(alpha = 0.5f),
+                            topLeft = Offset(
                                 tileInfo.screenOffset.x.toFloat(), tileInfo.screenOffset.y.toFloat()
-                            ), size = androidx.compose.ui.geometry.Size(
+                            ), 
+                            size = androidx.compose.ui.geometry.Size(
                                 tileInfo.size.width.toFloat(), tileInfo.size.height.toFloat()
                             )
                         )
@@ -437,72 +447,6 @@ fun MapTilerComposable(
                             dstOffset = tileInfo.screenOffset,
                             dstSize = tileInfo.size
                         )
-                    }
-
-                    if (isBaseLoading || isOverlayLoading || (baseImage == null && !isBaseLoading)) {
-                        // Calculate the visible part of the tile to keep indicators on screen
-                        val interMinX = max(tileInfo.screenOffset.x.toFloat(), localViewportMinX)
-                        val interMaxX = min(tileInfo.screenOffset.x.toFloat() + tileInfo.size.width, localViewportMaxX)
-                        val interMinY = max(tileInfo.screenOffset.y.toFloat(), localViewportMinY)
-                        val interMaxY = min(tileInfo.screenOffset.y.toFloat() + tileInfo.size.height, localViewportMaxY)
-
-                        if (interMinX < interMaxX && interMinY < interMaxY) {
-                            val centerX = (interMinX + interMaxX) / 2f
-                            val centerY = (interMinY + interMaxY) / 2f
-
-                            // Subtle dark tint to make loading indicators pop
-                            drawRect(
-                                color = Color.Black.copy(alpha = 0.2f),
-                                topLeft = Offset(tileInfo.screenOffset.x.toFloat(), tileInfo.screenOffset.y.toFloat()),
-                                size = androidx.compose.ui.geometry.Size(tileInfo.size.width.toFloat(), tileInfo.size.height.toFloat())
-                            )
-
-                            if (isBaseLoading) {
-                                val radius = 40f / scale
-                                withTransform({
-                                    rotate(-rotation, Offset(centerX, centerY)) // Counter-clockwise
-                                }) {
-                                    drawArc(
-                                        color = Color.Cyan.copy(alpha = 0.6f),
-                                        startAngle = 0f,
-                                        sweepAngle = 270f,
-                                        useCenter = false,
-                                        topLeft = Offset(centerX - radius, centerY - radius),
-                                        size = androidx.compose.ui.geometry.Size(radius * 2, radius * 2),
-                                        style = Stroke(width = 6f / scale, cap = StrokeCap.Round)
-                                    )
-                                }
-                            } else if (baseImage == null) {
-                                // Tile fetch finished but returned null (failed permanently for this session)
-                                drawIntoCanvas { canvas ->
-                                    textPaint.color = android.graphics.Color.WHITE
-                                    textPaint.textSize = 24f / scale
-                                    canvas.nativeCanvas.drawText(
-                                        "Not Available",
-                                        centerX,
-                                        centerY,
-                                        textPaint
-                                    )
-                                }
-                            }
-
-                            if (isOverlayLoading) {
-                                val radius = 25f / scale
-                                withTransform({
-                                    rotate(rotation, Offset(centerX, centerY)) // Clockwise
-                                }) {
-                                    drawArc(
-                                        color = Color.White.copy(alpha = 0.8f),
-                                        startAngle = 0f,
-                                        sweepAngle = 270f,
-                                        useCenter = false,
-                                        topLeft = Offset(centerX - radius, centerY - radius),
-                                        size = androidx.compose.ui.geometry.Size(radius * 2, radius * 2),
-                                        style = Stroke(width = 4f / scale, cap = StrokeCap.Round)
-                                    )
-                                }
-                            }
-                        }
                     }
                 }
 
@@ -734,6 +678,65 @@ fun MapTilerComposable(
                     style = Stroke(width = 3f)
                 )
             }
+
+            // --- Draw Loading Spinners Outside the scaling transform ---
+            visibleTiles.forEach { tileInfo ->
+                val baseImage = tileCache[tileInfo.id]
+                val overlayImage = overlayTiles[tileInfo.id]
+                val isBaseLoading = !tileCache.containsKey(tileInfo.id)
+                val isOverlayLoading = (isStravaEnabled || isRoutesEnabled) && !overlayTiles.containsKey(tileInfo.id)
+
+                if (isBaseLoading || isOverlayLoading || (baseImage == null && !isBaseLoading)) {
+                    val spinnerPos = getClippedCenter(
+                        tileInfo, localCenterGeo, localZoom, integerZoom, maxZoom,
+                        IntSize(size.width.roundToInt(), size.height.roundToInt()), 
+                        localRotation
+                    )
+                    
+                    // Only draw if the spinner is actually within the viewport
+                    if (spinnerPos.x in 0f..size.width && spinnerPos.y in 0f..size.height) {
+                        if (isBaseLoading) {
+                            val radius = 30f
+                            withTransform({
+                                rotate(-rotation, spinnerPos)
+                            }) {
+                                drawArc(
+                                    color = Color.Cyan.copy(alpha = 0.7f),
+                                    startAngle = 0f,
+                                    sweepAngle = 270f,
+                                    useCenter = false,
+                                    topLeft = Offset(spinnerPos.x - radius, spinnerPos.y - radius),
+                                    size = androidx.compose.ui.geometry.Size(radius * 2, radius * 2),
+                                    style = Stroke(width = 5f, cap = StrokeCap.Round)
+                                )
+                            }
+                        } else if (baseImage == null) {
+                            drawIntoCanvas { canvas ->
+                                textPaint.color = android.graphics.Color.WHITE
+                                textPaint.textSize = 20f
+                                canvas.nativeCanvas.drawText("Not Available", spinnerPos.x, spinnerPos.y, textPaint)
+                            }
+                        }
+
+                        if (isOverlayLoading) {
+                            val radius = 18f
+                            withTransform({
+                                rotate(rotation, spinnerPos)
+                            }) {
+                                drawArc(
+                                    color = Color.White.copy(alpha = 0.9f),
+                                    startAngle = 0f,
+                                    sweepAngle = 270f,
+                                    useCenter = false,
+                                    topLeft = Offset(spinnerPos.x - radius, spinnerPos.y - radius),
+                                    size = androidx.compose.ui.geometry.Size(radius * 2, radius * 2),
+                                    style = Stroke(width = 3f, cap = StrokeCap.Round)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         }
         Column(
             modifier = Modifier
@@ -742,54 +745,6 @@ fun MapTilerComposable(
             horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // Compass / Reset North Button
-            if (abs(localRotation) > 0.5f) {
-                Button(
-                    modifier = mapButtonStyle,
-                    onClick = { 
-                        viewModel.resetMapRotation()
-                        localRotation = 0f
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        backgroundColor = Color.Black.copy(alpha = 0.5f),
-                        contentColor = Color.White
-                    ),
-                    shape = RoundedCornerShape(4.dp),
-                    elevation = ButtonDefaults.elevation(0.dp, 0.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                        Canvas(modifier = Modifier.size(24.dp)) {
-                            withTransform({
-                                rotate(localRotation)
-                            }) {
-                                val halfW = size.width / 2f
-                                val halfH = size.height / 2f
-                                val needleWidth = 6f
-                                val needleHeight = size.height * 0.4f
-
-                                // North (Red)
-                                val northPath = Path().apply {
-                                    moveTo(halfW, halfH - needleHeight)
-                                    lineTo(halfW - needleWidth, halfH)
-                                    lineTo(halfW + needleWidth, halfH)
-                                    close()
-                                }
-                                drawPath(northPath, Color.Red)
-
-                                // South (White)
-                                val southPath = Path().apply {
-                                    moveTo(halfW, halfH + needleHeight)
-                                    lineTo(halfW - needleWidth, halfH)
-                                    lineTo(halfW + needleWidth, halfH)
-                                    close()
-                                }
-                                drawPath(southPath, Color.White)
-                            }
-                        }
-                    }
-                }
-            }
-
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(4.dp))
@@ -866,6 +821,54 @@ fun MapTilerComposable(
                     contentDescription = "Toggle Stored Routes",
                     tint = if (isRoutesEnabled) Color.White else LocalContentColor.current
                 )
+            }
+
+            // Compass / Reset North Button
+            if (abs(localRotation) > 0.5f) {
+                Button(
+                    modifier = mapButtonStyle,
+                    onClick = {
+                        viewModel.resetMapRotation()
+                        localRotation = 0f
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        backgroundColor = Color.Black.copy(alpha = 0.5f),
+                        contentColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(4.dp),
+                    elevation = ButtonDefaults.elevation(0.dp, 0.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                        Canvas(modifier = Modifier.size(24.dp)) {
+                            withTransform({
+                                rotate(localRotation)
+                            }) {
+                                val halfW = size.width / 2f
+                                val halfH = size.height / 2f
+                                val needleWidth = 6f
+                                val needleHeight = size.height * 0.4f
+
+                                // North (Red)
+                                val northPath = Path().apply {
+                                    moveTo(halfW, halfH - needleHeight)
+                                    lineTo(halfW - needleWidth, halfH)
+                                    lineTo(halfW + needleWidth, halfH)
+                                    close()
+                                }
+                                drawPath(northPath, Color.Red)
+
+                                // South (White)
+                                val southPath = Path().apply {
+                                    moveTo(halfW, halfH + needleHeight)
+                                    lineTo(halfW - needleWidth, halfH)
+                                    lineTo(halfW + needleWidth, halfH)
+                                    close()
+                                }
+                                drawPath(southPath, Color.White)
+                            }
+                        }
+                    }
+                }
             }
         }
         Column(
@@ -1033,5 +1036,42 @@ fun MappingModeSelectionDialog(
                 Text("Cancel")
             }
         }
+    )
+}
+
+private fun getClippedCenter(tile: TileInfo, mapCenter: GeoPosition, currentZoom: Float, targetZoom: Int, maxZoom: Float, size: IntSize, rotation: Float): Offset {
+    val screenCenter = geoToScreenPixel(tile.centerGeo, mapCenter, currentZoom, size, rotation)
+    
+    // Only apply clipping/offset if we are beyond the maximum real tile layer (Virtual Zoom)
+    val isVirtualOverzoom = currentZoom > maxZoom + 0.1f 
+    val margin = 40f
+    
+    if (!isVirtualOverzoom || (screenCenter.x in margin.toInt()..(size.width - margin.toInt()) &&
+        screenCenter.y in margin.toInt()..(size.height - margin.toInt()))) {
+        return Offset(screenCenter.x.toFloat(), screenCenter.y.toFloat())
+    }
+    
+    // 2. Otherwise (Overzoom case), try to move the spinner towards the viewport center
+    // but stay within the tile's physical footprint.
+    val vCenterGeo = screenPixelToGeo(IntOffset(size.width / 2, size.height / 2), mapCenter, currentZoom, size, rotation)
+    val n = 1 shl tile.id.z
+    val (vWorldX, vWorldY) = geoToWorldPixel(vCenterGeo)
+    
+    val tileMinWorldX = tile.id.x.toDouble() / n
+    val tileMaxWorldX = (tile.id.x + 1).toDouble() / n
+    val tileMinWorldY = tile.id.y.toDouble() / n
+    val tileMaxWorldY = (tile.id.y + 1).toDouble() / n
+    
+    // Clamp the viewport center's world position to the tile's world bounds
+    val clampedWorldX = vWorldX.coerceIn(tileMinWorldX, tileMaxWorldX)
+    val clampedWorldY = vWorldY.coerceIn(tileMinWorldY, tileMaxWorldY)
+    
+    val clampedGeo = worldPixelToGeo(clampedWorldX, clampedWorldY)
+    val clampedScreen = geoToScreenPixel(clampedGeo, mapCenter, currentZoom, size, rotation)
+    
+    // Final safety clamp to keep the spinner within the physical screen margins
+    return Offset(
+        clampedScreen.x.coerceIn(margin.toInt(), size.width - margin.toInt()).toFloat(),
+        clampedScreen.y.coerceIn(margin.toInt(), size.height - margin.toInt()).toFloat()
     )
 }
