@@ -180,7 +180,7 @@ fun MapTilerComposable(
     val minZoom = remember { tilServer.tileLayerMin.toFloat() }
     val maxZoom = remember { tilServer.tileLayerMax.toFloat() }
     val integerZoom = remember(localZoom, minZoom, maxZoom) {
-        localZoom.roundToInt().coerceIn(minZoom.toInt(), maxZoom.toInt())
+        floor(localZoom.toDouble()).toInt().coerceIn(minZoom.toInt(), maxZoom.toInt())
     }
 
     // *** THE FIX IS HERE (Part 1): Remember the route we have already centered on. ***

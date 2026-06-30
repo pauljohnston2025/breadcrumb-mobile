@@ -27,6 +27,7 @@ import com.paul.protocol.todevice.Route
 import kotlinx.coroutines.launch
 import kotlin.math.PI
 import kotlin.math.cos
+import kotlin.math.floor
 import kotlin.math.ln
 import kotlin.math.log2
 import kotlin.math.max
@@ -78,7 +79,7 @@ fun RouteMiniMap(
             val zoomH = log2(width / (max(0.00001, maxLon - minLon) * (tileSize / 360.0)))
 
             val bestZoom = (minOf(zoomV, zoomH) - (padding - 1.0)).toFloat().coerceIn(2f, 18f)
-            val integerZoom = bestZoom.roundToInt().coerceIn(tileServerInfo.tileLayerMin, tileServerInfo.tileLayerMax)
+            val integerZoom = floor(bestZoom.toDouble()).toInt().coerceIn(tileServerInfo.tileLayerMin, tileServerInfo.tileLayerMax)
 
             Triple(center, bestZoom, integerZoom)
         }
