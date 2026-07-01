@@ -97,6 +97,7 @@ import com.paul.infrastructure.service.latLonToTileXY
 import com.paul.infrastructure.service.rotateOffset
 import com.paul.infrastructure.service.screenPixelToGeo
 import com.paul.infrastructure.service.worldPixelToGeo
+import com.paul.infrastructure.service.worldPixelToGeo
 import com.paul.protocol.todevice.Point
 import com.paul.protocol.todevice.Route
 import com.paul.viewmodels.MapViewModel
@@ -105,6 +106,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
+import kotlin.math.abs
+import kotlin.math.abs
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -214,7 +217,7 @@ fun MapTilerComposable(
     LaunchedEffect(visibleTiles, viewportSize) {
         if (viewportSize != IntSize.Zero) {
             viewModel.requestTilesForViewport(
-                visibleTiles.map { it.id }.toSet(),
+                visibleTiles.map { it.id },
                 localCenterGeo,
                 localZoom,
                 viewportSize
@@ -319,31 +322,56 @@ fun MapTilerComposable(
             .pointerInput(Unit) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
+                    
+                    // Gesture mode state for the duration of this touch sequence
+                    var gestureMode = 0 // 0: Undecided, 1: Zoom/Pan dominant, 2: Rotation dominant
+                    var accumulatedRotation = 0f
+                    var accumulatedZoom = 1f
+                    
                     do {
-                        // 1. Get the event ONCE per loop
                         val event = awaitPointerEvent()
-
                         val pan = event.calculatePan()
                         val zoom = event.calculateZoom()
                         val rotation = event.calculateRotation()
                         val centroid = event.calculateCentroid()
 
-                        // 2. Only consume/calculate if actual movement occurred
                         val isMoving = pan != Offset.Zero || zoom != 1f || rotation != 0f
 
                         if (event.changes.any { it.pressed }) {
-                            // Calculate new zoom level
-                            val newZoom = (localZoom + (ln(zoom) / ln(2.0f))).coerceIn(
-                                minZoom, maxZoom + OVERZOOM_LEVELS
-                            )
+                            accumulatedRotation += abs(rotation)
+                            accumulatedZoom *= zoom
                             
-                            val newRotation = (localRotation + rotation) % 360f
+                            // 1. Determine gesture intent if not already locked
+                            // mode 1: Pan/Zoom, mode 2: Rotation
+                            if (gestureMode == 0) {
+                                // zoom visibility: 1.05 or 0.95 is roughly 5% change
+                                val zoomChangePercent = abs(1f - accumulatedZoom) * 100f 
+                                
+                                // Dominance logic: 
+                                // if one is significantly more present than the other, lock it.
+                                // otherwise allow both for a less rigid feel.
+                                if (accumulatedRotation > 15f && zoomChangePercent < 3f) {
+                                    gestureMode = 2 // Lock to Rotation
+                                } else if (zoomChangePercent > 8f && accumulatedRotation < 3f) {
+                                    gestureMode = 1 // Lock to Zoom/Pan
+                                }
+                            }
+
+                            // 2. Calculate new states based on locked mode
+                            val newZoom = if (gestureMode == 2) localZoom else {
+                                (localZoom + (ln(zoom) / ln(2.0f))).coerceIn(
+                                    minZoom, maxZoom + OVERZOOM_LEVELS
+                                )
+                            }
+                            
+                            val newRotation = if (gestureMode == 1) localRotation else {
+                                (localRotation + rotation) % 360f
+                            }
 
                             // Calculate where the center is now after the pan
-                            // When rotated, a pan of (dx, dy) on screen needs to be "un-rotated" 
-                            // to know how much to move the map center in its North-up coordinate system.
+                            val effectivePan = if (gestureMode == 2) Offset.Zero else pan
                             val pannedCenterScreenPixel =
-                                Offset(size.width / 2f, size.height / 2f) - rotateOffset(pan, Offset.Zero, -localRotation)
+                                Offset(size.width / 2f, size.height / 2f) - rotateOffset(effectivePan, Offset.Zero, -localRotation)
 
                             val pannedCenterGeo = screenPixelToGeo(
                                 screenPixel = IntOffset(
@@ -379,8 +407,6 @@ fun MapTilerComposable(
                             localCenterGeo = finalNewCenterGeo
                             localRotation = newRotation
 
-                            // 3. ONLY consume if we actually moved.
-                            // This allows the Tap detector in the other block to work.
                             if (isMoving) {
                                 event.changes.forEach { it.consume() }
                             }
@@ -696,7 +722,7 @@ fun MapTilerComposable(
                     // Only draw if the spinner is actually within the viewport
                     if (spinnerPos.x in 0f..size.width && spinnerPos.y in 0f..size.height) {
                         if (isBaseLoading) {
-                            val radius = 30f
+                            val radius = 45f
                             withTransform({
                                 rotate(-rotation, spinnerPos)
                             }) {
@@ -707,7 +733,7 @@ fun MapTilerComposable(
                                     useCenter = false,
                                     topLeft = Offset(spinnerPos.x - radius, spinnerPos.y - radius),
                                     size = androidx.compose.ui.geometry.Size(radius * 2, radius * 2),
-                                    style = Stroke(width = 5f, cap = StrokeCap.Round)
+                                    style = Stroke(width = 10f, cap = StrokeCap.Round)
                                 )
                             }
                         } else if (baseImage == null) {
@@ -719,18 +745,18 @@ fun MapTilerComposable(
                         }
 
                         if (isOverlayLoading) {
-                            val radius = 18f
+                            val radius = 30f
                             withTransform({
                                 rotate(rotation, spinnerPos)
                             }) {
                                 drawArc(
-                                    color = Color.White.copy(alpha = 0.9f),
+                                    color = Color(0xFFFF5500).copy(alpha = 0.9f), // Orange for overlays
                                     startAngle = 0f,
                                     sweepAngle = 270f,
                                     useCenter = false,
                                     topLeft = Offset(spinnerPos.x - radius, spinnerPos.y - radius),
                                     size = androidx.compose.ui.geometry.Size(radius * 2, radius * 2),
-                                    style = Stroke(width = 3f, cap = StrokeCap.Round)
+                                    style = Stroke(width = 8f, cap = StrokeCap.Round)
                                 )
                             }
                         }
@@ -754,7 +780,7 @@ fun MapTilerComposable(
                 Text(text = "Zoom: %.1f".format(localZoom), color = Color.White, fontSize = 12.sp)
             }
 
-            if (routeSettings.showRoutePoints && routeToDisplay != null) {
+            if (routeSettings.showRoutePoints) {
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(4.dp))
@@ -762,6 +788,16 @@ fun MapTilerComposable(
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Text(text = "Base Tiles: %d".format(tileCache.size), color = Color.White, fontSize = 12.sp)
+                }
+
+                val loadingCount by viewModel.loadingTileCount.collectAsState()
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Color.Black.copy(alpha = 0.5f))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(text = "Loading: %d".format(loadingCount), color = Color.White, fontSize = 12.sp)
                 }
 
                 Box(
@@ -773,17 +809,19 @@ fun MapTilerComposable(
                     Text(text = "Overlay Tiles: %d".format(overlayTiles.size), color = Color.White, fontSize = 12.sp)
                 }
 
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(Color.Black.copy(alpha = 0.5f))
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        text = "Points: ${routeToDisplay.route.size}",
-                        color = Color.White,
-                        fontSize = 12.sp
-                    )
+                if (routeToDisplay != null) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color.Black.copy(alpha = 0.5f))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "Points: ${routeToDisplay.route.size}",
+                            color = Color.White,
+                            fontSize = 12.sp
+                        )
+                    }
                 }
             }
 
@@ -1043,9 +1081,32 @@ private fun getClippedCenter(tile: TileInfo, mapCenter: GeoPosition, currentZoom
     val screenCenter = geoToScreenPixel(tile.centerGeo, mapCenter, currentZoom, size, rotation)
     
     // Only apply clipping/offset if we are beyond the maximum real tile layer (Virtual Zoom)
-    val isVirtualOverzoom = currentZoom > maxZoom + 0.1f 
+//    val isVirtualOverzoom = currentZoom > maxZoom + 0.1f
+    // for now don't render the overzoom position, it appears weridly around the edge of the map view border,
+    // and since we render tiels from center out its no longer an iussue,
+    // since heavily zoomed in o the point of not seing the sinner is a single tile, or only 4/5 at most.
+    val isVirtualOverzoom = false  
     val margin = 40f
     
+    // 0. Check if any part of the tile is actually visible on screen.
+    val n = 1 shl tile.id.z
+    val tileCorners = listOf(
+        worldPixelToGeo(tile.id.x.toDouble() / n, tile.id.y.toDouble() / n),
+        worldPixelToGeo((tile.id.x + 1).toDouble() / n, tile.id.y.toDouble() / n),
+        worldPixelToGeo(tile.id.x.toDouble() / n, (tile.id.y + 1).toDouble() / n),
+        worldPixelToGeo((tile.id.x + 1).toDouble() / n, (tile.id.y + 1).toDouble() / n)
+    ).map { geoToScreenPixel(it, mapCenter, currentZoom, size, rotation) }
+    
+    val tileMinX = tileCorners.minOf { it.x }
+    val tileMaxX = tileCorners.maxOf { it.x }
+    val tileMinY = tileCorners.minOf { it.y }
+    val tileMaxY = tileCorners.maxOf { it.y }
+    
+    // If the entire tile footprint is off-screen, return a coordinate far away
+    if (tileMaxX < 0 || tileMinX > size.width || tileMaxY < 0 || tileMinY > size.height) {
+        return Offset(-1000f, -1000f)
+    }
+
     if (!isVirtualOverzoom || (screenCenter.x in margin.toInt()..(size.width - margin.toInt()) &&
         screenCenter.y in margin.toInt()..(size.height - margin.toInt()))) {
         return Offset(screenCenter.x.toFloat(), screenCenter.y.toFloat())
@@ -1054,7 +1115,6 @@ private fun getClippedCenter(tile: TileInfo, mapCenter: GeoPosition, currentZoom
     // 2. Otherwise (Overzoom case), try to move the spinner towards the viewport center
     // but stay within the tile's physical footprint.
     val vCenterGeo = screenPixelToGeo(IntOffset(size.width / 2, size.height / 2), mapCenter, currentZoom, size, rotation)
-    val n = 1 shl tile.id.z
     val (vWorldX, vWorldY) = geoToWorldPixel(vCenterGeo)
     
     val tileMinWorldX = tile.id.x.toDouble() / n

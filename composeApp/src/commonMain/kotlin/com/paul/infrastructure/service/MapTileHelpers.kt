@@ -250,5 +250,12 @@ fun calculateVisibleTiles(
             tiles.add(TileInfo(id = tileId, screenOffset = screenOffset, centerGeo = tileCenterGeo))
         }
     }
-    return tiles
+
+    // Sort tiles middle-out based on distance to the center tile
+    val centerTile = latLonToTileXY(mapCenterGeo.latitude, mapCenterGeo.longitude, targetZoom)
+    return tiles.sortedBy { tile ->
+        val dx = tile.id.x - centerTile.first
+        val dy = tile.id.y - centerTile.second
+        dx * dx + dy * dy
+    }
 }

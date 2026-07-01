@@ -65,18 +65,16 @@ class StorageViewModel(
     }
 
     private suspend fun updateTileServers() {
-        _loadingTileServer.value = true
         val result = fileHelper.localContentsSize("tiles")
-        delay(500) // delay for a bit, otherwise it looks like the ui is broken (immediately updates - spinners never start but refresh does)
+        delay(300) // Small delay for visual feedback
         tileServers.value = result
         _loadingTileServer.value = false
     }
 
     private suspend fun updateRouteTotalSize() {
-        _loadingRoutes.value = true
         routeCount.value = routesRepository.routes.size
         val result = fileHelper.localDirectorySize("routes")
-        delay(500) // delay for a bit, otherwise it looks like the ui is broken (immediately updates - spinners never start but refresh does)
+        delay(300) // Small delay for visual feedback
         routesTotalSize.value = result
         _loadingRoutes.value = false
     }
@@ -91,6 +89,7 @@ class StorageViewModel(
 
         val path = fileHelper.getDatabasePath(com.paul.infrastructure.DATABASE_NAME)
         databaseSize.value = fileHelper.localFileSize(path)
+        delay(300) // Small delay for visual feedback
         _loadingDatabase.value = false
     }
 
@@ -98,6 +97,7 @@ class StorageViewModel(
         _loadingOverlays.value = true
         overlayCount.value = fileHelper.localFileCount("overlays")
         overlaysTotalSize.value = fileHelper.localDirectorySize("overlays")
+        delay(300) // Small delay for visual feedback
         _loadingOverlays.value = false
     }
 
@@ -158,10 +158,18 @@ class StorageViewModel(
     fun refresh() {
         _isRefreshing.value = true
         viewModelScope.launch(Dispatchers.IO) {
-            updateTileServers()
-            updateRouteTotalSize()
-            updateDatabaseInfo()
-            updateOverlays()
+            _loadingTileServer.value = true
+            _loadingRoutes.value = true
+            _loadingDatabase.value = true
+            _loadingOverlays.value = true
+
+            // Run updates in parallel to speed up the refresh process
+            kotlinx.coroutines.coroutineScope {
+                launch { updateTileServers() }
+                launch { updateRouteTotalSize() }
+                launch { updateDatabaseInfo() }
+                launch { updateOverlays() }
+            }
 
             _isRefreshing.value = false
         }

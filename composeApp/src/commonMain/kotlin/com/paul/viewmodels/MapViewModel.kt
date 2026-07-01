@@ -43,6 +43,7 @@ import com.paul.domain.StravaStreamEntity
 import com.paul.infrastructure.dao.SpatialIndexDao
 import com.paul.infrastructure.service.MigrationService
 import com.paul.infrastructure.repositories.SpatialIndexRepository
+import com.paul.infrastructure.service.worldPixelToGeo
 import com.paul.infrastructure.service.geoToScreenPixel
 import com.paul.infrastructure.service.screenPixelToGeo
 import com.paul.infrastructure.service.latLonToTileXY
@@ -67,6 +68,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
@@ -75,6 +77,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.Instant
 import kotlin.collections.toMap
 import kotlin.coroutines.cancellation.CancellationException
@@ -171,9 +175,14 @@ class MapViewModel(
 
     private val _seedingError = MutableStateFlow<String?>(null)
     val seedingError: StateFlow<String?> = _seedingError
+    private val _loadingTileCount = MutableStateFlow(0)
+    val loadingTileCount: StateFlow<Int> = _loadingTileCount.asStateFlow()
+
     private val _tileBitmapCache = mutableMapOf<TileId, com.paul.infrastructure.repositories.TileResult>() // Internal cache
     private val _tileCacheState = MutableStateFlow<Map<TileId, ImageBitmap?>>(emptyMap())
     val tileCacheState: StateFlow<Map<TileId, ImageBitmap?>> = _tileCacheState // Expose state
+
+    private val _tileUpdateTrigger = MutableSharedFlow<Unit>(replay = 1)
 
     private val _overlayTileCache = mutableMapOf<TileId, ImageBitmap?>()
     private val _overlayCacheState = MutableStateFlow<Map<TileId, ImageBitmap?>>(emptyMap())
@@ -230,7 +239,7 @@ class MapViewModel(
             val count = fileHelper.localFileCount("overlays")
             if (count > 10000) {
                 Napier.d("Cleaning up overlays, count is $count", tag = TAG)
-                // Ideally we'd have a way to list files and filter, 
+                // Ideally we'd have a way to list files and filter,
                 // but IFileHelper only has deleteDir and delete.
                 // If I had a listFiles method I could be more surgical.
                 // For now, let's just clear the whole directory if it gets too big.
@@ -243,8 +252,9 @@ class MapViewModel(
     }
 
     private var visibleSegmentsJob: Job? = null
-    private val loadingJobs = mutableMapOf<TileId, Job>() // Still needed for cancellation
-    private val tileFetchSemaphore = Semaphore(10) // Limit concurrent tile fetches
+    private val loadingJobs = mutableMapOf<TileId, Job>() // Tracks active worker processing
+    private val pendingTileQueue = mutableListOf<TileId>()
+    private val queueMutex = Mutex()
     private var currentVisibleTiles: Set<TileId> = setOf()
 
     val sendingFile: MutableState<String> = mutableStateOf("")
@@ -338,6 +348,77 @@ class MapViewModel(
             combine(stravaRoutes, storedRoutes, _isStravaEnabled, _isRoutesEnabled) { _, _, _, _ ->
                 updateFilterHash()
             }.collect()
+        }
+
+        viewModelScope.launch(Dispatchers.Default) {
+            _tileUpdateTrigger
+                .debounce(50)
+                .collect {
+                    val snapshot = synchronized(_tileBitmapCache) {
+                        _tileBitmapCache.mapValues { it.value.bitmap }
+                    }
+                    _tileCacheState.value = snapshot
+                }
+        }
+
+        // Start 5 worker coroutines to process the tile queue
+        repeat(5) {
+            startWorker()
+        }
+    }
+
+    private fun startWorker() {
+        viewModelScope.launch(Dispatchers.IO) {
+            while (isActive) {
+                val tileId = queueMutex.withLock {
+                    if (pendingTileQueue.isEmpty()) null
+                    else pendingTileQueue.removeAt(0)
+                }
+
+                if (tileId == null) {
+                    delay(100) // Wait for work
+                    continue
+                }
+
+                try {
+                    // Update count when starting fetch
+                    updateLoadingTileCount()
+
+                    val result = tileRepository.getTile(tileId.x, tileId.y, tileId.z)
+
+                    if (isActive) {
+                        synchronized(_tileBitmapCache) {
+                            _tileBitmapCache[tileId] = result
+                        }
+                        _tileUpdateTrigger.tryEmit(Unit)
+
+                        if (result.statusCode == 200) {
+                            retryErroredTiles()
+                        }
+                    }
+                } catch (e: Exception) {
+                    if (e !is CancellationException) {
+                        Napier.e("Worker Error $tileId: ${e.message}", e, tag = TAG)
+                        synchronized(_tileBitmapCache) {
+                            _tileBitmapCache[tileId] = com.paul.infrastructure.repositories.TileResult(
+                                500, null, com.paul.infrastructure.repositories.TileMetadata(500, kotlinx.datetime.Clock.System.now().toEpochMilliseconds() + 60000)
+                            )
+                        }
+                        _tileUpdateTrigger.tryEmit(Unit)
+                    }
+                } finally {
+                    updateLoadingTileCount()
+                }
+            }
+        }
+    }
+
+    private fun updateLoadingTileCount() {
+        viewModelScope.launch {
+            val pending = queueMutex.withLock { pendingTileQueue.size }
+            // Note: This logic assumes 5 workers. We could track active workers precisely if needed.
+            // For now, pending + estimated active is a good approximation of "total remaining".
+            _loadingTileCount.value = pending
         }
     }
 
@@ -573,7 +654,7 @@ class MapViewModel(
 
     fun refresh() {
         val serverId = tileServerRepository.currentServerFlow().value.id
-        
+
         // Clear failed tiles from memory cache on manual refresh so they can be retried
         val failedTileIds = _tileBitmapCache.filter { it.value.bitmap == null }.keys
         if (failedTileIds.isNotEmpty()) {
@@ -583,7 +664,7 @@ class MapViewModel(
 
         currentVisibleTiles = currentVisibleTiles.map { it.copy(serverId = serverId) }.toSet()
         val currentCenter = GeoPosition(_mapCenter.value.latitude.toDouble(), _mapCenter.value.longitude.toDouble())
-        requestTilesForViewport(currentVisibleTiles, currentCenter, _mapZoom.value, IntSize.Zero)
+        requestTilesForViewport(currentVisibleTiles.toList(), currentCenter, _mapZoom.value, IntSize.Zero)
     }
 
     private fun updateVisibleSegments(centerGeo: GeoPosition, zoom: Float, viewportSize: IntSize) {
@@ -785,82 +866,49 @@ class MapViewModel(
 
 
     // Function called by Composable
-    fun requestTilesForViewport(visibleTileIds: Set<TileId>, centerGeo: GeoPosition, zoom: Float, viewportSize: IntSize) {
-        currentVisibleTiles = visibleTileIds
+    fun requestTilesForViewport(visibleTileIds: List<TileId>, centerGeo: GeoPosition, zoom: Float, viewportSize: IntSize) {
+        val visibleTileSet = visibleTileIds.toSet()
+        currentVisibleTiles = visibleTileSet
         lastViewportSize = viewportSize
         updateVisibleSegments(centerGeo, zoom, viewportSize)
-        // 1. Cancel jobs for tiles no longer needed
-        val jobsToCancel = loadingJobs.filterKeys { it !in visibleTileIds }
-        jobsToCancel.forEach { (_, job) -> job.cancel() }
-        jobsToCancel.keys.forEach { loadingJobs.remove(it) }
 
-//        // 2. Cleanup cache - prevent infinite growth
-//        // Keep visible tiles + a buffer of others.
-//        // 100 tiles is roughly 25MB of bitmap data.
-        if (_tileBitmapCache.size > 750) {
-            val toRemove = _tileBitmapCache.keys.filter { it !in visibleTileIds }.take(50)
-            if (toRemove.isNotEmpty()) {
-                toRemove.forEach { _tileBitmapCache.remove(it) }
-                _tileCacheState.value = _tileBitmapCache.mapValues { it.value.bitmap }
+        // 1. Filter out tiles that are already cached or currently being processed
+        val now = kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
+
+        viewModelScope.launch {
+            queueMutex.withLock {
+                // 2. Identify tiles to request (missing from cache and missing from queue)
+                val missingIds = visibleTileIds.filter { tileId ->
+                    val cached = synchronized(_tileBitmapCache) { _tileBitmapCache[tileId] }
+                    val needsFetch = cached == null || (cached.statusCode != 200 && (cached.metadata.retryAfterMillis ?: cached.metadata.expiryMillis) < now)
+                    needsFetch && tileId !in pendingTileQueue
+                }
+
+                if (missingIds.isEmpty() && visibleTileIds.all { tileId ->
+                        synchronized(_tileBitmapCache) { tileId in _tileBitmapCache } || tileId in pendingTileQueue
+                    }) {
+                    // Already tracking everything needed
+                }
+
+                // 3. Clear queue and refill with pre-sorted IDs
+                pendingTileQueue.clear()
+
+                // The incoming visibleTileIds are already sorted middle-out by calculateVisibleTiles
+                pendingTileQueue.addAll(visibleTileIds.filter { tileId ->
+                    val cached = synchronized(_tileBitmapCache) { _tileBitmapCache[tileId] }
+                    cached == null || (cached.statusCode != 200 && (cached.metadata.retryAfterMillis ?: cached.metadata.expiryMillis) < now)
+                })
             }
+            updateLoadingTileCount()
         }
 
-        // 3. Request missing or expired tiles
-        val now = kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
-        visibleTileIds.forEach { tileId ->
-            val cachedResult = _tileBitmapCache[tileId]
-            val needsFetch = cachedResult == null || (cachedResult.statusCode != 200 && (cachedResult.metadata.retryAfterMillis ?: cachedResult.metadata.expiryMillis) < now)
-
-            if (needsFetch && !loadingJobs.containsKey(tileId)) {
-                // Launch within viewModelScope - won't be cancelled by recomposition
-                val job = viewModelScope.launch(Dispatchers.IO) {
-                    try {
-                        val result = tileFetchSemaphore.withPermit {
-                            if (!isActive) return@launch
-
-                            // Napier.v("VM Fetching $tileId", tag = TAG)
-                            tileRepository.getTile(
-                                tileId.x,
-                                tileId.y,
-                                tileId.z
-                            ) // Use injected repo
-                        }
-
-                        if (!isActive) return@launch // Check cancellation *before* emission
-
-                        // Update cache and state flow (ensure thread safety if needed, StateFlow is safe)
-                        launch(Dispatchers.Main) {
-                            _tileBitmapCache[tileId] = result
-                            _tileCacheState.value = _tileBitmapCache.mapValues { it.value.bitmap }
-                            
-                            // If this was a successful fetch, we might want to retry other errored tiles
-                            // because it indicates we might be back online.
-                            if (result.statusCode == 200) {
-                                retryErroredTiles()
-                            }
-                        }.join()
-
-                    } catch (e: CancellationException) {
-                        // Napier.v("VM Job cancelled for $tileId", tag = TAG)
-                        // Don't update cache
-                    } catch (e: Exception) {
-                        Napier.e("VM Error $tileId: ${e.message}", e, tag = TAG)
-                        launch(Dispatchers.Main) {
-                            val errorResult = com.paul.infrastructure.repositories.TileResult(
-                                500, null, com.paul.infrastructure.repositories.TileMetadata(500, now + 60000)
-                            )
-                            _tileBitmapCache[tileId] = errorResult
-                            _tileCacheState.value = _tileBitmapCache.mapValues { it.value.bitmap }
-                        }.join()
-                    } finally {
-                        // Always remove from jobs map
-                        launch(Dispatchers.Main) {
-                            loadingJobs.remove(tileId)
-                        }.join()
-                    }
-                }
-                viewModelScope.launch(Dispatchers.Main) {
-                    loadingJobs[tileId] = job
+        // 4. Cache Cleanup - prevent infinite growth
+        if (_tileBitmapCache.size > 750) {
+            synchronized(_tileBitmapCache) {
+                val toRemove = _tileBitmapCache.keys.filter { it !in visibleTileSet }.take(50)
+                if (toRemove.isNotEmpty()) {
+                    toRemove.forEach { _tileBitmapCache.remove(it) }
+                    _tileUpdateTrigger.tryEmit(Unit)
                 }
             }
         }
@@ -868,11 +916,15 @@ class MapViewModel(
 
     private fun retryErroredTiles() {
         val now = kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
-        val erroredTiles = _tileBitmapCache.filterValues { it.statusCode != 200 }.keys.intersect(currentVisibleTiles)
+        // Use a local copy to avoid ConcurrentModificationException
+        val cacheCopy = synchronized(_tileBitmapCache) { _tileBitmapCache.toMap() }
+        val erroredTiles = cacheCopy.filterValues { it.statusCode != 200 }.keys.intersect(currentVisibleTiles)
         if (erroredTiles.isNotEmpty()) {
             Napier.d("Back online? Retrying ${erroredTiles.size} errored tiles in viewport.", tag = TAG)
-            erroredTiles.forEach { _tileBitmapCache.remove(it) }
-            _tileCacheState.value = _tileBitmapCache.mapValues { it.value.bitmap }
+            synchronized(_tileBitmapCache) {
+                erroredTiles.forEach { _tileBitmapCache.remove(it) }
+            }
+            _tileUpdateTrigger.tryEmit(Unit)
         }
     }
 
@@ -1022,7 +1074,7 @@ class MapViewModel(
                 sendingMessage(baseMsg) { updateMsg ->
                     val toSend = _watchSendStarted.value!!
                     _watchSendStarted.value = null // clear the overlay so we can see our message
-                     "Caching current map area"
+                    "Caching current map area"
                     connection.send(device, toSend, null, excludedApps) { appName ->
                         updateMsg("$appName\n$baseMsg")
                     }

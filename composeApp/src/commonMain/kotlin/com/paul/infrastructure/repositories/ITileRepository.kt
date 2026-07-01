@@ -59,7 +59,9 @@ data class TileResult(
 
 class ITileRepository(private val fileHelper: IFileHelper) {
 
-    private val ioSemaphore = Semaphore(30) // Limit total parallel IO (Network + Disk)
+    // note do not set this value too high, it can cause disk and network contention and actually
+    // make the tile fetching take longer.
+    private val ioSemaphore = Semaphore(5) // Limit total parallel IO (Network + Disk)
 
     companion object {
         private const val TAG = "ITileRepository"
