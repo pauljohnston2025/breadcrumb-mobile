@@ -325,8 +325,15 @@ fun MapTilerComposable(
                     
                     // Gesture mode state for the duration of this touch sequence
                     var gestureMode = 0 // 0: Undecided, 1: Zoom/Pan dominant, 2: Rotation dominant
-                    var accumulatedRotation = 0f
-                    var accumulatedZoom = 1f
+                    
+                    // Track accumulation relative to the START of this specific gesture
+                    var totalRotationDelta = 0f
+                    var totalZoomScale = 1f
+                    
+                    // Save snapshots at gesture start
+                    val startZoom = localZoom
+                    val startRotation = localRotation
+                    val startCenterGeo = localCenterGeo
                     
                     do {
                         val event = awaitPointerEvent()
@@ -335,41 +342,46 @@ fun MapTilerComposable(
                         val rotation = event.calculateRotation()
                         val centroid = event.calculateCentroid()
 
-                        val isMoving = pan != Offset.Zero || zoom != 1f || rotation != 0f
-
                         if (event.changes.any { it.pressed }) {
-                            accumulatedRotation += abs(rotation)
-                            accumulatedZoom *= zoom
+                            totalRotationDelta += rotation
+                            totalZoomScale *= zoom
                             
+                            val zoomChangePercent = abs(1f - totalZoomScale) * 100f 
+                            val rotationAbs = abs(totalRotationDelta)
+
                             // 1. Determine gesture intent if not already locked
-                            // mode 1: Pan/Zoom, mode 2: Rotation
                             if (gestureMode == 0) {
-                                // zoom visibility: 1.05 or 0.95 is roughly 5% change
-                                val zoomChangePercent = abs(1f - accumulatedZoom) * 100f 
-                                
-                                // Dominance logic: 
-                                // if one is significantly more present than the other, lock it.
-                                // otherwise allow both for a less rigid feel.
-                                if (accumulatedRotation > 15f && zoomChangePercent < 3f) {
+                                // Thresholds for "Intent"
+                                if (rotationAbs > 5f && zoomChangePercent < 5f) {
                                     gestureMode = 2 // Lock to Rotation
-                                } else if (zoomChangePercent > 8f && accumulatedRotation < 3f) {
-                                    gestureMode = 1 // Lock to Zoom/Pan
+                                    Napier.v("Gesture: Locked to ROTATION (rot=${totalRotationDelta.roundToInt()}°, zoomPct=${zoomChangePercent.roundToInt()}%)")
+                                } else if (zoomChangePercent > 7f || pan.getDistance() > 30f) {
+                                    gestureMode = 1 // Lock to Zoom/Pan (Rotation suppressed for session)
+                                    Napier.v("Gesture: Locked to ZOOM/PAN (zoomPct=${zoomChangePercent.roundToInt()}%, rot=${totalRotationDelta.roundToInt()}°)")
                                 }
                             }
 
-                            // 2. Calculate new states based on locked mode
-                            val newZoom = if (gestureMode == 2) localZoom else {
-                                (localZoom + (ln(zoom) / ln(2.0f))).coerceIn(
-                                    minZoom, maxZoom + OVERZOOM_LEVELS
-                                )
-                            }
+                            // 2. Calculate new states
+                            // Zoom is always allowed (immediate feedback)
+                            val newZoom = (startZoom + (ln(totalZoomScale) / ln(2.0f))).coerceIn(
+                                minZoom, maxZoom + OVERZOOM_LEVELS
+                            )
                             
-                            val newRotation = if (gestureMode == 1) localRotation else {
-                                (localRotation + rotation) % 360f
-                            }
+                            // Rotation is suppressed until intent is clear OR if the map is already rotated
+                            val effectiveRotationDelta = if (gestureMode == 2 || abs(startRotation) > 0.5f) {
+                                totalRotationDelta
+                            } else 0f
+                            
+                            val newRotation = (startRotation + effectiveRotationDelta) % 360f
 
                             // Calculate where the center is now after the pan
+                            // We calculate center based on current active movements
                             val effectivePan = if (gestureMode == 2) Offset.Zero else pan
+                            
+                            // For a perfectly smooth experience we'd calculate center relative to startCenterGeo
+                            // using totalZoomScale and totalPan, but pannedCenterGeo logic is already robust.
+                            // We just need to make sure we don't apply pan if we are in pure rotation mode.
+                            
                             val pannedCenterScreenPixel =
                                 Offset(size.width / 2f, size.height / 2f) - rotateOffset(effectivePan, Offset.Zero, -localRotation)
 
@@ -407,7 +419,7 @@ fun MapTilerComposable(
                             localCenterGeo = finalNewCenterGeo
                             localRotation = newRotation
 
-                            if (isMoving) {
+                            if (pan != Offset.Zero || zoom != 1f || rotation != 0f) {
                                 event.changes.forEach { it.consume() }
                             }
                         }
