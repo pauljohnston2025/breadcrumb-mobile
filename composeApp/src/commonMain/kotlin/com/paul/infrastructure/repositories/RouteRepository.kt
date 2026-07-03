@@ -185,7 +185,7 @@ class RouteRepository(
         }
 
         val snackbarHostState = SnackbarHostState()
-        val (summaryLine, distance) = getSummaryAndDistance(route, snackbarHostState)
+        val (summaryLine, fullPoints, distance) = getSummaryAndDistance(route, snackbarHostState)
 
         routes.add(
             RouteEntry(
@@ -201,17 +201,18 @@ class RouteRepository(
             )
         )
         saveRoutes()
-        spatialIndexRepository.indexRoute(route.id, summaryLine)
+        val spatialPoints = if (fullPoints.isNotEmpty()) fullPoints else summaryLine
+        spatialIndexRepository.indexRoute(route.id, spatialPoints)
     }
 
-    private suspend fun getSummaryAndDistance(iRoute: IRoute, snackbarHostState: SnackbarHostState): Pair<List<Point>, Float> {
+    private suspend fun getSummaryAndDistance(iRoute: IRoute, snackbarHostState: SnackbarHostState): Triple<List<Point>, List<Point>, Float> {
         val summaryLine = iRoute.toSummary(snackbarHostState)
         val fullPoints = getFullPoints(iRoute, snackbarHostState)
         val distance = Route.calculateTotalDistance(fullPoints)
-        return Pair(summaryLine, distance)
+        return Triple(summaryLine, fullPoints, distance)
     }
 
-    private suspend fun getFullPoints(iRoute: IRoute, snackbarHostState: SnackbarHostState?): List<Point> {
+    suspend fun getFullPoints(iRoute: IRoute, snackbarHostState: SnackbarHostState?): List<Point> {
         return when (iRoute) {
             is CoordinatesRoute -> iRoute.coordinates()
             is GpxRoute -> iRoute.getPoints(snackbarHostState) ?: emptyList()
@@ -231,7 +232,7 @@ class RouteRepository(
         spatialIndexRepository.clear(SegmentType.ROUTE)
     }
 
-    suspend fun updateRouteSummary(id: String, summary: List<Point>, distanceMeters: Float) {
+    suspend fun updateRouteSummary(id: String, summary: List<Point>, fullPoints: List<Point>, distanceMeters: Float) {
         val current = getRouteEntry(id)
         if (current == null) {
             return
@@ -240,7 +241,8 @@ class RouteRepository(
         routes.removeIf { it.id == id }
         routes.add(current.copy(summary = summary, summaryVersion = ROUTE_SUMMARY_VERSION, distanceMeters = distanceMeters))
         saveRoutes()
-        spatialIndexRepository.indexRoute(id, summary)
+        val spatialPoints = if (fullPoints.isNotEmpty()) fullPoints else summary
+        spatialIndexRepository.indexRoute(id, spatialPoints)
     }
 
     suspend fun getRouteEntrySummary(route: RouteEntry?, snackbarHostState: SnackbarHostState): Route?
@@ -253,8 +255,8 @@ class RouteRepository(
             // first time write the summary back and persist it
             val iRoute = getRouteI(route.id)
             if (iRoute != null) {
-                val (summaryLine, distance) = getSummaryAndDistance(iRoute, snackbarHostState)
-                updateRouteSummary(route.id, summaryLine, distance)
+                val (summaryLine, fullPoints, distance) = getSummaryAndDistance(iRoute, snackbarHostState)
+                updateRouteSummary(route.id, summaryLine, fullPoints, distance)
                 return Route(route.name, summaryLine, emptyList())
             }
         }

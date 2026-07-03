@@ -175,7 +175,11 @@ class StravaImportService(
                             if (points.isNotEmpty()) {
                                 dao.insertStream(StravaStreamEntity(activityMeta.id, points))
                             }
-                            spatialIndexRepository.indexStravaActivity(activityMeta.id, activity.summaryToRoute().route)
+
+                            val spatialPoints = if (points.isNotEmpty()) points else activity.summaryToRoute().route
+                            if (spatialPoints.isNotEmpty()) {
+                                spatialIndexRepository.indexStravaActivity(activityMeta.id, spatialPoints)
+                            }
 
                             importedCount++
                             onProgress("Imported $importedCount / $totalToImport\n${activity.name}")

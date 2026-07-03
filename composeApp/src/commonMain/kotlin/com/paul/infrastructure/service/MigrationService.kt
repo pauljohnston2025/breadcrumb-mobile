@@ -71,7 +71,13 @@ class MigrationService(
                 if (routeEntry.summary == null || routeEntry.summaryVersion != ROUTE_SUMMARY_VERSION) {
                     routeRepository.getRouteEntrySummary(routeEntry, dummySnackbarHostState)
                 } else {
-                    spatialIndexRepository.indexRoute(routeEntry.id, routeEntry.summary)
+                    val iRoute = routeRepository.getRouteI(routeEntry.id)
+                    val points = if (iRoute != null) {
+                        routeRepository.getFullPoints(iRoute, dummySnackbarHostState)
+                    } else {
+                        routeEntry.summary ?: emptyList()
+                    }
+                    spatialIndexRepository.indexRoute(routeEntry.id, points)
                 }
                 yield() // Let other coroutines/queries run
             }
@@ -92,9 +98,11 @@ class MigrationService(
                     _migrationStatus.value = status
                     Napier.i(status, tag = "MigrationService")
                     
-                    val points = activity.summaryToRoute().route
-                    if (points.isNotEmpty()) {
-                        spatialIndexRepository.indexStravaActivity(activity.id, points)
+                    val stream = stravaDao.getStreamForActivity(activity.id)
+                    val points = stream?.points ?: activity.summaryToRoute().route
+                    val spatialPoints = if (points.isNotEmpty()) points else activity.summaryToRoute().route
+                    if (spatialPoints.isNotEmpty()) {
+                        spatialIndexRepository.indexStravaActivity(activity.id, spatialPoints)
                     }
                 }
                 yield() // Let other coroutines/queries run

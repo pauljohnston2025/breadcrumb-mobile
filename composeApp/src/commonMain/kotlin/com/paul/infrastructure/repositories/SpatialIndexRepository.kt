@@ -14,7 +14,7 @@ import kotlin.math.*
 class SpatialIndexRepository(public val dao: SpatialIndexDao) {
     companion object {
         val SPATIAL_INDEX_ZOOM_LEVELS = (0..19).toList()
-        const val SPATIAL_INDEX_VERSION = 20
+        const val SPATIAL_INDEX_VERSION = 21
     }
 
     suspend fun indexStravaActivity(activityId: Long, points: List<Point>) {

@@ -324,9 +324,9 @@ class StravaRepository(
                         dao.insertActivities(listOf(activity))
 
                         // 3. Index segments
-                        val pointsToIndex = activity.summaryToRoute().route
-                        if (pointsToIndex.isNotEmpty()) {
-                            spatialIndexRepository.indexStravaActivity(activity.id, pointsToIndex)
+                        val spatialPoints = if (fullPoints.isNotEmpty()) fullPoints else activity.summaryToRoute().route
+                        if (spatialPoints.isNotEmpty()) {
+                            spatialIndexRepository.indexStravaActivity(activity.id, spatialPoints)
                         }
                     }
 

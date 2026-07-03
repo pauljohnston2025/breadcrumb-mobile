@@ -191,6 +191,8 @@ class MapViewModel(
     private val _visibleSegments = MutableStateFlow<List<com.paul.domain.SegmentInfo>>(emptyList())
     val visibleSegments: StateFlow<List<com.paul.domain.SegmentInfo>> = _visibleSegments.asStateFlow()
 
+    val STROKE_WIDTH = 6.5f
+
     private var currentFilterHash = 0
     private var lastViewportSize: IntSize = IntSize.Zero
     private fun updateFilterHash() {
@@ -201,7 +203,7 @@ class MapViewModel(
             storedRoutes.value.keys.map { it.id }
         } else emptyList()
         // Include spatial index version so when that changes we regenerate everything
-        val allIds = (filteredStravaIds + routeIds + SPATIAL_INDEX_VERSION.toString()).sorted()
+        val allIds = (filteredStravaIds + routeIds + SPATIAL_INDEX_VERSION.toString() + STROKE_WIDTH.toString()).sorted()
         val newHash = allIds.hashCode()
         if (newHash != currentFilterHash) {
             Napier.d("Filter hash changed: $currentFilterHash -> $newHash", tag = TAG)
@@ -804,7 +806,7 @@ class MapViewModel(
 
                         val bitmap = ImageBitmap(256, 256)
                         val canvas = androidx.compose.ui.graphics.Canvas(bitmap)
-                        val baseStrokeWidth = 8f
+                        val baseStrokeWidth = STROKE_WIDTH
 
                         val segmentsByOwner = segmentsForThisMapTile.groupBy { it.ownerId to it.type }
                         segmentsByOwner.forEach { (idKey, segments) ->
