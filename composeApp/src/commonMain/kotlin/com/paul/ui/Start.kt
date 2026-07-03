@@ -452,6 +452,13 @@ private fun HistoryListItem(
                     tileRepository = tileRepository,
                     modifier = Modifier.fillMaxSize(),
                     tileServer,
+                    onClick = {
+                        if (item.isStrava() && stravaActivity != null) {
+                            stravaActivity?.let { onPreviewStrava(it) }
+                        } else if (localRoute != null) {
+                            onPreviewClick(localRoute)
+                        }
+                    }
                 )
             } ?: run {
                 androidx.compose.material.CircularProgressIndicator(

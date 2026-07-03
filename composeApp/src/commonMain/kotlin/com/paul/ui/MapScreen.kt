@@ -527,6 +527,7 @@ private fun NearbyActivityListItem(
                 tileRepository = tileRepository,
                 modifier = Modifier.fillMaxSize(),
                 tileServer,
+                onClick = onPreviewClick
             )
         }
 
@@ -640,6 +641,7 @@ private fun NearbyRouteListItem(
                     tileRepository = tileRepository,
                     modifier = Modifier.fillMaxSize(),
                     tileServer,
+                    onClick = onPreviewClick
                 )
             } ?: run {
                 CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)

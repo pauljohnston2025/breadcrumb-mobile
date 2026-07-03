@@ -2,6 +2,7 @@ package com.paul.composables
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -43,6 +44,7 @@ fun RouteMiniMap(
     modifier: Modifier = Modifier,
     tileServerInfo: TileServerInfo,
     lineColor: Color = Color(0xFFFC4C02),
+    onClick: (() -> Unit)? = null,
 ) {
     // Local state to store bitmaps fetched from the repo
     // This avoids using a global tileCache while allowing the Canvas to draw asynchronously loaded data
@@ -52,6 +54,7 @@ fun RouteMiniMap(
         modifier = modifier
             .clip(RoundedCornerShape(8.dp))
             .background(Color.LightGray.copy(alpha = 0.1f))
+            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
     ) {
         val width = constraints.maxWidth
         val height = constraints.maxHeight

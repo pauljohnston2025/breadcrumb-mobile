@@ -397,6 +397,7 @@ private fun RouteListItem(
                     tileRepository = tileRepository,
                     modifier = Modifier.fillMaxSize(),
                     tileServer,
+                    onClick = { onPreviewClick(route) }
                 )
             } ?: run {
                 // Optional: Show a small loader or icon while fetching coordinates

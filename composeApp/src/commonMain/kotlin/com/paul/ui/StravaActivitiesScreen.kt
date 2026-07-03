@@ -442,6 +442,7 @@ private fun StravaActivityListItem(
                 tileRepository = tileRepository,
                 modifier = Modifier.fillMaxSize(),
                 tileServer,
+                onClick = onClick,
             )
         }
 
