@@ -13,8 +13,8 @@ import kotlin.math.*
 
 class SpatialIndexRepository(public val dao: SpatialIndexDao) {
     companion object {
-        val SPATIAL_INDEX_ZOOM_LEVELS = (0..19).toList()
-        const val SPATIAL_INDEX_VERSION = 21
+        val SPATIAL_INDEX_ZOOM_LEVELS = (0..18).toList()
+        const val SPATIAL_INDEX_VERSION = 28
     }
 
     suspend fun indexStravaActivity(activityId: Long, points: List<Point>) {
@@ -58,14 +58,16 @@ class SpatialIndexRepository(public val dao: SpatialIndexDao) {
         dao.deleteSegments(type, ownerId)
         dao.deleteTileMappings(type, ownerId)
 
-        for (z in SPATIAL_INDEX_ZOOM_LEVELS) {
+        var simplifiedPoints = points
+
+        for (z in SPATIAL_INDEX_ZOOM_LEVELS.reversed()) {
             // Simplify points for this zoom level
             // Aggressive simplification: use a larger epsilon.
-            val epsilon = 30.0 * 2.0.pow((14 - z).toDouble())
+            val epsilon = 10.0 * 1.4.pow((18 - z).toDouble())
             // Lower point limit to reduce complexity
-            val pointLimit = (300 / 2.0.pow((14 - z).toDouble() / 2.0)).toInt().coerceAtLeast(30)
+            val pointLimit = 800 // don't reduce any further, it removes important points, could use 0 for unlimited but trying to use a "safe" hard cap
             
-            val simplifiedPoints = Route.simplify(points, pointLimit, epsilon)
+            simplifiedPoints = Route.simplify(simplifiedPoints, pointLimit, epsilon)
             if (simplifiedPoints.size < 2) continue
 
             val batchSize = 100
