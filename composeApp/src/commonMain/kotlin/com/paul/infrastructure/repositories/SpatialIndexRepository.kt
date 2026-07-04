@@ -14,7 +14,7 @@ import kotlin.math.*
 class SpatialIndexRepository(public val dao: SpatialIndexDao) {
     companion object {
         val SPATIAL_INDEX_ZOOM_LEVELS = (0..14).toList()
-        const val SPATIAL_INDEX_VERSION = 34
+        const val SPATIAL_INDEX_VERSION = 35
     }
 
     suspend fun indexStravaActivity(activityId: Long, points: List<Point>) {
@@ -65,7 +65,8 @@ class SpatialIndexRepository(public val dao: SpatialIndexDao) {
             // Aggressive simplification: use a larger epsilon.
             val epsilon = 10.0 * 2.1.pow((14 - z).toDouble())
             // Lower point limit to reduce complexity
-            val pointLimit = 800 // don't reduce any further, it removes important points, could use 0 for unlimited but trying to use a "safe" hard cap
+            // a 200km ride i did needs 978points at 10m, most shorter routes use significantly less, so unlimited points
+            val pointLimit = 0
             
             simplifiedPoints = Route.simplify(simplifiedPoints, pointLimit, epsilon)
             if (simplifiedPoints.size < 2) continue
