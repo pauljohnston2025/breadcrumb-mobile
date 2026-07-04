@@ -4,7 +4,8 @@ import androidx.room.AutoMigration
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
-import androidx.sqlite.driver.AndroidSQLiteDriver
+import androidx.room.DeleteColumn
+import androidx.room.migration.AutoMigrationSpec
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import com.paul.domain.MapSegmentTile
 import com.paul.domain.SegmentInfo
@@ -35,7 +36,7 @@ fun getRoomDatabase(builder: RoomDatabase.Builder<AppDatabase>): AppDatabase {
 
 @Database(
     entities = [StravaActivity::class, StravaStreamEntity::class, StravaGear::class, SegmentInfo::class, MapSegmentTile::class],
-    version = 12,
+    version = 13,
     autoMigrations = [
         AutoMigration(from = 1, to = 2),
         AutoMigration(from = 2, to = 3),
@@ -48,10 +49,17 @@ fun getRoomDatabase(builder: RoomDatabase.Builder<AppDatabase>): AppDatabase {
         AutoMigration(from = 9, to = 10),
         AutoMigration(from = 10, to = 11),
         AutoMigration(from = 11, to = 12),
+        AutoMigration(from = 12, to = 13, spec = AppDatabase.Migration12To13::class),
     ]
 )
 @TypeConverters(TimestampConverter::class, PointListConverter::class, SegmentTypeConverter::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun stravaDao(): StravaDao
     abstract fun spatialIndexDao(): SpatialIndexDao
+
+    @DeleteColumn(tableName = "segment_info", columnName = "lat1")
+    @DeleteColumn(tableName = "segment_info", columnName = "lon1")
+    @DeleteColumn(tableName = "segment_info", columnName = "lat2")
+    @DeleteColumn(tableName = "segment_info", columnName = "lon2")
+    class Migration12To13 : AutoMigrationSpec
 }

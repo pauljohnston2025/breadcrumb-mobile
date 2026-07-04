@@ -15,14 +15,10 @@ data class SegmentWithTile(
     val type: SegmentType,
     val ownerId: String,
     val segmentIndex: Int,
-    val worldX1: Double,
-    val worldY1: Double,
-    val worldX2: Double,
-    val worldY2: Double,
-    val lat1: Double,
-    val lon1: Double,
-    val lat2: Double,
-    val lon2: Double
+    val worldX1: Float,
+    val worldY1: Float,
+    val worldX2: Float,
+    val worldY2: Float
 )
 
 @Dao

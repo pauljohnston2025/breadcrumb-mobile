@@ -16,22 +16,13 @@ data class SegmentInfo(
     val ownerId: String, // route id or activity id (as string)
     val segmentIndex: Int,
     @ColumnInfo(defaultValue = "0.0")
-    val worldX1: Double,
+    val worldX1: Float,
     @ColumnInfo(defaultValue = "0.0")
-    val worldY1: Double,
+    val worldY1: Float,
     @ColumnInfo(defaultValue = "0.0")
-    val worldX2: Double,
+    val worldX2: Float,
     @ColumnInfo(defaultValue = "0.0")
-    val worldY2: Double,
-    // Keep Lat/Lon for touch detection if needed, but let's see if we can use world coords there too
-    @ColumnInfo(defaultValue = "0.0")
-    val lat1: Double,
-    @ColumnInfo(defaultValue = "0.0")
-    val lon1: Double,
-    @ColumnInfo(defaultValue = "0.0")
-    val lat2: Double,
-    @ColumnInfo(defaultValue = "0.0")
-    val lon2: Double
+    val worldY2: Float
 )
 
 @Entity(

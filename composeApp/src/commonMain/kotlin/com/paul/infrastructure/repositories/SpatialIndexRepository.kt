@@ -13,8 +13,8 @@ import kotlin.math.*
 
 class SpatialIndexRepository(public val dao: SpatialIndexDao) {
     companion object {
-        val SPATIAL_INDEX_ZOOM_LEVELS = (0..18).toList()
-        const val SPATIAL_INDEX_VERSION = 28
+        val SPATIAL_INDEX_ZOOM_LEVELS = (0..14).toList()
+        const val SPATIAL_INDEX_VERSION = 34
     }
 
     suspend fun indexStravaActivity(activityId: Long, points: List<Point>) {
@@ -63,7 +63,7 @@ class SpatialIndexRepository(public val dao: SpatialIndexDao) {
         for (z in SPATIAL_INDEX_ZOOM_LEVELS.reversed()) {
             // Simplify points for this zoom level
             // Aggressive simplification: use a larger epsilon.
-            val epsilon = 10.0 * 1.4.pow((18 - z).toDouble())
+            val epsilon = 10.0 * 2.1.pow((14 - z).toDouble())
             // Lower point limit to reduce complexity
             val pointLimit = 800 // don't reduce any further, it removes important points, could use 0 for unlimited but trying to use a "safe" hard cap
             
@@ -89,14 +89,10 @@ class SpatialIndexRepository(public val dao: SpatialIndexDao) {
                         type = type,
                         ownerId = ownerId,
                         segmentIndex = j,
-                        worldX1 = p1World.first,
-                        worldY1 = p1World.second,
-                        worldX2 = p2World.first,
-                        worldY2 = p2World.second,
-                        lat1 = p1Geo.latitude,
-                        lon1 = p1Geo.longitude,
-                        lat2 = p2Geo.latitude,
-                        lon2 = p2Geo.longitude
+                        worldX1 = p1World.first.toFloat(),
+                        worldY1 = p1World.second.toFloat(),
+                        worldX2 = p2World.first.toFloat(),
+                        worldY2 = p2World.second.toFloat()
                     )
                     segments.add(segmentInfo)
 

@@ -64,13 +64,29 @@ fun geoToScreenPixel(
     viewportSize: IntSize,
     rotation: Float = 0f
 ): IntOffset {
-    val scale = getScaleFactor(zoom) // This now handles the Float zoom
     val (worldCenterX, worldCenterY) = geoToWorldPixel(mapCenterGeo)
     val (worldTargetX, worldTargetY) = geoToWorldPixel(geo)
+    
+    return worldToScreenPixel(worldTargetX, worldTargetY, worldCenterX, worldCenterY, zoom, viewportSize, rotation)
+}
+
+/**
+ * Convert World pixels to screen pixel offset.
+ */
+fun worldToScreenPixel(
+    worldX: Double,
+    worldY: Double,
+    worldCenterX: Double,
+    worldCenterY: Double,
+    zoom: Float,
+    viewportSize: IntSize,
+    rotation: Float = 0f
+): IntOffset {
+    val scale = getScaleFactor(zoom)
 
     // Pixel difference from map center in world pixels (at zoom 0)
-    val dxWorld = worldTargetX - worldCenterX
-    val dyWorld = worldTargetY - worldCenterY
+    val dxWorld = worldX - worldCenterX
+    val dyWorld = worldY - worldCenterY
 
     // Pixel difference from map center in screen pixels at the current zoom
     val dxScreen = dxWorld * scale
@@ -79,7 +95,7 @@ fun geoToScreenPixel(
     // Screen coordinates relative to the viewport center (Unrotated)
     val unrotatedX = viewportSize.width / 2.0 + dxScreen
     val unrotatedY = viewportSize.height / 2.0 + dyScreen
-    
+
     if (rotation == 0f) return IntOffset(unrotatedX.roundToInt(), unrotatedY.roundToInt())
 
     val pivot = Offset(viewportSize.width / 2f, viewportSize.height / 2f)
@@ -87,6 +103,7 @@ fun geoToScreenPixel(
 
     return IntOffset(rotatedPx.x.roundToInt(), rotatedPx.y.roundToInt())
 }
+
 
 /**
  * UPDATED: Convert Screen pixel offset to Lat/Lon.

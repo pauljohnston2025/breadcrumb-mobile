@@ -44,7 +44,9 @@ import com.paul.infrastructure.dao.SpatialIndexDao
 import com.paul.infrastructure.service.MigrationService
 import com.paul.infrastructure.repositories.SpatialIndexRepository
 import com.paul.infrastructure.service.worldPixelToGeo
+import com.paul.infrastructure.service.geoToWorldPixel
 import com.paul.infrastructure.service.geoToScreenPixel
+import com.paul.infrastructure.service.worldToScreenPixel
 import com.paul.infrastructure.service.screenPixelToGeo
 import com.paul.infrastructure.service.latLonToTileXY
 import com.paul.composables.imageBitmapToByteArray
@@ -521,14 +523,16 @@ class MapViewModel(
             val nearbyStravaIds = mutableSetOf<String>()
             val nearbyRouteIds = mutableSetOf<String>()
 
+            val (worldCenterX, worldCenterY) = geoToWorldPixel(currentCenter)
+
             segments.forEach { seg ->
-                val p1 = geoToScreenPixel(
-                    GeoPosition(seg.lat1, seg.lon1),
-                    currentCenter, currentZoom, viewportSize
+                val p1 = worldToScreenPixel(
+                    seg.worldX1.toDouble(), seg.worldY1.toDouble(),
+                    worldCenterX, worldCenterY, currentZoom, viewportSize
                 )
-                val p2 = geoToScreenPixel(
-                    GeoPosition(seg.lat2, seg.lon2),
-                    currentCenter, currentZoom, viewportSize
+                val p2 = worldToScreenPixel(
+                    seg.worldX2.toDouble(), seg.worldY2.toDouble(),
+                    worldCenterX, worldCenterY, currentZoom, viewportSize
                 )
 
                 if (distToSegmentPixels(tappedScreenPx, p1, p2) <= HIT_THRESHOLD_PIXELS) {
