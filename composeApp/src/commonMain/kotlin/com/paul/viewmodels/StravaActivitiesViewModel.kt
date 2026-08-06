@@ -25,13 +25,19 @@ import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 
 sealed class StravaNavigationEvent {
     // Represents a command to navigate to a specific route
@@ -74,6 +80,78 @@ class StravaActivitiesViewModel(
 
     private val _navigationEvents = MutableSharedFlow<StravaNavigationEvent>()
     val navigationEvents: SharedFlow<StravaNavigationEvent> = _navigationEvents.asSharedFlow()
+
+    // --- Chart State ---
+    private val _isChartVisible = MutableStateFlow(false)
+    val isChartVisible = _isChartVisible.asStateFlow()
+
+    private val _chartMetric = MutableStateFlow("Count") // "Count" or "Distance"
+    val chartMetric = _chartMetric.asStateFlow()
+
+    private val _chartInterval = MutableStateFlow("Month") // "Year" or "Month"
+    val chartInterval = _chartInterval.asStateFlow()
+
+    private val _selectedChartYear = MutableStateFlow(Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).year)
+    val selectedChartYear = _selectedChartYear.asStateFlow()
+
+    data class ChartPoint(val x: Float, val y: Float)
+
+    val chartData: StateFlow<Map<String, List<ChartPoint>>> = combine(
+        activities,
+        allGear,
+        _chartMetric,
+        _chartInterval,
+        _selectedChartYear
+    ) { activities, gear, metric, interval, year ->
+        val gearMap = gear.associateBy { it.id }
+        val tz = TimeZone.currentSystemDefault()
+
+        val filtered = if (interval == "Month") {
+            activities.filter { it.startDate.toLocalDateTime(tz).year == year }
+        } else {
+            activities
+        }
+
+        val grouped = filtered.groupBy { it.gearId?.let { id -> gearMap[id]?.name } ?: "No Gear" }
+
+        grouped.mapValues { (_, acts) ->
+            if (interval == "Month") {
+                (1..12).map { month ->
+                    val total = acts.filter { it.startDate.toLocalDateTime(tz).monthNumber == month }
+                        .sumOf { if (metric == "Distance") it.distance.toDouble() else 1.0 }
+                    ChartPoint(month.toFloat(), total.toFloat())
+                }
+            } else {
+                val years = acts.map { it.startDate.toLocalDateTime(tz).year }.distinct().sorted()
+                if (years.isEmpty()) emptyList()
+                else {
+                    val minYear = years.first()
+                    val maxYear = years.last()
+                    (minYear..maxYear).map { y ->
+                        val total = acts.filter { it.startDate.toLocalDateTime(tz).year == y }
+                            .sumOf { if (metric == "Distance") it.distance.toDouble() else 1.0 }
+                        ChartPoint(y.toFloat(), total.toFloat())
+                    }
+                }
+            }
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
+    fun toggleChart() {
+        _isChartVisible.value = !_isChartVisible.value
+    }
+
+    fun setChartMetric(metric: String) {
+        _chartMetric.value = metric
+    }
+
+    fun setChartInterval(interval: String) {
+        _chartInterval.value = interval
+    }
+
+    fun setChartYear(year: Int) {
+        _selectedChartYear.value = year
+    }
 
     fun setDateRange(start: Instant, end: Instant) {
         stravaRepo.setDateRange(start, end)

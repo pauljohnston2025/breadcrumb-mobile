@@ -5,6 +5,7 @@ import com.paul.infrastructure.repositories.TileServerRepo
 import androidx.activity.compose.BackHandler
 import com.paul.composables.RouteMiniMap
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,10 +30,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -69,8 +78,15 @@ fun StravaActivitiesScreen(viewModel: StravaActivitiesViewModel, tileRepository:
     val status by viewModel.loginStatus.collectAsState()
     val syncErrorStatus by viewModel.syncErrorStatus.collectAsState()
     val currentRange by viewModel.currentRange.collectAsState()
-    val totalCount by viewModel.totalActivityCount.collectAsState(0)
+    val totalCount by viewModel.totalActivityCount.collectAsState(0L)
     val allGear by viewModel.allGear.collectAsState(emptyList())
+
+    val isChartVisible by viewModel.isChartVisible.collectAsState()
+    val chartMetric by viewModel.chartMetric.collectAsState()
+    val chartInterval by viewModel.chartInterval.collectAsState()
+    val selectedChartYear by viewModel.selectedChartYear.collectAsState()
+    val chartData by viewModel.chartData.collectAsState()
+
     val gearLookup = remember(allGear) { allGear.associateBy { it.id } }
     val groupedGear = remember(allGear) { allGear.groupBy { it.name } }
 
@@ -135,6 +151,25 @@ fun StravaActivitiesScreen(viewModel: StravaActivitiesViewModel, tileRepository:
 
             androidx.compose.material3.FilledIconButton(
                 onClick = {
+                    viewModel.toggleChart()
+                },
+                colors = androidx.compose.material3.IconButtonDefaults.filledIconButtonColors(
+                    containerColor = if (isChartVisible) MaterialTheme.colors.primary else MaterialTheme.colors.surface,
+                    contentColor = if (isChartVisible) Color.White else MaterialTheme.colors.primary
+                ),
+                modifier = Modifier.size(36.dp).border(1.dp, MaterialTheme.colors.primary, RoundedCornerShape(18.dp))
+            ) {
+                Icon(
+                    Icons.Default.ShowChart,
+                    null,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+
+            Spacer(Modifier.width(8.dp))
+
+            androidx.compose.material3.FilledIconButton(
+                onClick = {
                     viewModel.importStravaData()
                 },
                 enabled = !isSyncing,
@@ -148,6 +183,25 @@ fun StravaActivitiesScreen(viewModel: StravaActivitiesViewModel, tileRepository:
                     Icons.Default.FileOpen,
                     null,
                     tint = Color.White,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+
+            Spacer(Modifier.width(8.dp))
+
+            androidx.compose.material3.FilledIconButton(
+                onClick = {
+                    viewModel.toggleChart()
+                },
+                colors = androidx.compose.material3.IconButtonDefaults.filledIconButtonColors(
+                    containerColor = if (isChartVisible) MaterialTheme.colors.primary else MaterialTheme.colors.surface,
+                    contentColor = if (isChartVisible) Color.White else MaterialTheme.colors.primary
+                ),
+                modifier = Modifier.size(36.dp).border(1.dp, MaterialTheme.colors.primary, RoundedCornerShape(18.dp))
+            ) {
+                Icon(
+                    Icons.Default.ShowChart,
+                    null,
                     modifier = Modifier.size(18.dp)
                 )
             }
@@ -333,6 +387,18 @@ fun StravaActivitiesScreen(viewModel: StravaActivitiesViewModel, tileRepository:
                     }
                 }
             }
+
+            if (isChartVisible) {
+                StravaChart(
+                    data = chartData,
+                    metric = chartMetric,
+                    interval = chartInterval,
+                    selectedYear = selectedChartYear,
+                    onMetricChange = viewModel::setChartMetric,
+                    onIntervalChange = viewModel::setChartInterval,
+                    onYearChange = viewModel::setChartYear
+                )
+            }
         }
         // 4. Results Count
         Text(
@@ -411,6 +477,173 @@ fun StravaActivitiesScreen(viewModel: StravaActivitiesViewModel, tileRepository:
                 }
             }
         )
+    }
+}
+
+@Composable
+private fun StravaChart(
+    data: Map<String, List<StravaActivitiesViewModel.ChartPoint>>,
+    metric: String,
+    interval: String,
+    selectedYear: Int,
+    onMetricChange: (String) -> Unit,
+    onIntervalChange: (String) -> Unit,
+    onYearChange: (Int) -> Unit
+) {
+    val textMeasurer = rememberTextMeasurer()
+    val colors = listOf(
+        Color(0xFFF44336), Color(0xFF2196F3), Color(0xFF4CAF50),
+        Color(0xFFFFEB3B), Color(0xFF9C27B0), Color(0xFF00BCD4),
+        Color(0xFFFF9800), Color(0xFF795548)
+    )
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        elevation = 2.dp,
+        shape = RoundedCornerShape(12.dp),
+        backgroundColor = MaterialTheme.colors.surface
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (interval == "Month") "Monthly Activity ($selectedYear)" else "Yearly Activity",
+                    style = MaterialTheme.typography.subtitle2,
+                    color = MaterialTheme.colors.primary
+                )
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    M3TextButton(
+                        onClick = { onMetricChange(if (metric == "Count") "Distance" else "Count") },
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        M3Text(metric, fontSize = 10.sp)
+                    }
+                    M3TextButton(
+                        onClick = { onIntervalChange(if (interval == "Month") "Year" else "Month") },
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        M3Text(interval, fontSize = 10.sp)
+                    }
+                    if (interval == "Month") {
+                        M3TextButton(
+                            onClick = { onYearChange(selectedYear - 1) },
+                            contentPadding = PaddingValues(horizontal = 4.dp),
+                            modifier = Modifier.height(32.dp).width(32.dp)
+                        ) { M3Text("<", fontSize = 10.sp) }
+                        M3TextButton(
+                            onClick = { onYearChange(selectedYear + 1) },
+                            contentPadding = PaddingValues(horizontal = 4.dp),
+                            modifier = Modifier.height(32.dp).width(32.dp)
+                        ) { M3Text(">", fontSize = 10.sp) }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            Box(modifier = Modifier.height(120.dp).fillMaxWidth()) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    if (data.isEmpty()) return@Canvas
+                    val allPoints = data.values.flatten()
+                    if (allPoints.isEmpty()) return@Canvas
+
+                    val minY = 0f
+                    val maxY = allPoints.maxOf { it.y }.let { if (it == 0f) 1f else it * 1.1f }
+
+                    val minX = if (interval == "Month") 1f else allPoints.minOf { it.x }
+                    val maxX = if (interval == "Month") 12f else allPoints.maxOf { it.x }
+
+                    val width = size.width
+                    val height = size.height
+
+                    // Draw grid lines (horizontal)
+                    val gridLines = 4
+                    for (i in 0..gridLines) {
+                        val y = height - (i.toFloat() / gridLines * height)
+                        drawLine(Color.LightGray.copy(alpha = 0.5f), Offset(0f, y), Offset(width, y), strokeWidth = 1f)
+
+                        val labelValue = (i.toFloat() / gridLines * maxY)
+                        val label = if (metric == "Distance") formatDistance(labelValue.toFloat()) else labelValue.toInt().toString()
+                        drawText(
+                            textMeasurer.measure(label, style = TextStyle(fontSize = 8.sp, color = Color.Gray)),
+                            topLeft = Offset(2f, y - 10f)
+                        )
+                    }
+
+                    data.entries.forEachIndexed { index, entry ->
+                        val points = entry.value.sortedBy { it.x }
+                        val color = colors[index % colors.size]
+
+                        if (points.size >= 2) {
+                            val path = Path()
+                            points.forEachIndexed { pIndex, point ->
+                                val x = if (maxX == minX) width / 2f else (point.x - minX) / (maxX - minX) * width
+                                val y = height - (point.y / maxY * height)
+                                if (pIndex == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                            }
+                            drawPath(
+                                path = path,
+                                color = color,
+                                style = Stroke(width = 3f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+                            )
+                        }
+
+                        // Draw dots
+                        points.forEach { point ->
+                             val x = if (maxX == minX) width / 2f else (point.x - minX) / (maxX - minX) * width
+                             val y = height - (point.y / maxY * height)
+                             drawCircle(color, radius = 3f, center = Offset(x, y))
+                        }
+                    }
+
+                    // X axis labels
+                    if (interval == "Month") {
+                        val months = listOf("J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D")
+                        months.forEachIndexed { i, m ->
+                            val x = (i.toFloat() / 11f) * width
+                            drawText(
+                                textMeasurer.measure(m, style = TextStyle(fontSize = 8.sp, color = Color.Gray)),
+                                topLeft = Offset(x - 5f, height - 12f)
+                            )
+                        }
+                    } else if (maxX != minX) {
+                         val yearRange = (maxX - minX).toInt()
+                         if (yearRange > 0) {
+                             for (i in 0..yearRange) {
+                                 val x = (i.toFloat() / yearRange) * width
+                                 drawText(
+                                     textMeasurer.measure((minX + i).toInt().toString(), style = TextStyle(fontSize = 8.sp, color = Color.Gray)),
+                                     topLeft = Offset(x - 10f, height - 12f)
+                                 )
+                             }
+                         }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            LazyRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                itemsIndexed(data.keys.toList()) { index, gearName ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(8.dp).background(colors[index % colors.size], RoundedCornerShape(2.dp)))
+                        Spacer(Modifier.width(4.dp))
+                        Text(gearName, style = MaterialTheme.typography.caption, fontSize = 9.sp, color = Color.Gray)
+                    }
+                }
+            }
+        }
     }
 }
 
