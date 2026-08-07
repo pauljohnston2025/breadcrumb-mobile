@@ -715,6 +715,27 @@ fun Settings(
                     }
                 )
             }
+
+            var yearRangeString by remember(generalSettings.chartYearRange) { mutableStateOf(generalSettings.chartYearRange.toString()) }
+            OutlinedTextField(
+                value = yearRangeString,
+                onValueChange = {
+                    yearRangeString = it
+                    it.toIntOrNull()?.let { range ->
+                        viewModel.onGeneralSettingsChanged(generalSettings.copy(chartYearRange = range.coerceIn(1, 50)))
+                    }
+                },
+                label = { Text("Chart Year Range") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth(),
+                isError = yearRangeString.toIntOrNull() == null,
+                singleLine = true
+            )
+            Text(
+                "Number of years to show in the Strava chart year view.",
+                style = MaterialTheme.typography.caption,
+                color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f)
+            )
         }
 
         CollapsibleSection(

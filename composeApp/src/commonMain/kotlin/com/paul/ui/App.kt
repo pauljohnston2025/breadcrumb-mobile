@@ -163,9 +163,19 @@ fun App(
                 .fillMaxSize(),
             color = MaterialTheme.colors.primary
         ) {
-            Column(modifier = Modifier.fillMaxSize()) {
+            androidx.compose.foundation.layout.BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                val isLandscape = maxWidth > maxHeight
                 val navController = rememberNavController()
                 val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+
+                // Sidebar fix: Ensure the drawer stays closed on configuration changes (orientation)
+                // unless explicitly opened by the user.
+                LaunchedEffect(isLandscape) {
+                    if (drawerState.isOpen) {
+                        drawerState.close()
+                    }
+                }
+
                 val scope = rememberCoroutineScope()
                 val scaffoldState =
                     rememberScaffoldState(drawerState = drawerState) // Connect scaffold and drawer states
@@ -411,6 +421,7 @@ fun App(
                                             settingsViewModel.tileServerRepo,
                                             fileHelper,
                                             stravaImportService,
+                                            generalSettingsRepository,
                                         )
                                     }
 
