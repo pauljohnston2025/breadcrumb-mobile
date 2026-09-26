@@ -11,8 +11,8 @@
       "type": "SINGLE",
       "filters": [],
       "attributes": [],
-      "versionCode": 316,
-      "versionName": "0.0.21",
+      "versionCode": 346,
+      "versionName": "0.0.22-dirty",
       "outputFile": "composeApp-release.apk"
     }
   ],
